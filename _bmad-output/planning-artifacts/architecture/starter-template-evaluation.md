@@ -33,7 +33,7 @@ npm init -y
 npm install -D typescript tsup @types/node vitest eslint prettier
 
 # 3. 安装核心运行时依赖
-npm install commander @clack/prompts picocolors better-sqlite3 @anthropic-ai/mcp-sdk
+npm install commander @clack/prompts chalk better-sqlite3 @modelcontextprotocol/sdk
 npm install unified remark-parse remark-frontmatter remark-gfm gray-matter
 
 # 4. 配置 TypeScript + tsup + Vitest

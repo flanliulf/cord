@@ -36,7 +36,7 @@
 | 初始化与配置（FR1-5） | 5 | InitService + IDE/Framework Adapters + StatusService | ✅ |
 | 文档扫描与关系发现（FR6-12） | 7 | ScanService + Scanner Pipeline + Lifecycle Detector + Rules + Framework Adapter | ✅ |
 | 关系查询与影响分析（FR13-17） | 5 | QueryService + ImpactService + IGraphRepository 图遍历 | ✅ |
-| 关系管理与修正（FR18-23） | 6 | RelationService + MCP sync_docs Tool + 收敛保护机制 | ✅ |
+| 关系管理与修正（FR18-23） | 6 | RelationService + MCP 关系管理 Tools (add_relation / remove_relation / deprecate_relation) + 收敛保护机制 | ✅ |
 | 数据存储与导出（FR24-27） | 4 | SqliteGraphRepository + ExportService + 迁移机制 | ✅ |
 | AI IDE 集成（FR28-32） | 5 | MCP Server + IDE Adapters + Skills 生成 + 指令文件生成 | ✅ |
 | 框架适配（FR33-37） | 5 | IFrameworkAdapter + AbstractBase + BMAD + Generic | ✅ |

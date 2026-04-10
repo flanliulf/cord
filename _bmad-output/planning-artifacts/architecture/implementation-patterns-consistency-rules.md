@@ -20,8 +20,8 @@
 
 | 维度 | 规则 | 示例 |
 |------|------|------|
-| 文件名 | kebab-case | `scan-service.ts`、`graph-repository.ts`、`cord-error.ts` |
-| 类名 | PascalCase | `ScanService`、`GraphRepository`、`CordError` |
+| 文件名 | kebab-case | `scan-service.ts`、`sqlite-graph-repository.ts`、`errors.ts` |
+| 类名 | PascalCase | `ScanService`、`SqliteGraphRepository`、`CordError` |
 | 函数/方法 | camelCase | `analyzeImpact()`、`queryRelations()`、`getDocumentById()` |
 | 变量 | camelCase | `docPath`、`relationType`、`scanResult` |
 | 常量 | SCREAMING_SNAKE_CASE | `RELATION_TYPES`、`MAX_TRAVERSAL_DEPTH`、`DEFAULT_CONFIDENCE` |
@@ -110,7 +110,7 @@ class ScanService {
 }
 
 // ❌ 错误：直接 import 具体实现
-import { SqliteGraphRepository } from '../repositories/graph-repository.js';
+import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.js';
 ```
 
 ## Format Patterns
@@ -143,7 +143,7 @@ export const RELATION_TYPES = {
 
 ```json
 {
-  "version": "1.0",
+  "schemaVersion": "1.0",
   "exportedAt": "2026-04-07T10:00:00Z",
   "project": "cord-project-name",
   "documents": [],
@@ -177,7 +177,7 @@ async scanDocuments(path: string, incremental: boolean, framework?: string): Pro
 ```
 Service 层 → throw CordError 子类（携带 code + suggestion）
     ↓
-CLI 入口 → catch → picocolors 格式化输出 → process.exit(1)
+CLI 入口 → catch → chalk 格式化输出 → process.exit(1)
 MCP 入口 → catch → 转换为 MCP 标准错误响应
 ```
 

@@ -50,7 +50,7 @@ CORD 包含 42 项功能需求，组织为 8 个功能域：
 | 文档解析 | remark/unified.js | 管道式AST，9核心依赖+6自定义插件 |
 | CLI | Commander.js v14 | 命令模式，子命令懒加载 |
 | 构建 | tsup | TypeScript→JavaScript编译 |
-| 交互 | @clack/prompts + picocolors | CLI交互向导+终端颜色 |
+| 交互 | @clack/prompts + chalk | CLI交互向导+终端颜色（chalk v5+ 纯 ESM） |
 | 可视化 | Mermaid.js v11.13.0（v0.5） | DSL优先，Builder模式生成器 |
 | npm分发 | MVP模式C→v0.5模式A | 渐进式，semantic-release自动化 |
 | 存储抽象 | Repository Pattern（IGraphRepository） | 存储引擎可切换 |
@@ -70,7 +70,7 @@ CORD 包含 42 项功能需求，组织为 8 个功能域：
 
 4. **错误处理与容错**：贯穿所有层的统一错误处理策略——扫描容错跳过、MCP Server优雅退出（SIGTERM handler关闭SQLite+flush日志，进程生命周期由IDE Host管理）、错误信息含上下文和修复建议。
 
-5. **数据前向兼容**：JSON快照格式（NFR15）、关系类型体系（NFR9）、MCP Tools接口（NFR10）——三个维度的向前兼容需要版本策略和迁移机制。
+5. **数据前向兼容**：JSON快照格式（NFR14）、关系类型体系（NFR9）、MCP Tools接口（NFR10）——三个维度的向前兼容需要版本策略和迁移机制。
 
 6. **性能预算**：懒加载（CLI冷启动 < 200ms）、索引优化（查询 < 1ms）、增量处理（无变更扫描 < 100ms）——性能约束贯穿多个架构层。
 

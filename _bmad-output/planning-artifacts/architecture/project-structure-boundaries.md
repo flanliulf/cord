@@ -47,7 +47,10 @@ cord/
 │   │   │   ├── analyze-impact.ts     # analyze_impact — FR15-17, FR28
 │   │   │   ├── query-relations.ts    # query_relations — FR13-14, FR28
 │   │   │   ├── sync-docs.ts          # sync_docs — FR28
-│   │   │   └── init-graph.ts         # init_graph — FR28
+│   │   │   ├── init-graph.ts         # init_graph — FR28
+│   │   │   ├── add-relation.ts       # add_relation — FR18, FR20
+│   │   │   ├── remove-relation.ts    # remove_relation — FR19, FR20
+│   │   │   └── deprecate-relation.ts # deprecate_relation — FR19, FR20
 │   │   ├── server.ts                 # MCP Server 启动，Stdio Transport
 │   │   └── index.ts
 │   │
@@ -200,7 +203,7 @@ cord/
 ├── tsconfig.json
 ├── tsup.config.ts
 ├── vitest.config.ts
-├── .eslintrc.cjs
+├── eslint.config.js
 ├── .prettierrc
 ├── .gitignore
 ├── .npmignore
@@ -286,7 +289,7 @@ SQLite: SELECT FROM relations WHERE source_doc_id = ?
     ↓ BFS 图遍历
 Service: 构建影响结果（受影响文档 + 关系类型 + 建议动作）
     ↓
-CLI: picocolors 格式化终端输出  /  MCP: JSON-RPC 响应
+CLI: chalk 格式化终端输出  /  MCP: JSON-RPC 响应
 ```
 
 ## Cross-Cutting Concerns Mapping

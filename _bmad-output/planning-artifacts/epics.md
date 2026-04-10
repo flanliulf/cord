@@ -6,7 +6,7 @@ stepsCompleted:
   - 'step-04-final-validation'
 inputDocuments:
   - '_bmad-output/planning-artifacts/prd.md'
-  - '_bmad-output/planning-artifacts/architecture.md'
+  - '_bmad-output/planning-artifacts/architecture/index.md'
 ---
 
 # CORD - Epic Breakdown
@@ -244,11 +244,11 @@ So that 我可以立即开始编写符合架构规范的功能代码。
 **Given** 一个空的项目目录
 **When** 执行项目初始化脚本
 **Then** 生成完整的 D5 目录结构（src/ 下 cli/、mcp/、services/、repositories/、scanner/、adapters/、schemas/、utils/、types/ 全部就位）
-**And** package.json 配置 `"type": "module"` + 所有核心依赖（commander、@clack/prompts、picocolors、better-sqlite3、@anthropic-ai/mcp-sdk、unified/remark 生态、zod）
+**And** package.json 配置 `"type": "module"` + 所有核心依赖（commander、@clack/prompts、chalk、better-sqlite3、@modelcontextprotocol/sdk、unified/remark 生态、zod）
 **And** tsconfig.json 启用 strict 模式、ESNext target、NodeNext module resolution
 **And** tsup.config.ts 配置 ESM 输出
 **And** vitest.config.ts 配置就绪，`npm test` 可运行（含一个占位测试通过）
-**And** .eslintrc.cjs + .prettierrc 配置就绪，`npm run lint` 可运行
+**And** eslint.config.js + .prettierrc 配置就绪，`npm run lint` 可运行
 **And** 每个架构层的 index.ts 门面文件创建完毕（空导出）
 **And** tests/ 目录镜像 src/ 结构（unit/、integration/、fixtures/）
 
@@ -270,7 +270,7 @@ So that 所有模块可以使用一致的错误报告和日志输出模式。
 **When** 引入 Logger 日志系统
 **Then** `src/utils/logger.ts` 提供 debug/info/warn/error 四个级别
 **And** 默认隐藏 debug 级别，`CORD_DEBUG=1` 或 `--verbose` 启用
-**And** CLI 模式使用 picocolors 着色输出到 stdout/stderr
+**And** CLI 模式使用 chalk 着色输出到 stdout/stderr
 **And** MCP Server 模式所有日志输出到 stderr（不污染 stdout JSON-RPC 通道）
 **And** 单元测试覆盖所有错误子类和所有日志级别（≥ 90% 覆盖率）
 

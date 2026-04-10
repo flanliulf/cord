@@ -48,18 +48,18 @@
 **D3. 错误处理模式：自定义 Error 类层级**
 
 - **决策：** `CordError` 基类 → `ScanError` / `QueryError` / `ConfigError` / `StorageError` / `AdapterError` 等子类
-- **理由：** 简单务实，与 Node.js 生态习惯一致；CLI 和 MCP 两个入口需要将错误转化为用户可理解的消息；自定义 Error 携带 `code` + `suggestion` 字段满足 NFR20
+- **理由：** 简单务实，与 Node.js 生态习惯一致；CLI 和 MCP 两个入口需要将错误转化为用户可理解的消息；自定义 Error 携带 `code` + `suggestion` 字段满足 NFR19
 - **影响范围：** 全局，所有模块
 - **实现要点：**
   - `CordError` 基类包含 `code: string`、`suggestion: string`、`context: Record<string, unknown>`
-  - CLI 入口层：捕获 CordError，用 picocolors 格式化输出错误信息和修复建议
+  - CLI 入口层：捕获 CordError，用 chalk 格式化输出错误信息和修复建议
   - MCP 入口层：捕获 CordError，转换为 MCP 标准错误响应格式
   - 错误码命名规范：`CORD_SCAN_001`、`CORD_QUERY_001` 等
 
 **D4. 日志策略：自研轻量 Logger**
 
-- **决策：** 自研 debug/info/warn/error 四级 Logger，CLI 用 picocolors 着色输出，MCP 通过 stderr
-- **理由：** CORD 是 CLI 工具，日志面向终端输出（用户可读），不需要结构化 JSON；picocolors 已在技术栈中
+- **决策：** 自研 debug/info/warn/error 四级 Logger，CLI 用 chalk 着色输出，MCP 通过 stderr
+- **理由：** CORD 是 CLI 工具，日志面向终端输出（用户可读），不需要结构化 JSON；chalk v5+ 纯 ESM，与项目 ESM-first 一致
 - **影响范围：** 全局，所有模块
 - **实现要点：**
   - `src/utils/logger.ts` 提供统一 Logger
@@ -92,37 +92,42 @@ src/
 │   │   ├── analyze-impact.ts
 │   │   ├── query-relations.ts
 │   │   ├── sync-docs.ts
-│   │   └── init-graph.ts
+│   │   ├── init-graph.ts
+│   │   ├── add-relation.ts      # FR18/FR20 关系管理
+│   │   ├── remove-relation.ts   # FR19/FR20 关系管理
+│   │   └── deprecate-relation.ts # FR19/FR20 关系管理
 │   └── server.ts           # MCP Server 入口
 ├── services/               # L2 Service 层（核心业务逻辑）
 │   ├── init-service.ts
 │   ├── scan-service.ts
 │   ├── query-service.ts
 │   ├── impact-service.ts
-│   └── relation-service.ts
+│   ├── relation-service.ts
+│   ├── export-service.ts
+│   └── status-service.ts
 ├── repositories/           # L1 Repository 层（数据访问）
-│   ├── graph-repository.ts # IGraphRepository 实现
-│   ├── migrations/         # SQL 迁移脚本
-│   └── schema.ts           # 数据库 schema 定义
+│   ├── sqlite-graph-repository.ts # IGraphRepository 的 SQLite 实现
+│   └── migrations/         # SQL 迁移脚本
 ├── scanner/                # 扫描引擎（策略模式）
 │   ├── pipeline.ts         # remark 处理管道
 │   ├── rules/              # 规则引擎策略
 │   └── types.ts
 ├── adapters/               # 框架适配层（可插拔）
 │   ├── framework/          # IFrameworkAdapter 接口 + 基类
-│   │   ├── interface.ts
+│   │   ├── interfaces.ts
 │   │   ├── abstract-base.ts
 │   │   └── bmad/           # BMAD 适配模块
 │   └── ide/                # IDE 适配层
-│       ├── interface.ts
+│       ├── interfaces.ts
 │       ├── claude-code.ts
 │       ├── cursor.ts
-│       └── vscode-copilot.ts
+│       ├── vscode-copilot.ts
+│       └── codex-cli.ts
 ├── schemas/                # Zod schema 定义
 ├── utils/                  # 公共工具
 │   ├── logger.ts
 │   ├── errors.ts           # CordError 类层级
-│   └── config.ts           # 配置加载
+│   └── config-loader.ts    # 配置加载
 └── types/                  # 全局类型定义
     ├── relations.ts        # 9 种关系类型
     ├── documents.ts

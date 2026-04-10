@@ -255,7 +255,7 @@ CORD 以 npm 包形式分发，提供 CLI + MCP Server 两种接口模式（v0.1
 - 所有命令支持 `--json` 全局 flag，输出机器可读的 JSON 格式（供脚本化集成和 CI/CD 管道使用）
 - 退出码规范：0 = 成功、1 = 运行时错误、2 = 参数/配置错误
 - CLI 采用 Commander.js v14（分层 + 命令模式架构）
-- 辅助工具链：@clack/prompts（交互向导）+ picocolors（终端颜色）+ tsup（构建）
+- 辅助工具链：@clack/prompts（交互向导）+ chalk（终端颜色，v5+ 纯 ESM）+ tsup（构建）
 - 懒加载冷启动 < 200ms
 
 ### MCP Tools 接口
@@ -266,6 +266,9 @@ CORD 以 npm 包形式分发，提供 CLI + MCP Server 两种接口模式（v0.1
 | `query_relations` | 查询文档关联关系（支持按关系类型过滤） | `cord query` |
 | `sync_docs` | 触发关联文档的同步更新建议 | — |
 | `init_graph` | 初始化或重建关系图谱 | `cord scan` |
+| `add_relation` | 手动添加文档间的关系（FR18/FR20） | — |
+| `remove_relation` | 移除已有的文档关系（FR19/FR20） | — |
+| `deprecate_relation` | 标记已有关系为 deprecated（FR19/FR20） | — |
 
 - CLI ↔ MCP 双入口共享 Service 层，互不依赖
 - MCP 采用 TypeScript SDK v1.x + Stdio Transport + Tools 原语优先
