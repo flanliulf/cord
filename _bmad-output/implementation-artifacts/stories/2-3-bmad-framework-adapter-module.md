@@ -38,7 +38,7 @@ So that 我的 BMAD 项目文档关系可以被准确识别，无需手动配置
 |---|--------|---------|---------|
 | 1 | prd | `**/prd*.md` | `_bmad-output/planning-artifacts/prd.md` |
 | 2 | architecture | `**/architecture*.md` | `_bmad-output/planning-artifacts/architecture/` |
-| 3 | epic | `**/epic*.md` | `_bmad-output/planning-artifacts/epics.md` |
+| 3 | epic | `**/epic*.md` | `_bmad-output/planning-artifacts/epics/` |
 | 4 | story | `**/[0-9]-[0-9]-*.md` | `_bmad-output/implementation-artifacts/1-1-*.md` |
 | 5 | sprint-plan | `**/sprint-plan*.md` | `_bmad-output/planning-artifacts/` |
 | 6 | sprint-status | `**/sprint-status*.yaml` | `_bmad-output/implementation-artifacts/` |

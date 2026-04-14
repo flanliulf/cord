@@ -11,7 +11,7 @@ startedAt: '2026-04-08'
 inputDocuments:
   - '_bmad-output/planning-artifacts/prd.md'
   - '_bmad-output/planning-artifacts/architecture.md'
-  - '_bmad-output/planning-artifacts/epics.md'
+  - '_bmad-output/planning-artifacts/epics/index.md'
   - '_bmad-output/planning-artifacts/prd-validation-report.md'
 ---
 
