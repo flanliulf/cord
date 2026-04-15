@@ -152,11 +152,9 @@ export function validateWithCordError<T>(
 }
 ```
 
-### Zod 版本注意
+### Zod 版本说明
 
-- 如果 Story 1.1 选择了 Zod v3.x：使用 `z.object()` / `z.string()` 等标准 API
-- 如果选择了 Zod v4.x：注意 `.parse()` 行为变化，部分高级 API 有 breaking changes
-- `zod-to-json-schema` 依赖需与 Zod 大版本匹配
+本 Story 使用 **Zod v3.x**（`zod@^3.24`），使用 `z.object()` / `z.string()` 等标准 v3 API。`zod-to-json-schema` 依赖需选用与 Zod v3 兼容的版本（`zod-to-json-schema@^3.x`）。
 
 ### P11 Service 方法签名规范
 
@@ -203,7 +201,7 @@ export function validateWithCordError<T>(
 - [Source: prd.md#FR10] — 9 种传播行为类型
 - [Source: prd.md#FR11] — 置信度分数定义
 - [Source: prd.md#cord.config] — 配置 schema 概览
-- [Source: epics.md#Story 1.3] — 验收标准来源
+- [Source: planning-artifacts/epics/epic-1工程就绪开发者可开始编写功能代码.md#Story 1.3] — 验收标准来源
 
 ## Dev Agent Record
 

@@ -15,7 +15,7 @@ So that 所有模块可以使用一致的错误报告和日志输出模式。
 3. **Given** 错误子类已定义 **When** 检查错误码 **Then** 遵循 `CORD_{MODULE}_{NNN}` 命名规范
 4. **Given** Story 1.1 的项目骨架已就绪 **When** 引入 Logger 日志系统 **Then** `src/utils/logger.ts` 提供 debug/info/warn/error 四个级别
 5. **Given** Logger 已定义 **When** 默认状态 **Then** 隐藏 debug 级别，`CORD_DEBUG=1` 或 `--verbose` 启用
-6. **Given** Logger 在 CLI 模式 **When** 输出日志 **Then** 使用 picocolors 着色输出到 stdout/stderr
+6. **Given** Logger 在 CLI 模式 **When** 输出日志 **Then** 使用 chalk 着色输出到 stdout/stderr
 7. **Given** Logger 在 MCP Server 模式 **When** 输出日志 **Then** 所有日志输出到 stderr（不污染 stdout JSON-RPC 通道）
 8. **Given** 错误体系和日志系统已实现 **When** 运行测试 **Then** 单元测试覆盖所有错误子类和所有日志级别（≥ 90% 覆盖率）
 
@@ -37,10 +37,11 @@ So that 所有模块可以使用一致的错误报告和日志输出模式。
   - [ ] 3.1 在 `src/utils/logger.ts` 定义 Logger 类或模块
   - [ ] 3.2 四个级别方法：debug()、info()、warn()、error()
   - [ ] 3.3 运行模式检测：CLI 模式 vs MCP 模式（通过环境变量或初始化参数）
-  - [ ] 3.4 CLI 模式：picocolors 着色，info/warn → stdout，error → stderr
+  - [ ] 3.4 CLI 模式：chalk 着色，info/warn → stdout，error → stderr
   - [ ] 3.5 MCP 模式：所有级别输出到 stderr（P12 规则）
   - [ ] 3.6 debug 级别默认关闭，`CORD_DEBUG=1` 或 verbose 标志启用
   - [ ] 3.7 提供 `setVerbose(boolean)` 和 `setMode('cli' | 'mcp')` 方法
+  - [ ] 3.8 在 `src/cli/index.ts` 中预留 `--verbose` 全局选项接线点：解析 `--verbose` 标志后调用 `logger.setVerbose(true)`（与 Story 1.1 的 CLI 骨架对齐）
 - [ ] Task 4: 更新 index.ts 门面 (AC: #1)
   - [ ] 4.1 更新 `src/utils/index.ts` 导出 CordError 及所有子类
   - [ ] 4.2 更新 `src/utils/index.ts` 导出 Logger
@@ -101,11 +102,11 @@ export class ScanError extends CordError {
 ### Logger 实现要点
 
 - **不要使用 winston/pino 等日志库**——架构决策 D4 明确要求自研轻量 Logger
-- picocolors 着色方案：
-  - debug: `pc.gray()`
-  - info: `pc.cyan()` 或 `pc.blue()`
-  - warn: `pc.yellow()`
-  - error: `pc.red()`
+- chalk 着色方案：
+  - debug: `chalk.gray()`
+  - info: `chalk.cyan()` 或 `chalk.blue()`
+  - warn: `chalk.yellow()`
+  - error: `chalk.red()`
 - stderr 输出使用 `process.stderr.write()`，不是 `console.error()`（避免额外换行处理差异）
 - Logger 应为单例或模块级实例，所有模块共享同一个 Logger
 - MCP 模式判断：可通过 `process.env.CORD_MCP_MODE` 或初始化时显式设置
@@ -115,7 +116,7 @@ export class ScanError extends CordError {
 ```
 Service 层 → throw CordError 子类（携带 code + suggestion）
     ↓
-CLI 入口 → catch → picocolors 格式化 → process.exit(1)
+CLI 入口 → catch → chalk 格式化 → process.exit(1)
 MCP 入口 → catch → 转为 MCP 标准错误响应
 ```
 
@@ -134,7 +135,7 @@ MCP 入口 → catch → 转为 MCP 标准错误响应
 ### 架构约束提醒
 
 - **P6**: 必须通过 `src/utils/index.ts` 导出，其他层通过门面引用
-- **P14**: 导入排序：Node 内置 → picocolors → 内部模块
+- **P14**: 导入排序：Node 内置 → chalk → 内部模块
 - **P15**: 公共 API 必须有 JSDoc 注释
 
 ### Project Structure Notes
@@ -151,7 +152,7 @@ MCP 入口 → catch → 转为 MCP 标准错误响应
 - [Source: architecture/core-architectural-decisions.md#D4] — 自研轻量 Logger
 - [Source: architecture/implementation-patterns-consistency-rules.md#P12] — 错误处理流程
 - [Source: architecture/implementation-patterns-consistency-rules.md#P15] — 注释规范
-- [Source: epics.md#Story 1.2] — 验收标准来源
+- [Source: planning-artifacts/epics/epic-1工程就绪开发者可开始编写功能代码.md#Story 1.2] — 验收标准来源
 
 ## Dev Agent Record
 

@@ -14,7 +14,7 @@ So that Service 层可以通过抽象接口进行图谱数据的 CRUD 操作。
 2. **Given** 接口已定义 **When** 实现 SQLite 存储 **Then** `src/repositories/sqlite-graph-repository.ts` 实现 IGraphRepository，使用 better-sqlite3 同步 API
 3. **Given** 实现需要命名转换 **When** 数据进出 Repository **Then** `src/repositories/mappers.ts` 实现 snake_case ↔ camelCase 双向转换
 4. **Given** 数据库需要初始化 **When** 创建初始 schema **Then** `src/repositories/migrations/001-initial-schema.sql` 创建 documents、relations、sync_states 三张核心表
-5. **Given** 需要自动迁移 **When** 应用启动 **Then** `src/repositories/migrations/runner.ts` 实现迁移执行器——检测 schema_version 并按序执行待执行迁移
+5. **Given** 需要自动迁移 **When** 应用启动 **Then** `src/repositories/migrations/runner.ts` 实现迁移执行器——查询 `schema_migrations` 历史表已执行版本，按序执行未执行的迁移脚本
 6. **Given** 迁移执行中 **When** 发生错误 **Then** 迁移在事务中执行，失败可回滚，数据库一致性保证（NFR15）
 7. **Given** 数据库初始化 **When** 配置 SQLite **Then** 启用 WAL 模式
 8. **Given** 存储层实现完毕 **When** 运行测试 **Then** 单元测试覆盖率 ≥ 85%：CRUD 正常路径 + 迁移执行 + 事务回滚 + mapper 转换
@@ -28,8 +28,9 @@ So that Service 层可以通过抽象接口进行图谱数据的 CRUD 操作。
   - [ ] 1.4 事务支持方法签名
 - [ ] Task 2: 实现数据迁移机制 (AC: #4, #5, #6)
   - [ ] 2.1 创建 `src/repositories/migrations/001-initial-schema.sql`
-  - [ ] 2.2 实现 `src/repositories/migrations/runner.ts` 迁移执行器
+  - [ ] 2.2 实现 `src/repositories/migrations/runner.ts` 迁移执行器，暴露 `runMigrations(db: Database): void` 公共方法
   - [ ] 2.3 迁移使用事务保护，失败回滚
+  - [ ] 2.4 在 `SqliteGraphRepository` 构造函数（Task 4.1）中调用 `runMigrations(db)` 实现启动即迁移；确保首次连接和后续连接均可安全调用（幂等）
 - [ ] Task 3: 实现 mappers (AC: #3)
   - [ ] 3.1 `src/repositories/mappers.ts` — snake_case → camelCase 转换
   - [ ] 3.2 camelCase → snake_case 转换
@@ -200,7 +201,7 @@ CREATE TABLE IF NOT EXISTS sync_states (
 - [Source: architecture/implementation-patterns-consistency-rules.md#P13] — 异步 vs 同步模式
 - [Source: architecture/project-structure-boundaries.md#Architectural-Boundaries] — 层间通信边界
 - [Source: prd.md#FR24-FR27] — 数据存储需求
-- [Source: epics.md#Story 1.4] — 验收标准来源
+- [Source: planning-artifacts/epics/epic-1工程就绪开发者可开始编写功能代码.md#Story 1.4] — 验收标准来源
 
 ## Dev Agent Record
 

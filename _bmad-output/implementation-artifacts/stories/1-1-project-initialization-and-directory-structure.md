@@ -30,7 +30,8 @@ So that 我可以立即开始编写符合架构规范的功能代码。
   - [ ] 2.1 创建 src/ 下全部架构层目录及子目录
   - [ ] 2.2 创建每个层的 index.ts 门面文件（空导出占位）
   - [ ] 2.3 创建 CLI 入口文件 `src/cli/index.ts`（最小 Commander 骨架）
-  - [ ] 2.4 创建 MCP 入口文件 `src/mcp/index.ts`（空导出占位）
+  - [ ] 2.4 创建 MCP 门面文件 `src/mcp/index.ts`（空导出占位）
+  - [ ] 2.5 创建 MCP Server 入口 `src/mcp/server.ts`（最小薄壳占位，与 tsup.config.ts 构建入口对齐）
 - [ ] Task 3: 配置 TypeScript (AC: #3)
   - [ ] 3.1 创建 tsconfig.json（strict、ESNext、NodeNext）
   - [ ] 3.2 配置 paths、include/exclude
@@ -58,23 +59,21 @@ So that 我可以立即开始编写符合架构规范的功能代码。
 
 ### 关键技术栈版本
 
-**根据架构文档和最新稳定版本研究，推荐以下版本：**
-
-> **重要版本决策点：** TypeScript 6.0、ESLint 10、Zod 4 均已发布大版本更新。架构文档撰写于 2026 年 4 月初，部分版本引用可能需要对齐。以下提供保守方案和最新方案供选择。
+**根据架构文档确定以下版本（已收敛，无双分支）：**
 
 **devDependencies：**
 
-| 包 | 保守版本 | 最新版本 | 说明 |
-|----|---------|---------|------|
-| typescript | ^5.8.x | ^6.0.2 | TS 6.0 为大版本更新，若追求稳定建议 5.8 |
-| tsup | ^8.5.1 | ^8.5.1 | ESM-first，内置 TS 支持 |
-| vitest | ^4.1.3 | ^4.1.3 | 当前主线版本 |
-| eslint | ^9.39.4 | ^10.2.0 | **ESLint 10 仅支持 flat config**，见下方说明 |
-| typescript-eslint | ^8.58.1 | ^8.58.1 | 配合 ESLint 使用 |
-| eslint-config-prettier | ^10.1.8 | ^10.1.8 | 关闭与 Prettier 冲突的规则 |
-| prettier | ^3.8.1 | ^3.8.1 | 稳定 |
-| @types/better-sqlite3 | ^7.6.13 | ^7.6.13 | |
-| @types/node | ^20.19.39 | ^20.19.39 | 锁定 Node 20 LTS |
+| 包 | 版本 | 说明 |
+|----|------|------|
+| typescript | ^5.8.x | 稳定版，TS 6.0 存在大版本更新风险暂不采用 |
+| tsup | ^8.5.1 | ESM-first，内置 TS 支持 |
+| vitest | ^4.1.3 | 当前主线版本 |
+| eslint | ^10.2.0 | **ESLint 10 仅支持 flat config（`eslint.config.js`）**，与基线一致 |
+| typescript-eslint | ^8.58.1 | 配合 ESLint 使用 |
+| eslint-config-prettier | ^10.1.8 | 关闭与 Prettier 冲突的规则 |
+| prettier | ^3.8.1 | 稳定 |
+| @types/better-sqlite3 | ^7.6.13 | |
+| @types/node | ^20.19.39 | 锁定 Node 20 LTS |
 
 **dependencies：**
 
@@ -82,7 +81,7 @@ So that 我可以立即开始编写符合架构规范的功能代码。
 |----|------|------|
 | commander | ^14.0.3 | CLI 框架，ESM + CJS 双支持 |
 | @clack/prompts | ^1.2.0 | 交互向导，纯 ESM |
-| picocolors | ^1.1.1 | 终端颜色，零依赖 |
+| chalk | ^5.4.1 | 终端颜色，ESM-only，与 D4 基线一致 |
 | better-sqlite3 | ^12.8.0 | 同步 SQLite API，native addon |
 | @modelcontextprotocol/sdk | ^1.29.0 | MCP 官方 TS SDK（**注意包名不是 @anthropic-ai/mcp-sdk**） |
 | unified | ^11.0.5 | 纯 ESM |
@@ -90,19 +89,16 @@ So that 我可以立即开始编写符合架构规范的功能代码。
 | remark-frontmatter | ^5.0.0 | 纯 ESM |
 | remark-gfm | ^4.0.1 | 纯 ESM |
 | gray-matter | ^4.0.3 | CJS 为主，ESM 需 `esModuleInterop: true` |
-| zod | ^3.24.x 或 ^4.3.6 | Zod 4 有 API breaking changes，架构文档指定 v3.x |
+| zod | ^3.24.2 | 数据验证层，锁定 v3.x（D1 基线决策） |
 
-### ESLint 配置关键决策
+### ESLint 配置方案
 
-**架构文档写了 `.eslintrc.cjs`，但 ESLint 10 已移除对旧配置格式的支持。** 有两个选择：
+使用 **ESLint 10 + flat config（`eslint.config.js`）**，与 `project-context.md` 基线一致（ESLint ≥ v10 已移除 `.eslintrc` 支持，只支持 flat config）。配置文件名为 `eslint.config.js`（`.js` 后缀，非 `.ts`）。
 
-1. **方案 A（推荐）**：使用 ESLint 9.x（最后支持旧配置的版本）+ `.eslintrc.cjs`，与架构文档保持一致
-2. **方案 B**：使用 ESLint 10.x + `eslint.config.ts`（flat config），这是 ESLint 官方推荐方向
+flat config 参考实现：
 
-**建议采用方案 B**（flat config），因为 ESLint 9 将进入维护模式。flat config 示例：
-
-```typescript
-// eslint.config.ts
+```javascript
+// eslint.config.js
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
@@ -118,11 +114,9 @@ export default tseslint.config(
 
 架构文档中写的 `@anthropic-ai/mcp-sdk` 实际包名应为 **`@modelcontextprotocol/sdk`**。这是 MCP 官方 TypeScript SDK。
 
-### Zod 版本决策
+### Zod 版本锁定
 
-架构文档指定 Zod v3.x。**Zod 4 已发布但 API 有 breaking changes。** 建议：
-- 如果追求稳定和文档一致性：使用 `zod@^3.24`
-- 如果追求最新生态和长期维护：使用 `zod@^4.3`（需注意 API 变化）
+架构决策 D1 已锁定 **Zod v3.x**（`zod@^3.24`）。Zod v4 存在 breaking changes，项目不采用。`zod-to-json-schema` 等依赖需与 v3 大版本匹配。
 
 ### tsconfig.json 参考配置
 
@@ -272,7 +266,7 @@ tests/
 - [Source: architecture/implementation-patterns-consistency-rules.md#P1-P16] — 完整实现模式
 - [Source: architecture/project-structure-boundaries.md] — 完整项目目录结构
 - [Source: architecture/starter-template-evaluation.md] — 从零搭建策略和依赖列表
-- [Source: epics.md#Story 1.1] — 验收标准来源
+- [Source: planning-artifacts/epics/epic-1工程就绪开发者可开始编写功能代码.md#Story 1.1] — 验收标准来源
 
 ## Dev Agent Record
 

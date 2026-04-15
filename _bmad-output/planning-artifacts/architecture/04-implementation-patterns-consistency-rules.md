@@ -27,7 +27,7 @@
 | 常量 | SCREAMING_SNAKE_CASE | `RELATION_TYPES`、`MAX_TRAVERSAL_DEPTH`、`DEFAULT_CONFIDENCE` |
 | 接口 | `I` 前缀 + PascalCase | `IGraphRepository`、`IFrameworkAdapter`、`IScanRule` |
 | 类型 | PascalCase（无前缀） | `RelationType`、`DocumentNode`、`ScanResult` |
-| Enum 值 | snake_case | `RelationType.sync_required`、`RelationType.context_for` |
+| 类型常量值 | snake_case 字符串字面量 | `'sync_required'`、`'context_for'`（`RELATION_TYPES as const` 推导的字符串联合类型） |
 | Zod Schema | camelCase + `Schema` 后缀 | `documentSchema`、`relationSchema`、`configSchema` |
 
 **P3. CLI 命令命名约定：**
@@ -74,9 +74,9 @@ tests/
 │   │   └── init-command.test.ts
 │   ├── mcp/
 │   │   └── tools.test.ts
-│   └── scan-to-query-flow.test.ts
+│   └── flows/
 └── fixtures/
-    ├── sample-project/       # 模拟项目目录结构
+    ├── sample-projects/      # 模拟项目目录结构（bmad-project/、generic-project/、empty-project/）
     ├── documents/            # 测试用 Markdown 文档
     └── configs/              # 测试用配置文件
 ```

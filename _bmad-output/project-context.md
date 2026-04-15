@@ -14,6 +14,20 @@ _此文件包含 AI Agent 在本项目中编写代码时必须遵守的关键规
 
 ---
 
+## Rule Document Registry
+
+**凡是确认/修改/新增任何规则、约定或豁免，必须同步更新以下所有文档：**
+
+| 文档 | 职责 |
+|------|------|
+| `_bmad-output/project-context.md` | AI agent 主规则文件，优化为 LLM 消费 |
+| `_bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md` | 实现模式，面向人类可读 |
+| `_bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md` | 技术决策事项记录，面向人类可读 |
+
+> 两份文档内容互为镜像，任何一处规则变更必须同时更新另一处。
+
+---
+
 ## 技术栈与版本
 
 ### 核心技术
@@ -173,9 +187,9 @@ tests/
 ├── integration/   # 按场景组织
 │   ├── cli/
 │   ├── mcp/
-│   └── scan-to-query-flow.test.ts
+│   └── flows/
 └── fixtures/      # 统一测试数据
-    ├── sample-project/
+    ├── sample-projects/  # 模拟项目目录结构（bmad-project/、generic-project/、empty-project/）
     ├── documents/
     └── configs/
 ```
@@ -299,8 +313,9 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 
 **数据库迁移（D2）：**
 - 迁移脚本存放在 `src/repositories/migrations/`
-- 按编号顺序命名：`001_initial.sql`、`002_add_index.sql`
-- 应用启动时自动检测并执行待执行的迁移
+- 按编号顺序命名：`001-initial-schema.sql`、`002-add-index.sql`（kebab-case，与项目文件命名约定 P2 一致）
+- 迁移状态使用 `schema_migrations` 历史表追踪（非单值 schema_version），支持审计和部分回滚
+- 应用启动时查询 `schema_migrations` 表已执行版本后，按序执行未执行的迁移脚本
 - 迁移在事务中执行，失败可回滚
 
 **配置管理（D6）：**
@@ -312,7 +327,8 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 **CI/CD（D7）：**
 - GitHub Actions 作为唯一 CI/CD 平台
 - PR 检查：`lint` + `type-check` + `test` + `coverage`
-- 发布：semantic-release 自动化版本 + npm publish + GitHub Release
+- 发布：semantic-release 为唯一发布 owner（自动化版本 + npm publish + GitHub Release）
+- Release workflow 权限：必须同时声明 `permissions.id-token: write`（npm provenance OIDC）和 `permissions.contents: write`（GitHub Release / tags 创建）；显式声明任意权限时，未声明权限收缩为 `none`
 - 跨平台矩阵：ubuntu / macos / windows（better-sqlite3 native addon 验证）
 - npm provenance 从第一天启用
 

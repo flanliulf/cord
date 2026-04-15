@@ -11,12 +11,12 @@ So that 每个 PR 都经过自动化的 lint、类型检查、测试和覆盖率
 ## Acceptance Criteria (AC)
 
 1. **Given** Story 1.1-1.4 的代码基础已就绪 **When** 配置 CI **Then** `.github/workflows/ci.yml` 配置 PR 检查管道：lint → type-check → test → coverage
-2. **Given** CI 管道就绪 **When** 配置 Release **Then** `.github/workflows/release.yml` 配置 semantic-release + npm publish（可暂为占位）
+2. **Given** CI 管道就绪 **When** 配置 Release **Then** `.github/workflows/release.yml` 配置完整可执行的发布流程：main 分支 push 触发、`permissions.id-token: write`（npm provenance 必须）+ `permissions.contents: write`（GitHub Release 和 tags 创建必须）、由 `semantic-release` 全权负责发布（通过 `@semantic-release/npm` 插件执行 npm publish，在 `npmPublish` 配置中启用 provenance，并由 `@semantic-release/github` 创建 GitHub Release）
 3. **Given** 需要跨平台验证 **When** 配置矩阵测试 **Then** `.github/workflows/cross-platform.yml` 配置跨平台矩阵（ubuntu / macos / windows）验证 better-sqlite3 native addon
 4. **Given** CI 管道运行 **When** 检查覆盖率 **Then** 覆盖率门禁配置：整体 ≥ 80%
 5. **Given** 需要标准化协作流程 **When** 创建模板 **Then** `.github/ISSUE_TEMPLATE/` 和 `PULL_REQUEST_TEMPLATE.md` 创建完毕
 6. **Given** 需要供应链安全 **When** 配置发布 **Then** npm provenance 配置就绪
-7. **Given** 所有配置完成 **When** 本地推送代码 **Then** CI 管道可成功执行（至少 lint + test 通过）
+7. **Given** 所有配置完成 **When** 本地执行验证命令 **Then** `npm run lint && npm run type-check && npm test -- --coverage` 全部通过，覆盖率不低于 80%
 
 ## Tasks / Subtasks
 
@@ -26,9 +26,12 @@ So that 每个 PR 都经过自动化的 lint、类型检查、测试和覆盖率
   - [ ] 1.3 配置覆盖率报告和门禁（≥ 80%）
   - [ ] 1.4 配置 PR 评论覆盖率摘要（可选）
 - [ ] Task 2: 创建 Release 工作流 (AC: #2, #6)
-  - [ ] 2.1 `.github/workflows/release.yml` — semantic-release 配置
-  - [ ] 2.2 npm provenance 配置
-  - [ ] 2.3 安装 semantic-release 相关 devDependencies
+  - [ ] 2.1 `.github/workflows/release.yml` — 触发条件：main 分支 push
+  - [ ] 2.2 配置 workflow 权限：`permissions.id-token: write`（npm provenance 必须）+ `permissions.contents: write`（GitHub Release 和 tags 创建必须）
+  - [ ] 2.3 安装 semantic-release devDependencies：`semantic-release`、`@semantic-release/changelog`、`@semantic-release/git`（`@semantic-release/npm` 和 `@semantic-release/github` 为内置插件）
+  - [ ] 2.4 配置 semantic-release 执行步骤（commit-analyzer → release-notes-generator → changelog → npm → git → github）
+  - [ ] 2.5 在 `@semantic-release/npm` 配置中启用 provenance：`{ "npmPublish": true, "tarballDir": ".", "pkgRoot": "." }`，workflow 中添加 `NPM_CONFIG_PROVENANCE: true` 环境变量
+  - [ ] 2.6 验证 release.yml 语法正确，发布链路完整可执行（semantic-release 为唯一发布 owner）
 - [ ] Task 3: 创建跨平台测试 (AC: #3)
   - [ ] 3.1 `.github/workflows/cross-platform.yml` — ubuntu / macos / windows 矩阵
   - [ ] 3.2 验证 better-sqlite3 在各平台编译通过
@@ -37,7 +40,7 @@ So that 每个 PR 都经过自动化的 lint、类型检查、测试和覆盖率
   - [ ] 4.2 `.github/ISSUE_TEMPLATE/feature-request.yml`
   - [ ] 4.3 `.github/PULL_REQUEST_TEMPLATE.md`
 - [ ] Task 5: 本地验证 (AC: #7)
-  - [ ] 5.1 确保 `npm run lint && npm run type-check && npm test` 全部通过
+  - [ ] 5.1 本地执行 `npm run lint && npm run type-check && npm test -- --coverage` 全部通过
   - [ ] 5.2 确保 CI 工作流 YAML 语法正确
 
 ## Dev Notes
@@ -90,8 +93,10 @@ CI 门禁当前阶段设整体 ≥ 80%，后续根据分层目标细化。
 
 ### semantic-release 配置
 
+`semantic-release` 是唯一发布 owner，全权负责 npm publish 和 GitHub Release 创建。
+
 ```json
-// package.json 或 .releaserc.json
+// .releaserc.json
 {
   "branches": ["main"],
   "plugins": [
@@ -99,6 +104,7 @@ CI 门禁当前阶段设整体 ≥ 80%，后续根据分层目标细化。
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
     "@semantic-release/npm",
+    "@semantic-release/git",
     "@semantic-release/github"
   ]
 }
@@ -109,9 +115,22 @@ CI 门禁当前阶段设整体 ≥ 80%，后续根据分层目标细化。
 - `@semantic-release/changelog`
 - `@semantic-release/git`
 
+（`@semantic-release/npm` 和 `@semantic-release/github` 为内置插件，不需要额外安装）
+
 ### npm provenance
 
-在 release workflow 中的 npm publish 步骤添加 `--provenance` flag，并确保 `permissions.id-token: write`。
+由 `@semantic-release/npm` 插件负责执行 npm publish。在 release workflow 中通过环境变量启用 provenance：
+
+```yaml
+env:
+  NPM_CONFIG_PROVENANCE: true
+```
+
+确保以下两项权限同时配置（当 workflow 显式声明任意一项权限时，GitHub Actions 会将所有未声明权限收缩为 `none`）：
+- `permissions.id-token: write`（OIDC token，npm provenance 必须）
+- `permissions.contents: write`（GitHub Release 和 tags 创建必须，`@semantic-release/github` 依赖此权限）
+
+**禁止**在 workflow 中单独添加 `npm publish` 步骤，以避免重复发布。
 
 ### PR 模板建议
 
@@ -157,7 +176,7 @@ CI 门禁当前阶段设整体 ≥ 80%，后续根据分层目标细化。
 - [Source: architecture/core-architectural-decisions.md#D8] — 80%+ 代码覆盖率
 - [Source: architecture/project-structure-boundaries.md] — .github/ 目录结构
 - [Source: prd.md#NFR15] — 数据库一致性
-- [Source: epics.md#Story 1.5] — 验收标准来源
+- [Source: planning-artifacts/epics/epic-1工程就绪开发者可开始编写功能代码.md#Story 1.5] — 验收标准来源
 
 ## Dev Agent Record
 

@@ -127,7 +127,7 @@ cord/
 │   │   └── index.ts
 │   │
 │   └── types/                        # 全局类型定义
-│       ├── relations.ts              # 9 种关系类型 + RelationType 枚举
+│       ├── relations.ts              # 9 种关系类型常量（RELATION_TYPES as const）+ RelationType 字符串联合类型
 │       ├── documents.ts              # DocumentNode 类型
 │       ├── graph.ts                  # 图遍历相关类型
 │       ├── config.ts                 # 配置类型

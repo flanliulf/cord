@@ -34,14 +34,14 @@
 
 **D2. 数据迁移策略：版本号 + 增量 SQL 脚本**
 
-- **决策：** 数据库内存储 `schema_version`，应用启动时检测版本差异，按序执行迁移脚本
+- **决策：** 使用 `schema_migrations` 历史表追踪已执行迁移，应用启动时查询已执行版本后按序执行待执行脚本（支持审计和部分回滚，比单值 schema_version 更灵活）
 - **理由：** CORD 是嵌入式本地数据库，不需要 ORM 级别的迁移框架；用户手动添加的关系必须保留，排除按需重建方案
 - **影响范围：** Repository 层、应用启动流程
 - **实现要点：**
-  - `src/repositories/migrations/` 目录存放有序编号的 SQL 脚本（`001_initial.sql`、`002_add_index.sql`...）
+  - `src/repositories/migrations/` 目录存放有序编号的 SQL 脚本（`001-initial-schema.sql`、`002-add-index.sql`...，kebab-case 命名）
   - 应用启动时 Repository 层自动检测并执行待执行的迁移
   - 迁移在事务中执行，失败可回滚
-  - `cord status` 展示当前 schema 版本
+  - `cord status` 展示当前已执行迁移版本数及最新版本号
 
 ## Error Handling & Logging
 
@@ -156,7 +156,8 @@ src/
 - **影响范围：** 发布流程、PR 质量门禁
 - **实现要点：**
   - PR 检查：lint + type-check + test + coverage
-  - 发布流程：semantic-release 自动化版本 + npm publish + GitHub Release
+  - 发布流程：semantic-release 为唯一发布 owner（自动化版本 + npm publish + GitHub Release）
+  - Release workflow 权限：必须同时声明 `permissions.id-token: write`（npm provenance OIDC）和 `permissions.contents: write`（GitHub Release / tags 创建）；显式声明任意权限时，未声明权限收缩为 `none`
   - 跨平台矩阵：ubuntu / macos / windows（better-sqlite3 native addon 验证）
   - npm provenance 从第一天启用
 
