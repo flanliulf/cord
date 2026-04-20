@@ -72,6 +72,7 @@ export interface DiscoveredRelation {
   targetDoc: string;         // 目标文档路径
   relationType: RelationType;
   confidence: number;        // 0.0 - 1.0
+  source: RelationSource;    // 'auto_scan' | 'framework_preset'（默认 'auto_scan'）
   ruleName: string;          // 发现该关系的规则名
   metadata?: Record<string, unknown>;
 }
@@ -81,6 +82,18 @@ export interface ScanPipelineResult {
   relations: DiscoveredRelation[];
   warnings: string[];
 }
+
+/**
+ * pipeline.process 返回 ScanPipelineResult | null
+ * - null（跳过）：文件大小 > 1MB 或非 .md 扩展名 → 调用 pipeline.process 前预检过滤直接返回 null
+ *                 编码错误 → pipeline 内部 try-catch 捕获后返回 null 并记录 warning
+ * - 非 null（成功）：结果进入 docType classify 和写入计划
+ *
+ * 跳过形状契约（预检前移方案）：
+ * - Task 5.1（大小）/ Task 5.2（非 .md）：在 ScanService 步骤 3→4 之间进行预检，跳过条件命中时
+ *   直接推入 warnings（不调用 pipeline.process），继续处理下一个文件
+ * - Task 5.3（编码错误）：pipeline 内部 try-catch，catch 时返回 null，调用方判断 null 后跳过
+ */
 ```
 
 ### IScanRule 接口
@@ -101,8 +114,10 @@ export interface IScanRule {
 
 **markdown-link-rule（≥ 0.85）：**
 - 提取所有 `[text](path)` 格式的链接
-- 只处理相对路径的 .md 文件链接
-- 解析相对路径为绝对路径（基于文档所在目录）
+- 同时处理相对路径和绝对路径的 .md 文件链接
+- 相对路径：基于文档所在目录解析为项目根相对路径
+- 绝对路径（以 `/` 开头）：相对于项目根目录解析
+- 跳过外部链接（http/https）和锚点链接（#）
 - 关系类型默认 `references`
 
 **directory-rule（0.50-0.70）：**

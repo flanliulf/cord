@@ -59,8 +59,9 @@ import type { DocumentNode, RelationEdge, RelationSource, RelationType } from '.
 export interface SyncState {
   docId: string;
   lastScannedAt: string;     // ISO 8601
+  lastObservedMtimeMs: number; // 上次扫描时观测到的文件 mtimeMs（用于增量扫描变更检测，Story 2.6 依赖）
   contentHash: string;
-  status: 'synced' | 'modified' | 'deleted';
+  status: 'synced' | 'modified';  // v0.1 硬删除 + CASCADE，deleted 无需持久化
 }
 
 export interface IGraphRepository {
@@ -71,6 +72,7 @@ export interface IGraphRepository {
   getAllDocuments(): DocumentNode[];
   updateDocument(id: string, updates: Partial<DocumentNode>): DocumentNode;
   deleteDocument(id: string): void;
+  deleteAllDocuments(): void;
 
   // 关系边操作
   addRelation(rel: Omit<RelationEdge, 'id' | 'createdAt' | 'updatedAt'>): RelationEdge;
@@ -79,7 +81,9 @@ export interface IGraphRepository {
   getRelationsByType(relationType: RelationType): RelationEdge[];
   updateRelation(id: string, updates: Partial<RelationEdge>): RelationEdge;
   deleteRelation(id: string): void;
-  deleteRelationsByDocId(docId: string): void;
+  deleteRelationsByDocId(docId: string, direction?: 'source' | 'target' | 'both'): void;
+  // direction 默认 'both'；增量扫描重建 modified 文档关系时使用 'source'，仅删除 outgoing 边，
+  // 避免删除其他未扫描文档指向本文档的 inbound 边
 
   // 同步状态
   getSyncState(docId: string): SyncState | null;
@@ -145,8 +149,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_unique_pair ON relations(source_
 CREATE TABLE IF NOT EXISTS sync_states (
   doc_id TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
   last_scanned_at TEXT NOT NULL,
+  last_observed_mtime_ms INTEGER,  -- 上次扫描时观测到的文件 mtimeMs（Story 2.6 增量扫描依赖）
   content_hash TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'synced',  -- synced | modified | deleted
+  status TEXT NOT NULL DEFAULT 'synced',  -- synced | modified（v0.1 硬删除 + CASCADE，deleted 无需持久化）
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```

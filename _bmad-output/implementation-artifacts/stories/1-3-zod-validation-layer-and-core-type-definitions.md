@@ -118,7 +118,7 @@ export interface CordConfig {
   scanPaths?: string[];      // 文档扫描路径
   excludePaths?: string[];   // 排除路径，默认 ["src/", "node_modules/", ".git/", "dist/"]
   confidenceThreshold?: number;  // 影响分析最低置信度阈值，默认 0.50
-  relationTypes?: Record<string, unknown>;  // 自定义关系类型扩展
+  relationTypes?: Partial<Record<RelationType, { enabled: boolean }>>;  // 已有 9 类关系的启用/禁用配置（不支持扩展新类型），与 Story 2.4 的 relationTypes 语义对齐
   adapters?: string[];       // 启用的框架适配模块
 }
 ```

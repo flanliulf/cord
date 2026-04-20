@@ -1,6 +1,6 @@
 # Epic 2：文档扫描与关系图谱构建
 
-用户可以运行 `cord scan` 对项目文档执行冷启动扫描，自动发现文档间的关系并建立关系图谱（SQLite 存储）。支持增量扫描、文档生命周期检测（重命名/移动/删除）、置信度评分。BMAD 框架用户开箱即用（18 种文档类型 + 预设规则），无框架用户通过通用规则引擎获得基础体验。
+用户可以运行 `cord scan` 对项目文档执行冷启动扫描，自动发现文档间的关系并建立关系图谱（SQLite 存储）。支持增量扫描、文档生命周期检测（重命名/移动/删除）、置信度评分。BMAD 框架用户开箱即用（16 种 v0.1 Markdown 文档类型 + 预设规则），无框架用户通过通用规则引擎获得基础体验。
 
 ## Story 2.1：框架适配器接口与通用规则退化
 
@@ -55,11 +55,11 @@ So that 我的 BMAD 项目文档关系可以被准确识别，无需手动配置
 **Given** Story 2.1 的适配器接口和 Story 2.2 的扫描引擎已就绪
 **When** 实现 BMAD 适配模块
 **Then** `src/adapters/framework/bmad/adapter.ts` 实现 BmadFrameworkAdapter（extends AbstractFrameworkAdapter）
-**And** `src/adapters/framework/bmad/doc-types.ts` 定义 18 种 BMAD 文档类型（PRD、Architecture、Epic、Story、Sprint、技术研究等）
+**And** `src/adapters/framework/bmad/doc-types.ts` 定义 16 种 v0.1 Markdown BMAD 文档类型（PRD、Architecture、Epic、Story、Sprint 等，YAML 类型延至 v0.2）
 **And** `src/adapters/framework/bmad/preset-rules.ts` 定义预设关系规则（例如：PRD ↔ Architecture 为 sync_required、Epic → Story 为 contains）
 **And** `src/adapters/framework/bmad/detector.ts` 实现 5 层递进检测策略（检测项目是否使用 BMAD 框架）
 **And** 框架预设规则的置信度 ≥ 0.90（FR11）
-**And** 单元测试覆盖：18 种文档类型识别 + 预设规则匹配 + 框架检测逻辑（≥ 80%）
+**And** 单元测试覆盖：16 种 v0.1 文档类型识别 + 预设规则匹配 + 框架检测逻辑（≥ 80%）
 
 ## Story 2.4：配置加载与文档管辖范围
 
@@ -77,7 +77,7 @@ So that 我可以自定义哪些文档被扫描、哪些路径被排除。
 **And** 所有配置项均为可选，未配置时使用合理默认值
 **And** 系统管辖范围包括框架产出文档、AI IDE 指令规范文档、用户自行产生的文档（FR38）
 **And** 明确排除 src/、node_modules/、.git/、dist/ 目录（FR39）
-**And** 支持已支持框架和 IDE 的预设文档路径配置（FR40）
+**And** 支持已支持框架的预设文档路径配置（FR40）（v0.1：仅支持框架预设路径；IDE 预设路径延至 Epic 5）
 **And** 用户可通过 cord.config 自定义扩展或覆盖预设配置（FR41）
 **And** 单元测试覆盖：YAML/JSON 加载 + Zod 验证通过/失败 + 默认值回退 + 路径排除
 
@@ -94,7 +94,7 @@ So that 文档间的关系图谱从零建立，我可以看到文档之间有哪
 **Then** `src/services/scan-service.ts` 编排完整扫描流程：加载配置 → 发现文档 → 调用 Scanner 管道 → 写入 Repository
 **And** 扫描过程在事务中执行，异常中断不产生脏数据（NFR15）
 **And** 扫描结果写入 documents 表（文档节点）和 relations 表（关系边），并更新 sync_states 表
-**And** 每条关系记录来源为"自动扫描"（FR21）
+**And** scan rule 产出的关系来源标记为 `auto_scan`，adapter preset rule 产出的关系来源标记为 `framework_preset`（FR21 + RelationSource 三值契约）
 **And** `src/cli/commands/scan.ts` 实现 `cord scan` CLI 命令（薄壳——参数解析 → 调用 ScanService → 格式化输出）
 **And** CLI 输出人类可读格式：发现关系数 + 耗时 + 警告
 **And** 支持 `--json` 全局 flag 输出 JSON 格式
@@ -114,7 +114,7 @@ So that 日常使用中扫描速度极快，且图谱自动保持与文件系统
 **Given** Story 2.5 的冷启动扫描已就绪
 **When** 执行增量扫描
 **Then** `src/scanner/lifecycle-detector.ts` 实现文档生命周期检测——对比文件系统快照与图谱记录的路径
-**And** 检测到文档重命名时，更新图谱中的文档路径和相关关系边
+**And** 检测到文档重命名时，更新图谱中的文档路径（v0.1：仅更新路径；路径敏感的 docType 重分类与 preset 关系刷新延至 v0.2）
 **And** 检测到文档移动时，更新文档路径
 **And** 检测到文档删除时，清理孤立节点和失效关系边（FR8）
 **And** 增量扫描仅处理 mtime 变更的文档（FR7）

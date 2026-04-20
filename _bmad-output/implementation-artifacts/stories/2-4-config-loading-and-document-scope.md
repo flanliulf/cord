@@ -12,11 +12,11 @@ So that 我可以自定义哪些文档被扫描、哪些路径被排除。
 
 1. **Given** Stories 2.1-2.3 就绪 **When** 实现配置加载 **Then** `src/utils/config-loader.ts` 支持加载 `cord.config.yaml`（优先）和 `cord.config.json`
 2. **Given** 配置加载 **When** 验证 **Then** 配置通过 Zod schema 验证
-3. **Given** 配置系统 **When** 检查配置项 **Then** 支持 7 项配置：framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters
+3. **Given** 配置系统 **When** 检查配置项 **Then** 支持 7 项配置：framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters（其中 `relationTypes` 为已有 9 类关系的启用/禁用配置，不支持扩展新类型）
 4. **Given** 未配置时 **When** 使用默认值 **Then** 所有配置项均可选，使用合理默认值
-5. **Given** 管辖范围 **When** 检查 **Then** 包括框架产出文档、AI IDE 指令规范文档、用户文档（FR38）
+5. **Given** 管辖范围 **When** 检查 **Then** 包括框架产出文档、AI IDE 指令规范文档、用户文档（FR38）（v0.1：AI IDE 指令规范文档通过手动配置 scanPaths 包含；IDE adapter 预设路径属 Epic 5 范围，v0.1 不实现）
 6. **Given** 排除规则 **When** 检查 **Then** 排除 src/、node_modules/、.git/、dist/（FR39）
-7. **Given** 框架预设 **When** 检查 **Then** 支持已支持框架和 IDE 的预设文档路径（FR40）
+7. **Given** 框架预设 **When** 检查 **Then** 支持已支持框架的预设文档路径（FR40）（v0.1：仅支持框架预设路径；IDE 预设路径延至 Epic 5，config.ide 存在时 v0.1 始终跳过）
 8. **Given** 用户自定义 **When** 覆盖配置 **Then** 用户配置可覆盖预设（FR41）
 9. **Given** 实现完毕 **When** 运行测试 **Then** 覆盖 YAML/JSON 加载 + Zod 验证 + 默认值回退 + 路径排除
 
@@ -24,13 +24,13 @@ So that 我可以自定义哪些文档被扫描、哪些路径被排除。
 
 - [ ] Task 1: 实现 config-loader.ts (AC: #1, #2, #3, #4)
   - [ ] 1.1 加载优先级：cord.config.yaml > cord.config.json
-  - [ ] 1.2 Zod schema 验证
+  - [ ] 1.2 复用 `src/schemas/config.ts` 的 `configSchema` 进行 Zod schema 验证（与 Story 1.3 共享 schema，禁止创建私有 schema）
   - [ ] 1.3 默认值合并
 - [ ] Task 2: 默认配置定义 (AC: #4, #6)
   - [ ] 2.1 默认 excludePaths: ["src/", "node_modules/", ".git/", "dist/"]
   - [ ] 2.2 默认 confidenceThreshold: 0.50
   - [ ] 2.3 默认 scanPaths: ["."]
-- [ ] Task 3: 框架/IDE 预设路径集成 (AC: #5, #7, #8)
+- [ ] Task 3: 框架预设路径集成（IDE 预设路径延至 Epic 5）(AC: #5, #7, #8)
 - [ ] Task 4: 更新 index.ts 门面
 - [ ] Task 5: 编写测试 (AC: #9)
 
@@ -58,8 +58,37 @@ const DEFAULT_CONFIG: CordConfig = {
   scanPaths: ['.'],
   excludePaths: ['src/', 'node_modules/', '.git/', 'dist/', '.cord/'],
   confidenceThreshold: 0.50,
+  // framework: undefined — 未指定时由 adapter resolution 自动检测
+  // ide: undefined — 未指定时不启用 IDE 特定文档路径
+  // relationTypes: undefined — 未指定时 9 类关系全部启用
+  // adapters: undefined — 未指定时使用内置 adapter registry
 };
 ```
+
+### relationTypes 语义说明
+
+`relationTypes` 的产品语义为「对已有 9 类关系的启用/禁用配置」，**不支持扩展新关系类型**。这与 Story 1.3 的 `RELATION_TYPES` (`as const` 9 种固定类型) 保持一致。
+
+```typescript
+// 示例配置：禁用特定关系类型
+relationTypes:
+  references: { enabled: true }
+  contains: { enabled: true }
+  deprecated: { enabled: false }  // 禁用该类型的自动发现
+```
+
+### effectiveScanPaths 计算契约
+
+config-loader 导出的 `loadConfig()` 返回 `CordConfig` 后，ScanService（Story 2.5）需要将用户配置、框架预设路径和默认值组合为一个确定性的 **有效扫描路径集合（effectiveScanPaths）**。规则如下：
+
+1. **基础路径**：`config.scanPaths`（默认 `['.']`）
+2. **框架预设追加**：已解析的框架 adapter 的 `getScanPaths(config)` 返回的路径**追加**到基础路径（不替换）
+3. **IDE 预设追加**：`config.ide` 已配置时，通过对应 IDE adapter 的 `getScanPaths(config)` 追加 IDE 特定路径（如 AI IDE 指令规范目录）；`config.ide` 未配置时跳过此步骤（v0.1：IDE adapter 属 Epic 5 范围，尚未实现；v0.1 中 `config.ide` 默认为空，此步骤始终跳过）
+4. **排除过滤**：`config.excludePaths` + 框架/IDE adapter 的 `getExcludePaths(config)` 在最终路径上统一过滤
+5. **优先级**：用户 `excludePaths` > 框架/IDE 预设 `excludePaths` > 默认排除（`src/`、`node_modules/`、`.git/`、`dist/`）
+6. **glob 生效范围**：Story 2.3 的文档类型 glob（如 `**/*validation*.md`）仅在 effectiveScanPaths 发现的候选文件上匹配，不在全仓库范围匹配
+
+> **设计决策**：effectiveScanPaths 的计算逻辑位于 ScanService.scan() 方法中（Story 2.5 步骤 2b，步骤 3 之前），而非 config-loader 中。config-loader 只负责加载和验证配置，不依赖 adapter。
 
 ### 架构约束
 

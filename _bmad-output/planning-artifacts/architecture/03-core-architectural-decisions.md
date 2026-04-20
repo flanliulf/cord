@@ -145,7 +145,7 @@ src/
   - `cord init` 默认生成 `cord.config.yaml` + `.cord/` 数据目录（可通过 `--format json` 生成 `cord.config.json`）
   - 配置加载策略：按 `cord.config.yaml` → `cord.config.json` 顺序检测，找到第一个即停止
   - JSON Schema 发布到 schemastore.org（后期），本地通过 YAML 文件头 `# yaml-language-server: $schema=...` 或 JSON `"$schema"` 字段引用
-  - 配置项（7 项，对齐 PRD cord.config schema）：`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（自定义关系类型扩展）、`adapters`（启用的框架适配模块）；所有配置项均可选，`cord init` 自动生成合理默认值
+  - 配置项（7 项，对齐 PRD cord.config schema）：`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（关系类型启用/禁用配置，9 个内置类型默认全部启用）、`adapters`（启用的框架适配模块）；所有配置项均可选，`cord init` 自动生成合理默认值
 
 ## CI/CD & Quality Gates
 

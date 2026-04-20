@@ -30,7 +30,10 @@ So that 扫描引擎可以在无框架时通过通用规则引擎进行关系发
   - [ ] 3.2 默认排除 src/、node_modules/、.git/、dist/
   - [ ] 3.3 detectFramework() 始终返回 true（兜底适配器）
 - [ ] Task 4: 更新 index.ts 门面 (AC: #6)
+  - [ ] 4.1 维护 adapter registry 数组，GenericFrameworkAdapter 始终在末尾
+  - [ ] 4.2 导出 `resolveAdapter(config, projectRoot)` 函数
 - [ ] Task 5: 编写单元测试 (AC: #7)
+  - [ ] 5.4 adapter resolution 测试：显式指定 / 自动检测优先级 / generic 兜底 / 无效名称报错
 
 ## Dev Notes
 
@@ -58,7 +61,9 @@ export interface IFrameworkAdapter {
   getPresetRules(): PresetRule[];
   getScanPaths(config: CordConfig): string[];
   getExcludePaths(config: CordConfig): string[];
-  discoverDocuments(projectRoot: string, config: CordConfig): string[];
+  discoverDocuments(projectRoot: string, scanPaths: string[], excludePaths: string[]): string[];
+  // 注意：discoverDocuments 接收由 ScanService.computeEffectiveScanPaths() 预计算的最终路径列表，
+  // 不再直接消费 CordConfig。effectiveScanPaths 计算逻辑见 Story 2.4 契约。
 }
 ```
 
@@ -75,6 +80,28 @@ export interface IFrameworkAdapter {
 - `getDocumentTypes()` 返回空数组（无特定文档类型）
 - `getPresetRules()` 返回空数组（无预设规则）
 - 纯依赖 scanPaths/excludePaths 和通用规则引擎
+
+### Adapter Resolution 契约
+
+适配器选择算法定义统一的优先级规则，确保适配器行为确定、可预测：
+
+1. **显式指定**：`config.framework` 非空时，直接加载指定的适配器（如 `'bmad'`），跳过检测
+2. **自动检测**：`config.framework` 为空时，按注册顺序依次调用每个适配器的 `detectFramework(projectRoot)`，**首个返回 `true` 的适配器命中**
+3. **Generic 兜底**：GenericFrameworkAdapter 注册顺序必须为**最后一个**（`detectFramework()` 恒真），仅在所有特定适配器均未命中时生效
+
+```typescript
+// 伪代码：adapter resolution
+function resolveAdapter(config: CordConfig, projectRoot: string, registry: IFrameworkAdapter[]): IFrameworkAdapter {
+  if (config.framework) {
+    return registry.find(a => a.name === config.framework) ?? throwConfigError(...);
+  }
+  // registry 末尾始终是 GenericFrameworkAdapter
+  return registry.find(a => a.detectFramework(projectRoot))!;
+}
+```
+
+- 注册表（registry）由 `src/adapters/framework/index.ts` 维护，顺序为：`[BmadFrameworkAdapter, ..., GenericFrameworkAdapter]`
+- 当 `config.framework` 指定的名称不在 registry 中时，抛出 `ConfigError`
 
 ### 架构约束
 

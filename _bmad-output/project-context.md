@@ -150,7 +150,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 **框架适配器模式（Epic 2）：**
 - `IFrameworkAdapter` 接口 → `AbstractFrameworkAdapter` 基类 → 具体适配器
 - `GenericFrameworkAdapter` 作为兜底（无预设规则，仅基础 frontmatter 扫描）
-- `BmadFrameworkAdapter` 作为参考实现（18 种文档类型、5 层检测）
+- `BmadFrameworkAdapter` 作为参考实现（18 种文档类型，v0.1 仅实现 Markdown 16 种，YAML 2 种延至 v0.2；5 层检测；详见 Story 2.3）
 - 新增框架适配**不得修改核心模块源码**（NFR8）
 
 **IDE 适配器模式（Epic 5）：**

@@ -13,7 +13,7 @@ So that 文档间的关系图谱从零建立，我可以看到文档之间有哪
 1. **Given** Story 2.2 扫描引擎和 Story 2.4 配置加载就绪 **When** 执行冷启动扫描 **Then** `src/services/scan-service.ts` 编排完整扫描流程
 2. **Given** 扫描执行中 **When** 发生异常 **Then** 事务保护，异常中断不产生脏数据（NFR15）
 3. **Given** 扫描完成 **When** 检查数据库 **Then** 结果写入 documents、relations、sync_states 表
-4. **Given** 关系记录 **When** 检查来源 **Then** 来源标记为 auto_scan（FR21）
+4. **Given** 关系记录 **When** 检查来源 **Then** scan rule 产出的关系来源标记为 `auto_scan`，adapter preset rule 产出的关系来源标记为 `framework_preset`（FR21 + Story 1.3 RelationSource 三值契约）
 5. **Given** CLI 命令 **When** 实现 **Then** `src/cli/commands/scan.ts` 薄壳命令
 6. **Given** CLI 输出 **When** 完成 **Then** 人类可读格式：发现关系数 + 耗时 + 警告
 7. **Given** --json flag **When** 传入 **Then** 输出 JSON 格式
@@ -25,10 +25,15 @@ So that 文档间的关系图谱从零建立，我可以看到文档之间有哪
 ## Tasks / Subtasks
 
 - [ ] Task 1: 实现 ScanService (AC: #1, #2, #3, #4)
-  - [ ] 1.1 `src/services/scan-service.ts` — 构造函数注入 IGraphRepository + pipeline + adapter
-  - [ ] 1.2 scan() 方法：loadConfig → discoverDocuments → pipeline.process → repo 写入
-  - [ ] 1.3 事务包装保证原子性
-  - [ ] 1.4 --rebuild：先清空数据再全量扫描
+  - [ ] 1.1 `src/services/scan-service.ts` — 构造函数注入 IGraphRepository + pipeline + adapter registry
+  - [ ] 1.2 resolveAdapter() 选择适配器（参见 Story 2.1 Adapter Resolution 契约）
+  - [ ] 1.3 scan() 方法：loadConfig → resolveAdapter → computeEffectiveScanPaths → discoverDocuments → pipeline.process → docType classify → preset merge → merge/dedupe → relationTypes 过滤 → 事务写入
+  - [ ] 1.4 docType classify：用 adapter.getDocumentTypes() 对 ParsedDocument 匹配文档类型
+  - [ ] 1.5 preset merge：用 adapter.getPresetRules() 根据已分类文档生成预设关系（source: 'framework_preset'）
+  - [ ] 1.6 merge/dedupe：scan results + preset results 去重，同 (sourceDoc, targetDoc, relationType) 保留高置信度
+  - [ ] 1.6b relationTypes 过滤：按 config.relationTypes 移除 enabled: false 的关系类型条目
+  - [ ] 1.7 事务包装保证原子性（参见下方事务契约）
+  - [ ] 1.8 --rebuild：同事务内 `deleteAllDocuments()`（级联清除全部关系和同步状态）+ INSERT ALL 全量重建
 - [ ] Task 2: 实现 CLI 命令 (AC: #5, #6, #7, #8)
   - [ ] 2.1 `src/cli/commands/scan.ts` — 薄壳：参数解析 → ScanService → 格式化输出
 - [ ] Task 3: 创建测试 fixtures (AC: #11)
@@ -44,15 +49,27 @@ So that 文档间的关系图谱从零建立，我可以看到文档之间有哪
 ```
 scan(input: ScanInput): Promise<ScanResult>
 1. loadConfig(projectRoot)
-2. adapter.discoverDocuments(projectRoot, config) → filePaths[]
-3. for each filePath: pipeline.process(filePath) → ParsedDocument + DiscoveredRelation[]
-4. transaction {
-     for each doc: repo.addDocument(doc)
-     for each relation: repo.addRelation(relation)
-     for each doc: repo.upsertSyncState(state)
-   }
-5. return ScanResult { documentsFound, relationsDiscovered, warnings, duration }
+2. adapter = resolveAdapter(config, projectRoot)
+2b. computeEffectiveScanPaths(config, adapter) → { scanPaths: string[], excludePaths: string[] }
+    （依据 Story 2.4 effectiveScanPaths 契约：基础路径 + framework/IDE 预设追加 + 排除过滤）
+3. adapter.discoverDocuments(projectRoot, scanPaths, excludePaths) → filePaths[]
+4. for each filePath:
+   - 预检（大小 > 1MB 或非 .md）→ 跳过，追加到 allWarnings[]，继续下一文件
+   - pipeline.process(filePath) → ScanPipelineResult | null
+     null（编码错误）→ 跳过，追加到 allWarnings[]，继续下一文件
+     非 null → ScanPipelineResult { document, relations (source: 'auto_scan'), warnings }
+5. docType classify: adapter.getDocumentTypes() → 对每个 document 匹配文档类型
+6. preset merge: adapter.getPresetRules() → 根据文档类型匹配生成预设关系 (source: 'framework_preset')
+7. merge/dedupe: scan results + preset results → 去重（同 source+target+type 以高置信度优先）
+7b. warnings 聚合: allResults.flatMap(r => r.warnings) 合并到 allWarnings[]（与步骤 4 中跳过产生的 warnings 追加到同一数组，最终统一返回给 CLI）
+7c. relationTypes 过滤: 按 config.relationTypes 对 relations 过滤，移除 enabled: false 的类型条目
+8. transaction { 批量写入 documents / relations / sync_states }
+9. return ScanResult { documentsFound, relationsDiscovered, warnings: allWarnings, duration }
 ```
+
+> **数据流说明**：步骤 4 产出的 scan relations 标记 `source: 'auto_scan'`，步骤 6 产出的 preset relations 标记 `source: 'framework_preset'`。去重规则：同 `(sourceDoc, targetDoc, relationType)` 组合时保留置信度更高的记录，**保留该记录的原始 source 值**（不合并、不覆盖）。
+>
+> **rebuild 范围说明**：v0.1 的 `--rebuild` 执行全量重建——`deleteAllDocuments()` 通过 `ON DELETE CASCADE` 级联清除所有关系边和同步状态，然后 INSERT ALL 重新写入。v0.1 不保留 `manual` 边（Epic 4 实现手动关系后再细化 rebuild 策略，届时可引入基于 source 的条件删除或 upsert 模式）。
 
 ### CLI 薄壳模式
 
@@ -76,6 +93,35 @@ export const scanCommand = new Command('scan')
 - **P11**: 输入用 Zod schema 类型，输出用明确返回类型
 - **P12**: CLI 薄壳不含业务逻辑
 - **P13**: ScanService 可为 async（调用 async scanner pipeline）
+
+### 两阶段事务契约
+
+为满足 NFR15（异常中断不产生脏数据）和 NFR18（完全重建）：
+
+**阶段 1 — 事务外（可失败、可重试）**：
+- loadConfig、resolveAdapter、computeEffectiveScanPaths、discoverDocuments
+- pipeline.process（文件读取 + AST 解析 + 规则求值）
+- docType classify + preset merge + merge/dedupe + relationTypes 过滤
+- 产出：完整的写入计划（documents[] + relations[] + syncStates[]）
+
+**阶段 2 — 事务内（短写集、原子提交）**：
+- 一个 better-sqlite3 同步事务
+- 正常扫描：`INSERT/UPDATE documents + INSERT relations + UPSERT sync_states`
+- `--rebuild`：同一事务内 `deleteAllDocuments()`（级联清除全部）+ INSERT ALL（全量原子重建）
+- 事务失败自动回滚，阶段 1 产物无副作用
+
+```typescript
+// 伪代码
+const plan = await buildScanPlan(...);   // 阶段 1：事务外
+repo.transaction(() => {                  // 阶段 2：事务内短写
+  if (rebuild) {
+    repo.deleteAllDocuments(); // ON DELETE CASCADE 级联清除 relations + sync_states
+  }
+  for (const doc of plan.documents) repo.addDocument(doc);
+  for (const rel of plan.relations) repo.addRelation(rel);
+  for (const ss of plan.syncStates) repo.upsertSyncState(ss);
+});
+```
 
 ### Project Structure Notes
 
