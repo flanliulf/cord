@@ -20,6 +20,7 @@ So that 我可以将图谱快照提交到 git 供团队审阅。
 
 ## Tasks / Subtasks
 
+- [ ] Task 0: 前置骨架 — 依赖 Story 1.4 `IGraphRepository` 接口中的 `getAllRelations(): RelationEdge[]` 方法（已在 Story 1.4 Task 1.5 中定义），确认 Story 1.4 的 `SqliteGraphRepository` 实现类已覆盖该方法（`SELECT * FROM relations` 等价逻辑）
 - [ ] Task 1: 实现 ExportService (AC: #1, #2, #3, #4)
 - [ ] Task 2: 实现 CLI 命令 (AC: #5, #6)
 - [ ] Task 3: 编写测试 (AC: #7)
@@ -37,6 +38,15 @@ So that 我可以将图谱快照提交到 git 供团队审阅。
   "relations": [...]
 }
 ```
+
+### 全量关系数据来源裁决
+
+**裁决：正式扩展 IGraphRepository 添加 `getAllRelations()` 方法。**
+
+- `IGraphRepository.getAllRelations(): RelationEdge[]` — 全量读取所有关系边，对称已有的 `getAllDocuments()`
+- 该方法应在 Story 1.4 的 `SqliteGraphRepository` 中实现，即：`SELECT * FROM relations`
+- ExportService 级联调用：`repo.getAllDocuments()` + `repo.getAllRelations()`，禁止在 Service 层自行拼接或变相全表扫描
+- `project` 字段来源：优先读取配置文件中的项目名，如酵出则用项目根目录名
 
 ### Project Structure Notes
 

@@ -17,15 +17,15 @@ So that 我可以了解某份文档与哪些其他文档有关联、关系类型
 5. **Given** 默认输出 **When** 检查 **Then** 人类可读表格格式
 6. **Given** --json **When** 传入 **Then** 机器可读 JSON
 7. **Given** 性能 **When** 测量 **Then** 一跳查询 p95 < 1ms（NFR1）
-8. **Given** 文档不存在 **When** 查询 **Then** 明确错误信息（NFR19）
-9. **Given** 实现完毕 **When** 测试 **Then** 覆盖正常查询 + 类型过滤 + 空结果 + 文档不存在
+8. **Given** 文档不存在 **When** 查询 **Then** 抛出 `QueryError extends CordError`，包含错误码（`code`）和建议操作（`suggestion`），符合 NFR19 的 `[错误码] 错误描述 → 建议操作` 格式
+9. **Given** 实现完毕 **When** 测试 **Then** 覆盖正常查询 + 类型过滤 + 空结果 + 文档不存在（含 `code`/`suggestion` 字段验证）
 
 ## Tasks / Subtasks
 
 - [ ] Task 1: 实现 QueryService (AC: #1, #2, #3)
 - [ ] Task 2: 实现 CLI 命令 (AC: #4, #5, #6, #8)
 - [ ] Task 3: 更新 index.ts
-- [ ] Task 4: 编写测试 (AC: #7, #9)
+- [ ] Task 4: 编写测试 (AC: #7, #9)，测试须验证 `QueryError` 携带有效 `code` 和 `suggestion` 字段
 
 ## Dev Notes
 
@@ -43,12 +43,29 @@ export class QueryService {
 }
 ```
 
+### 错误处理约束（NFR19 + D3）
+
+文档不存在时必须抛出 `QueryError`（继承自 `CordError`），携带：
+- `code: string` — 错误码，遵循 `CORD_{MODULE}_{NNN}` 规范，例如 `CORD_QUERY_001`
+- `suggestion: string` — 建议操作，例如 `"请先运行 cord scan 确认文档路径"`
+
+格式要求：`[错误码] 错误描述 → 建议操作`（NFR19），禁止使用普通 `Error` 或裸字符串替代。
+
+```typescript
+// CordError 基类已在 Story 1.2 中定义 (src/utils/errors.ts)
+export class QueryError extends CordError {
+  constructor(params: { message: string; code: string; suggestion: string; context?: Record<string, unknown> }) {
+    super(params);
+  }
+}
+```
+
 ### 架构约束
 
 - **P7**: 构造函数注入 IGraphRepository
 - **P11**: 输入 QueryInput（Zod 推导），输出 QueryResult
 - **P12**: CLI 薄壳
-- CLI 表格输出建议使用 picocolors 着色
+- CLI 表格输出使用 chalk 着色（D4 规范，与 Logger 颜色方案一致）
 
 ### Project Structure Notes
 

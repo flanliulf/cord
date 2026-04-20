@@ -26,6 +26,7 @@ So that Service 层可以通过抽象接口进行图谱数据的 CRUD 操作。
   - [ ] 1.2 关系边 CRUD 方法签名
   - [ ] 1.3 同步状态查询/更新方法签名
   - [ ] 1.4 事务支持方法签名
+  - [ ] 1.5 `getAllRelations(): RelationEdge[]` 全量读取方法签名（对称已有 `getAllDocuments()`，供 Story 3.4 导出功能依赖）
 - [ ] Task 2: 实现数据迁移机制 (AC: #4, #5, #6)
   - [ ] 2.1 创建 `src/repositories/migrations/001-initial-schema.sql`
   - [ ] 2.2 实现 `src/repositories/migrations/runner.ts` 迁移执行器，暴露 `runMigrations(db: Database): void` 公共方法
@@ -96,6 +97,7 @@ export interface IGraphRepository {
   // 统计
   getDocumentCount(): number;
   getRelationCount(): number;
+  getAllRelations(): RelationEdge[];   // 全量读取所有关系边，对称已有的 getAllDocuments()；由 Story 3.4 导出功能依赖
 
   // 生命周期
   close(): void;
