@@ -112,8 +112,9 @@ repo.transaction(() => {
   8. 处理重命名/移动：repo.updateDocument(docId, { path: newPath })
      （v0.1 约束：仅更新 documents.path，不重算 docType 或 preset 关系；路径敏感刷新延至 v0.2）
   9. 处理 modified 文档：
-     a. repo.deleteRelationsByDocId(docId, 'source') 仅删除 outgoing 关系边
-        （指定 'source' 方向确保仅删除该文档作为 sourceDoc 的边，不影响其他文档指向本文档的 inbound 边）
+     a. repo.deleteRelationsByDocId(docId, 'source', { excludeSources: ['manual'] }) 仅删除 outgoing 非-manual 关系边
+        （指定 'source' 方向确保仅删除该文档作为 sourceDoc 的边，不影响其他文档指向本文档的 inbound 边；
+         excludeSources: ['manual'] 确保 source='manual' 的手动关系边不被删除，保留用户自定义的关联（Story 4.2 manual 保护机制））
      b. 插入新关系边
      c. repo.updateDocument(docId, { path, contentHash, title, docType, metadata }) 更新文档节点
   10. 写入新增文档和关系
@@ -134,7 +135,8 @@ repo.transaction(() => {
 - 增量扫描遵循两阶段事务契约（与 Story 2.5 冷启动一致）：事务外计算、事务内短写（NFR15）
 - lifecycle-detector 是纯函数模块，不直接操作 Repository
 - 重命名/移动只更新 `documents.path`，关系边按 `docId` 建立无需修改
-- **v0.1 inbound preset 边约束**：增量扫描仅刷新 modified/added 文档的 outgoing 关系边（步骤 9a 指定 `'source'` 方向）；未修改文档指向被修改文档的 inbound `framework_preset` 边在 docType 未变化时保持有效。若 rename/move 或内容变化导致 docType 改变进而影响 preset 边，可通过 `cord scan --rebuild` 修复（v0.1 假设 modified 文档 docType 不因内容变化而改变，docType 由文件名/路径 glob 模式决定）
+- **excludeSources 依赖**：步骤 9a 使用 `deleteRelationsByDocId(docId, 'source', { excludeSources: ['manual'] })`，要求 Story 1.4 `IGraphRepository` 接口已支持 `options?.excludeSources` 可选参数，Story 4.2 Task 1.4 执行该接口升级
+- **v0.1 inbound preset 边约束**：增量扫描仅刷新 modified/added 文档的非-manual outgoing 关系边（步骤 9a 指定 `'source'` 方向 + `excludeSources`）；未修改文档指向被修改文档的 inbound `framework_preset` 边在 docType 未变化时保持有效。若 rename/move 或内容变化导致 docType 改变进而影响 preset 边，可通过 `cord scan --rebuild` 修复（v0.1 假设 modified 文档 docType 不因内容变化而改变，docType 由文件名/路径 glob 模式决定）
 
 ### Project Structure Notes
 

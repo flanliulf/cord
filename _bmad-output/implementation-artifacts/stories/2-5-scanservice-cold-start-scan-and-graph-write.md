@@ -19,7 +19,7 @@ So that 文档间的关系图谱从零建立，我可以看到文档之间有哪
 7. **Given** --json flag **When** 传入 **Then** 输出 JSON 格式
 8. **Given** 退出码 **When** 不同结果 **Then** 0=成功、1=运行时错误、2=参数/配置错误
 9. **Given** 性能 **When** 测量 **Then** ≥ 4 文档/秒（NFR5）
-10. **Given** --rebuild **When** 传入 **Then** 完全重建图谱（NFR18）
+10. **Given** --rebuild **When** 传入 **Then** 完全重建图谱（NFR18）；若库中存在 manual 关系边，提示确认或使用 `--force` 跳过（实际检测逻辑由 Story 4.2 Task 3 实现，v0.1 接口预留）
 11. **Given** 端到端 **When** 集成测试 **Then** fixtures/sample-projects/ 验证
 
 ## Tasks / Subtasks
@@ -35,7 +35,7 @@ So that 文档间的关系图谱从零建立，我可以看到文档之间有哪
   - [ ] 1.7 事务包装保证原子性（参见下方事务契约）
   - [ ] 1.8 --rebuild：同事务内 `deleteAllDocuments()`（级联清除全部关系和同步状态）+ INSERT ALL 全量重建
 - [ ] Task 2: 实现 CLI 命令 (AC: #5, #6, #7, #8)
-  - [ ] 2.1 `src/cli/commands/scan.ts` — 薄壳：参数解析 → ScanService → 格式化输出
+  - [ ] 2.1 `src/cli/commands/scan.ts` — 薄壳：参数解析（--rebuild、--force、--json）→ ScanService → 格式化输出
 - [ ] Task 3: 创建测试 fixtures (AC: #11)
   - [ ] 3.1 `tests/fixtures/sample-projects/bmad-project/` — BMAD 样本
   - [ ] 3.2 `tests/fixtures/sample-projects/generic-project/` — 通用样本
@@ -78,12 +78,15 @@ scan(input: ScanInput): Promise<ScanResult>
 import { Command } from 'commander';
 export const scanCommand = new Command('scan')
   .option('--rebuild', '完全重建图谱')
+  .option('--force', '跳过 manual 关系确认，直接执行 rebuild（需与 --rebuild 配合使用）')
   .option('--json', 'JSON 格式输出')
   .action(async (options) => {
     // 1. 解析参数 → ScanInput
-    // 2. 调用 ScanService.scan()
-    // 3. 格式化输出
-    // 4. process.exit(exitCode)
+    // 2. [v0.1 manual 关系检测预留点]：--rebuild 时检测库中是否存在 source='manual' 的关系边
+    //    实际检测 + 确认逻辑由 Story 4.2 Task 3 实现（ScanService.getManualRelationsCount() + CLI 交互）
+    // 3. 调用 ScanService.scan()
+    // 4. 格式化输出
+    // 5. process.exit(exitCode)
   });
 ```
 

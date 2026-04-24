@@ -29,8 +29,8 @@ So that CLI/MCP/Service 层可以共享同一套输入验证和类型系统。
   - [ ] 1.5 更新 `src/types/index.ts` 门面导出
 - [ ] Task 2: 创建 Zod schema (AC: #5, #6)
   - [ ] 2.1 `src/schemas/document.ts` — documentSchema
-  - [ ] 2.2 `src/schemas/relation.ts` — relationSchema
-  - [ ] 2.3 `src/schemas/config.ts` — configSchema（cord.config 7 项配置）
+  - [ ] 2.2 `src/schemas/relation.ts` — relationSchema（含 `status: z.enum(['active', 'deprecated']).default('active')` 字段）
+  - [ ] 2.3 `src/schemas/config.ts` — configSchema（cord.config 初始 7 项配置；`updateStrategies` 第 8 项由 Story 4.3 Task 1 扩展）
   - [ ] 2.4 `src/schemas/scan-input.ts` — scanInputSchema
   - [ ] 2.5 `src/schemas/query-input.ts` — queryInputSchema
   - [ ] 2.6 `src/schemas/impact-input.ts` — impactInputSchema
@@ -93,6 +93,7 @@ export interface RelationEdge {
   relationType: RelationType;
   confidence: number;        // 0.0 - 1.0
   source: RelationSource;    // 'auto_scan' | 'manual' | 'framework_preset'
+  status: 'active' | 'deprecated';  // 关系状态（Story 4.1 引入）；新建时默认 'active'
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

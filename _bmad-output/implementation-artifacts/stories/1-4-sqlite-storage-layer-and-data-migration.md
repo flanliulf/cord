@@ -82,9 +82,9 @@ export interface IGraphRepository {
   getRelationsByType(relationType: RelationType): RelationEdge[];
   updateRelation(id: string, updates: Partial<RelationEdge>): RelationEdge;
   deleteRelation(id: string): void;
-  deleteRelationsByDocId(docId: string, direction?: 'source' | 'target' | 'both'): void;
-  // direction 默认 'both'；增量扫描重建 modified 文档关系时使用 'source'，仅删除 outgoing 边，
-  // 避免删除其他未扫描文档指向本文档的 inbound 边
+  deleteRelationsByDocId(docId: string, direction?: 'source' | 'target' | 'both', options?: { excludeSources?: RelationSource[] }): void;
+  // direction 默认 'both'；增量扫描重建 modified 文档关系时使用 'source'，仅删除 outgoing 边
+  // options.excludeSources：跳过指定来源的关系边（如 ['manual']），不删除对应来源的边（Story 4.2 manual 保护机制依赖）
 
   // 同步状态
   getSyncState(docId: string): SyncState | null;
@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS relations (
   relation_type TEXT NOT NULL,
   confidence REAL NOT NULL DEFAULT 0.5,
   source TEXT NOT NULL DEFAULT 'auto_scan',  -- auto_scan | manual | framework_preset
+  status TEXT NOT NULL DEFAULT 'active',     -- active | deprecated（Story 4.1 引入的状态位，默认 active）
   metadata TEXT,          -- JSON 字符串
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -145,6 +146,7 @@ CREATE TABLE IF NOT EXISTS relations (
 CREATE INDEX IF NOT EXISTS idx_relations_source_doc_id ON relations(source_doc_id);
 CREATE INDEX IF NOT EXISTS idx_relations_target_doc_id ON relations(target_doc_id);
 CREATE INDEX IF NOT EXISTS idx_relations_relation_type ON relations(relation_type);
+CREATE INDEX IF NOT EXISTS idx_relations_status ON relations(status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_unique_pair ON relations(source_doc_id, target_doc_id, relation_type);
 
 -- 文档同步状态表
