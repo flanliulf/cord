@@ -145,7 +145,7 @@ src/
   - `cord init` 默认生成 `cord.config.yaml` + `.cord/` 数据目录（可通过 `--format json` 生成 `cord.config.json`）
   - 配置加载策略：按 `cord.config.yaml` → `cord.config.json` 顺序检测，找到第一个即停止
   - JSON Schema 发布到 schemastore.org（后期），本地通过 YAML 文件头 `# yaml-language-server: $schema=...` 或 JSON `"$schema"` 字段引用
-  - 配置项（7 项，对齐 PRD cord.config schema）：`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（关系类型启用/禁用配置，9 个内置类型默认全部启用）、`adapters`（启用的框架适配模块）；所有配置项均可选，`cord init` 自动生成合理默认值
+  - 配置项（8 项，对齐 PRD cord.config schema）：`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（关系类型启用/禁用配置，9 个内置类型默认全部启用）、`adapters`（启用的框架适配模块）、`updateStrategies`（Story 4.3 引入：按文档类别配置更新策略，键为 docType，值为 `'auto' | 'suggest' | 'log_only'`，缺省 suggest）；所有配置项均可选，`cord init` 自动生成合理默认值
 
 ## CI/CD & Quality Gates
 
@@ -190,3 +190,17 @@ src/
 - D5 (目录结构) → D1/D2/D3/D4: 目录结构决定了其他所有模块的物理位置
 - D6 (YAML 配置) ↔ D1 (Zod): 配置文件加载后通过 Zod schema 验证
 - D7 (CI/CD) ↔ D8 (覆盖率): CI 流水线集成覆盖率检查门禁
+
+---
+
+## D9. AGENTS.md 为 NFR12 零侵入的 appendable 例外文件
+
+- **决策：** `AGENTS.md` 是 Copilot 与 Codex CLI 的共享指令文件，被显式声明为 NFR12 零侵入策略的 appendable 例外共享文件。
+- **理由：** `AGENTS.md` 不属于任一 IDE 专属配置（如 `.vscode/settings.json`、`.claude/settings.json`），而是 Copilot + Codex CLI 两个 IDE 共同依赖的共享文件。如果对其强制当作严格零侵入文件（不允许修改），两个 IDE 适配器将无法协同写入，导致 FR31 交付无法完成。
+- **影响范围：** IDE 适配器层、InitService 层、测试策略
+- **实现要点：**
+  - **create-if-absent**：`AGENTS.md` 不存在时创建，写入 CORD 所需内容
+  - **preserve-if-exists**：`AGENTS.md` 已存在时保留原内容，以 `<!-- CORD:START -->...<!-- CORD:END -->` 注释边界追加 CORD 专属配置段
+  - **explicit-conflict**：格式不兼容时，返回 `AGENTS_MD_CONFLICT` 结构化错误，不自动覆盖（非 TTY 场景同样适用）
+  - SHA-256 零侵入校验分为两类：居正不变（所有其他 IDE 专属配置文件） vs CORD 注释段外不变（`AGENTS.md`）
+  - 此决策与 `04-implementation-patterns-consistency-rules.md` P18、`project-context.md` IDE 适配器模式章节、Story 5.3 共享文件处理契约互为镜像（Rule Document Registry 同步已完成）

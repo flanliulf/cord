@@ -155,7 +155,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 
 **IDE 适配器模式（Epic 5）：**
 - `IIdeAdapter` 接口 → 4 种 IDE 适配器（Claude Code / Cursor / VS Code Copilot / Codex CLI）
-- 零侵入策略：不修改 IDE 现有配置，只新增 CORD 相关文件
+- 零侵入策略：不修改 IDE 现有配置，只新增 CORD 相关文件；**例外**：`AGENTS.md` 为 NFR12 appendable 例外共享文件（Copilot + Codex CLI 共享），已存在时追加 CORD 专属注释段（<!-- CORD:START --> ... <!-- CORD:END -->），格式冲突时返回 `AGENTS_MD_CONFLICT` 结构化错误，不自动覆盖
 - `cord init` 自动检测 IDE 并选择适配器
 
 **MCP Server 关键约束：**
@@ -323,6 +323,7 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 - 加载优先级：YAML > JSON（同时存在时 YAML 优先）
 - 配置加载后通过 Zod schema 验证
 - `cord init` 默认生成 YAML 格式
+- 配置字段基线（8 项）：初始 7 项（framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters）+ updateStrategies（Story 4.3 引入，按文档类别配置更新策略，键为 docType，值为 'auto' | 'suggest' | 'log_only'，缺省 suggest，未知 key 宽容处理）
 
 **CI/CD（D7）：**
 - GitHub Actions 作为唯一 CI/CD 平台

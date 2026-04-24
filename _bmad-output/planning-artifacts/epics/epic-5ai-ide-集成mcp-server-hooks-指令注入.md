@@ -17,7 +17,7 @@ So that 我可以在用户的开发流程中自动执行影响分析、关系查
 **And** `src/mcp/tools/query-relations.ts` 实现 query_relations Tool（调用 QueryService）
 **And** `src/mcp/tools/init-graph.ts` 实现 init_graph Tool（调用 ScanService）
 **And** `src/mcp/tools/sync-docs.ts` 实现 sync_docs Tool（触发关联文档同步建议）
-**And** 每个 Tool 的 inputSchema 从 Zod schema 自动导出为 JSON Schema
+**And** 每个 Tool 的 inputSchema 和 outputSchema 均从命名 Zod schema 自动导出为 JSON Schema，统一在 `src/mcp/tools/schemas.ts` 中导出；新增 Tool 时已有全部 Tool 的 input/output schema 保持不变（NFR10）
 **And** MCP Server 作为长驻进程运行（FR32）
 **And** MCP Tool 单次调用响应时间 p95 < 50ms（NFR4）
 **And** CLI 与 MCP Server 对相同输入返回语义一致的输出（NFR13）
@@ -56,10 +56,10 @@ So that `cord init` 可以为我的 IDE 生成正确的配置文件。
 **And** `src/adapters/ide/detector.ts` 实现 IDE 自动检测逻辑（FR2）——检测 Claude Code / Cursor / VS Code Copilot / Codex CLI
 **And** `src/adapters/ide/claude-code.ts` 实现 Claude Code 适配器（Hooks 配置 + CLAUDE.md 指令注入 + MCP 配置）
 **And** `src/adapters/ide/cursor.ts` 实现 Cursor 适配器（.cursor/mcp.json + .cursor/rules/）
-**And** `src/adapters/ide/vscode-copilot.ts` 实现 VS Code Copilot 适配器（copilot-instructions.md + MCP Host）
+**And** `src/adapters/ide/vscode-copilot.ts` 实现 VS Code Copilot 适配器（copilot-instructions.md + AGENTS.md + MCP Host，与 PRD IDE 矩阵对齐）
 **And** `src/adapters/ide/codex-cli.ts` 实现 Codex CLI 适配器（AGENTS.md，基础集成层）
-**And** 全局指令文件生成采用独立文件注入策略，不修改用户已有 IDE 配置文件（NFR12）
-**And** 单元测试：4 种 IDE 检测 + 各适配器配置文件生成 + 零侵入验证（SHA-256 校验已有文件不变）
+**And** 全局指令文件生成采用独立文件注入策略，不修改用户已有 IDE 专属配置文件（NFR12）；`AGENTS.md` 为 NFR12 appendable 例外共享文件（Copilot + Codex CLI 共享），已存在时以 CORD 注释边界追加
+**And** 单元测试：4 种 IDE 检测 + 各适配器配置文件生成 + 零侵入验证（SHA-256 校验分两类：居正不变 vs CORD 注释段外不变）
 
 ## Story 5.4：InitService 一键初始化（cord init）
 
@@ -79,7 +79,9 @@ So that 从安装到首次使用的体验闭环 < 30 分钟，零摩擦上手。
 **And** 创建 `.cord/` 数据目录
 **And** `src/cli/commands/init.ts` 实现 `cord init` CLI 命令（薄壳），使用 @clack/prompts 提供交互向导
 **And** CLI 输出人类可读的步骤进度 + 结果摘要
-**And** 支持 `--json` 输出
+**And** 支持 `--json` 输出（非 TTY 自动化场景跳过交互向导，直接返回机器可读 InitResult；多 IDE 命中时返回 `AMBIGUOUS_IDE` 结构化错误）
+**And** 支持 `--format json` 生成 cord.config.json（默认生成 cord.config.yaml，对齐架构决策 D6）
+**And** `--ide <name>` 显式指定 IDE 覆盖自动检测
 **And** 集成测试：在 BMAD 项目中 init + 在通用项目中 init + IDE 检测正确性
 
 ## Story 5.5：Hooks 文档变更自动触发与 Skills 生成
@@ -96,7 +98,7 @@ So that 日常开发中我无需手动操作，AI Agent 自动完成影响分析
 **And** 对不支持 Hooks 的 IDE（Cursor/VS Code Copilot），通过指令文件引导 AI Agent 在文档编辑后主动调用 CORD
 **And** `src/adapters/ide/skills-generator.ts` 生成符合 Claude Code Skills 规范的定义文件（FR31）
 **And** Skills 文件覆盖 4 个核心意图场景：影响分析、关系查询、图谱初始化、同步建议
-**And** 每个 Skills 文件包含触发条件描述、对应 MCP Tool 调用序列和预期输出格式
+**And** 每个 Skills 文件包含触发条件描述、对应 MCP Tool 调用序列，以及直接引用 `src/mcp/tools/schemas.ts` 中对应命名 outputSchema 的预期输出格式（不使用自然语言描述）
 **And** MCP Server 在 Claude Code ≥ 1.0 / Cursor ≥ 0.48 / VS Code Copilot ≥ 1.96 中验证通过（NFR11）
 **And** 集成测试：Hooks 脚本触发验证 + Skills 文件格式验证 + 三大 IDE MCP 端到端验证
 

@@ -17,17 +17,27 @@ So that 我可以在修改文档前了解哪些关联文档会受到影响，以
 5. **Given** CLI **When** 实现 **Then** `src/cli/commands/impact.ts` 薄壳命令
 6. **Given** 输出 **When** 默认 **Then** 人类可读表格（按影响严重程度排序）
 7. **Given** --json **When** 传入 **Then** JSON 输出
-8. **Given** 实现完毕 **When** 测试 **Then** 覆盖正常分析 + 置信度过滤 + 空影响 + 各传播行为建议
-9. **Given** 内部遍历 **When** 执行影响分析 **Then** 固定三跳深度，v0.1 不对外暴露 `depth` 参数；测试必须验证三跳边界（即居瓴超过三跳的间接节点不应出现在结果中）
+8. **Given** 遍历 **When** 执行影响分析 **Then** 默认过滤 `status='deprecated'` 的关系，deprecated 关系不计入影响路径、不产生建议动作
+9. **Given** 实现完毕 **When** 测试 **Then** 覆盖正常分析 + 置信度过滤 + 空影响 + 各传播行为建议 + deprecated 关系不出现在影响结果中
+10. **Given** 内部遍历 **When** 执行影响分析 **Then** 固定三跳深度，v0.1 不对外暴露 `depth` 参数；测试必须验证三跳边界（即居瓴超过三跳的间接节点不应出现在结果中）
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 ImpactService (AC: #1, #2, #3, #4)
+- [ ] Task 1: 实现 ImpactService (AC: #1, #2, #3, #4, #8)
+  - [ ] 1.1 遍历时过滤 `status='deprecated'` 的关系（不计入影响路径）
 - [ ] Task 2: 建议动作映射表
 - [ ] Task 3: 实现 CLI 命令 (AC: #5, #6, #7)
-- [ ] Task 4: 编写测试 (AC: #8, #9)，必须包含三跳边界验证：1-3 跳结果应保留（正例），4 跳及以上应排除（负例）；测试夹具须区分"恰好 3 跳"与"恰好 4 跳"两类样例，不得把合法的 3 跳结果计为负例
+- [ ] Task 4: 编写测试 (AC: #9, #10)，必须包含三跳边界验证：1-3 跳结果应保留（正例），4 跳及以上应排除（负例）；测试夹具须区分"恰好 3 跳"与"恰好 4 跳"两类样例，不得把合法的 3 跳结果计为负例
 
 ## Dev Notes
+
+### deprecated 读侧语义裁决（发现#2 裁决）
+
+**ImpactService 默认过滤 `status='deprecated'` 的关系，不将其计入影响范围。**
+
+理由：用户手动将某条关系标记为 deprecated，明确表达"此关系不再有传播意义"。影响分析若继续把 deprecated 关系当活跃边处理（如 `sync_required + status=deprecated` → 输出"需要同步更新"），会直接违背用户意图。
+
+传播行为映射表的 `deprecated relationType` 行（"已废弃，忽略"）描述的是**枚举值含义**，不影响此决策——`status='deprecated'` 的 `sync_required` 关系仍然在表中被映射为 critical，但在遍历起点就应被过滤掉，不进入映射逻辑。
 
 ### 传播行为 → 建议动作映射
 
@@ -46,6 +56,25 @@ So that 我可以在修改文档前了解哪些关联文档会受到影响，以
 ### ImpactService 设计
 
 ```typescript
+// ImpactedDoc — 单条影响分析结果（FR17：传播行为类型 + 建议动作）
+// 此结构为 canonical source；Story 5.1 AnalyzeImpactResult 与本结构对齐（NFR13）
+// 共 5 个字段，其中 suggestedAction 为人读建parity 字段，updateStrategy 为机器决策元数据
+// （跡踪#1 裁决：两字段并存，语义不重叠，分别服务不同消费方）
+export interface ImpactedDoc {
+  docPath: string;
+  relationType: RelationType;
+  propagationType: PropagationType;  // FR17 要求：sync_required / context_for 等
+  suggestedAction: string;           // FR17 parity 字段：由传播行为映射表推导（人读建CLI/MCP 展示用）
+  updateStrategy: UpdateStrategy;    // Story 4.3 元数据字段：'auto' | 'suggest' | 'log_only'（机器决策用）
+  confidence: number;
+  reason: string;
+}
+
+export interface ImpactResult {
+  impactedDocs: ImpactedDoc[];
+  totalCount: number;
+}
+
 export class ImpactService {
   constructor(
     private readonly repo: IGraphRepository,

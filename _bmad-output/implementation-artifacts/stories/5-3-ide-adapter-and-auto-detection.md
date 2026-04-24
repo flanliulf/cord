@@ -14,9 +14,9 @@ So that `cord init` 可以为我的 IDE 生成正确的配置文件。
 2. **Given** 接口定义 **When** 实现检测 **Then** `src/adapters/ide/detector.ts` 检测 4 种 IDE（FR2）
 3. **Given** Claude Code **When** 实现适配 **Then** Hooks + CLAUDE.md + MCP 配置
 4. **Given** Cursor **When** 实现适配 **Then** .cursor/mcp.json + .cursor/rules/
-5. **Given** VS Code Copilot **When** 实现适配 **Then** copilot-instructions.md + MCP Host
+5. **Given** VS Code Copilot **When** 实现适配 **Then** copilot-instructions.md + AGENTS.md + MCP Host（与 PRD IDE 矩阵对齐）
 6. **Given** Codex CLI **When** 实现适配 **Then** AGENTS.md（基础集成）
-7. **Given** 注入策略 **When** 检查 **Then** 独立文件注入，不修改已有配置（NFR12）
+7. **Given** 注入策略 **When** 检查 **Then** 独立文件注入，不修改已有配置（NFR12）；`AGENTS.md` 为 NFR12 appendable 例外共享文件：文件不存在时创建，已存在时以 CORD 注释边界段追加（详见共享文件处理契约）
 8. **Given** 实现完毕 **When** 测试 **Then** 4 种 IDE 检测 + 配置生成 + 零侵入验证
 
 ## Tasks / Subtasks
@@ -26,7 +26,7 @@ So that `cord init` 可以为我的 IDE 生成正确的配置文件。
 - [ ] Task 3: 实现 4 个 IDE 适配器 (AC: #3-#6, #7)
   - [ ] 3.1 `src/adapters/ide/claude-code.ts`
   - [ ] 3.2 `src/adapters/ide/cursor.ts`
-  - [ ] 3.3 `src/adapters/ide/vscode-copilot.ts`
+  - [ ] 3.3 `src/adapters/ide/vscode-copilot.ts` — 生成 copilot-instructions.md + AGENTS.md + MCP Host 配置
   - [ ] 3.4 `src/adapters/ide/codex-cli.ts`
 - [ ] Task 4: 更新 index.ts
 - [ ] Task 5: 编写测试 (AC: #8)
@@ -41,7 +41,8 @@ export interface IIdeAdapter {
   detect(projectRoot: string): boolean;
   generateMcpConfig(projectRoot: string): void;
   generateInstructionFile(projectRoot: string): void;
-  generateHooksConfig?(projectRoot: string): void;  // 仅 Claude Code
+  generateHooksConfig?(projectRoot: string): void;   // 仅 Claude Code
+  generateSkills?(targetDir: string): SkillsArtifact[];  // 可选；仅 Claude Code 实现，其他 IDE 适配器不实现（FR31）
 }
 ```
 
@@ -50,11 +51,45 @@ export interface IIdeAdapter {
 - Claude Code: 检查 `.claude/` 目录或 `CLAUDE.md`
 - Cursor: 检查 `.cursor/` 目录
 - VS Code Copilot: 检查 `.vscode/` 目录
-- Codex CLI: 检查 `AGENTS.md`
+- Codex CLI: 检查 `AGENTS.md` **且不存在 `.claude/`、`.cursor/`、`.vscode/` 等其他 IDE 专属标志**（发现#5 裁决：`AGENTS.md` 为 Copilot 和 Codex CLI 共享产物，当与任意其他 IDE 专属标志共存时将其视为共享文档而不计为 Codex 命中）
+
+### IDE 检测优先级与冲突裁决（发现#5 裁决）
+
+当项目中同时存在多种 IDE 痕迹时，按以下优先级顺序选择主检测结果：
+
+| 优先级 | IDE | 检测标志 |
+|--------|-----|---------|
+| 1（最高）| Claude Code | `.claude/` 目录或 `CLAUDE.md` |
+| 2 | Cursor | `.cursor/` 目录 |
+| 3 | VS Code Copilot | `.vscode/` 目录 |
+| 4（最低）| Codex CLI | `AGENTS.md` |
+
+**冲突处理规则**：
+- 自动检测命中多个 IDE 时，**不静默选择**，必须向用户展示检测到的 IDE 列表并要求确认
+- `cord init --ide <name>` 允许用户显式覆盖自动检测（override 路径，`<name>` 取值：`claude-code` | `cursor` | `vscode-copilot` | `codex-cli`）
+- 显式 `--ide` 优先级高于自动检测，不受上表优先级约束
+- **AGENTS.md 共享文档规则**（发现#5 裁决）：`AGENTS.md` 与 `.vscode/`、`.claude/`、`.cursor/` 任意一项共存时，不计为 Codex CLI 检测命中；只有在项目中存在 `AGENTS.md` 且不存在任何其他 IDE 专属标志时，才将其计为 Codex CLI 命中
 
 ### 零侵入策略（NFR12）
 
 生成独立的 CORD 配置文件（如 `CLAUDE.md` 中引用 `.cord/instructions.md`），不直接修改用户已有文件。
+
+**NFR12 appendable 例外：`AGENTS.md`** — `AGENTS.md` 为 Copilot 和 Codex CLI 共享产物，属于可安全追加的共享文件类型。此例外已在共享文件处理契约中定义具体行为（create-if-absent / preserve-if-exists / explicit-conflict），与项目级零侵入分类展示板对齐。
+
+### 共享文件处理契约（AGENTS.md 等）
+
+对于多个 IDE 适配器可能同时写入的共享文件（如 `AGENTS.md`），采用以下策略：
+
+- **create-if-absent**：文件不存在时创建，写入 CORD 所需内容
+- **preserve-if-exists**：文件已存在时保留原内容，追加 CORD 专属配置段（以 CORD 注释标记边界）
+- **explicit-conflict**：如检测到内容冲突（格式不兼容），明确提示用户，不自动覆盖
+
+**非 TTY 行为**：在非 TTY / `--json` 自动化场景下，`preserve-if-exists` 追加操作仍应默默执行（不要求交互）；当且仅当检测到 `explicit-conflict` 时，返回结构化错误 `{ "error": "AGENTS_MD_CONFLICT", "suggestion": "..." }`。
+
+**测试断言要求**：
+- `cord init` 在 `AGENTS.md` 不存在时创建文件（create-if-absent 正例）
+- `cord init` 在 `AGENTS.md` 已存在时追加 CORD 注释段，原内容不变（preserve-if-exists 正例）
+- `cord init` 在格式冲突时不自动覆盖，返回 `AGENTS_MD_CONFLICT` 错误（explicit-conflict 正例）
 
 ### Project Structure Notes
 

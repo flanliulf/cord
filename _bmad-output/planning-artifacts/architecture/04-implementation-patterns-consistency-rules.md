@@ -254,6 +254,27 @@ describe('ScanService', () => {
 - it: `should + 行为描述`
 - 测试文件名：`{source}.test.ts`
 
+**P17. CordConfig 配置字段重要规则：**
+
+cord.config.yaml / cord.config.json 共 8 个项（均可选）：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| framework | string | 自动检测 | 框架类型 |
+| ide | string | 自动检测 | IDE 类型 |
+| scanPaths | string[] | adapter 预设 | 扫描路径 |
+| excludePaths | string[] | `["src/","node_modules/",".git/","dist/"]` | 排除路径 |
+| confidenceThreshold | number | 0.50 | 影响分析最低置信度阈值 |
+| relationTypes | Record<RelationType, {enabled: boolean}> | 全部启用 | 9 个内置类型启用/禁用 |
+| adapters | string[] | [] | 启用的框架适配模块 |
+| updateStrategies | Record<docType, UpdateStrategy> | {} | Story 4.3 引入，未配置的 docType 回退到 `suggest` |
+
+```typescript
+type UpdateStrategy = 'auto' | 'suggest' | 'log_only';
+// 'auto': 自动更新  'suggest': 生成建议后人工确认  'log_only': 仅记录不触发
+// 未知 key 宽容处理：回退到 suggest，记录 debug 日志但不报错
+```
+
 ## Enforcement Guidelines
 
 **所有 AI Agent 必须遵守：**
@@ -287,3 +308,25 @@ async queryRelations(docPath: string, type?: string, depth?: number)  // 禁止
 // ❌ 吞掉异常
 try { ... } catch (e) { /* 静默忽略 */ }  // 禁止
 ```
+
+**P18. AGENTS.md 共享文件处理规则（NFR12 appendable 例外）：**
+
+`AGENTS.md` 是 Copilot 与 Codex CLI 共享的指令文件，属于 NFR12 零侵入策略的显式例外，必须按以下规则处理：
+
+| 场景 | 行为 |
+|------|------|
+| 文件不存在 | **create-if-absent**：创建文件，写入 CORD 所需内容 |
+| 文件已存在，格式兼容 | **preserve-if-exists**：保留原内容，以 `<!-- CORD:START -->...<!-- CORD:END -->` 注释边界追加 CORD 专属配置段 |
+| 文件已存在，格式冲突 | **explicit-conflict**：返回 `AGENTS_MD_CONFLICT` 结构化错误，不自动覆盖；非 TTY 场景同样适用 |
+
+```typescript
+// ✅ 正确：AGENTS.md 追加 CORD 配置段（注释边界保护）
+const existing = fs.readFileSync('AGENTS.md', 'utf-8');
+const cordSection = `\n<!-- CORD:START -->\n${cordContent}\n<!-- CORD:END -->\n`;
+fs.writeFileSync('AGENTS.md', existing + cordSection);
+
+// ❌ 禁止：直接覆盖已有 AGENTS.md
+fs.writeFileSync('AGENTS.md', newContent);  // 禁止（会丢失用户原有内容）
+```
+
+测试断言要求：必须覆盖 create-if-absent / preserve-if-exists / explicit-conflict 三个分支（见 Story 5.3 共享文件处理契约）。

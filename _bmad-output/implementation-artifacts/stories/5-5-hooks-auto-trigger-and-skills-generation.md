@@ -10,7 +10,7 @@ So that 日常开发中无需手动操作，AI Agent 自动完成影响分析和
 
 ## Acceptance Criteria (AC)
 
-1. **Given** Story 5.4 init 就绪 **When** Claude Code Hooks **Then** 文档变更落盘时触发 analyze_impact（FR29）
+1. **Given** Story 5.4 init 就绪 **When** Claude Code Hooks **Then** 文档变更落盘时触发 analyze_impact（FR29）；Skills 生成由 Story 5.4 InitService 通过 `IIdeAdapter.generateSkills?()` 调用本 Story `SkillsGenerator` 实现（FR31 编排 owner = InitService）
 2. **Given** 不支持 Hooks 的 IDE **When** 配置 **Then** 指令文件引导 Agent 主动调用 CORD
 3. **Given** Skills 生成 **When** 实现 **Then** `src/adapters/ide/skills-generator.ts` 生成 Skills 定义文件（FR31）
 4. **Given** Skills 文件 **When** 检查 **Then** 覆盖 4 个意图场景
@@ -45,10 +45,14 @@ So that 日常开发中无需手动操作，AI Agent 自动完成影响分析和
 
 ### Skills 文件结构（4 个意图场景）
 
-1. **影响分析** — 触发：文档编辑后 → `analyze_impact`
-2. **关系查询** — 触发：用户询问文档关系 → `query_relations`
-3. **图谱初始化** — 触发：首次使用或重建 → `init_graph`
-4. **同步建议** — 触发：多文档编辑后 → `sync_docs`
+Skills 文件须在"预期输出格式"字段中直接引用 `src/mcp/tools/schemas.ts` 中的命名 schema（不使用自然语言描述），以确保 NFR10 output schema 快照与 FR31 Skills 输出格式保持统一。
+
+| 场景 | 触发条件 | Tool | 预期输出 schema |
+|------|---------|------|----------------|
+| 影响分析 | 文档编辑后 | `analyze_impact` | `AnalyzeImpactResult` |
+| 关系查询 | 用户询问文档关系 | `query_relations` | `QueryRelationsResult`（含 `relationId`） |
+| 图谱初始化 | 首次使用或重建 | `init_graph` | `InitGraphResult` |
+| 同步建议 | 文档编辑后（单文档调用） | `sync_docs` | `SyncDocsResult`（Story 5.1 单文档契约，多文档时依次调用） |
 
 ### Project Structure Notes
 
