@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.cord/
+*.db
+*.db-shm
+*.db-wal
+coverage/
+*.js.map
+*.d.ts
+.DS_Store

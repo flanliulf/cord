@@ -1,0 +1,14 @@
+node_modules/
+src/
+tests/
+_bmad/
+_bmad-output/
+docs/
+*.ts
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+eslint.config.js
+.prettierrc
+.gitignore
+coverage/
