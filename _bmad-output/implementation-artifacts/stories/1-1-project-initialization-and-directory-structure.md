@@ -1,6 +1,6 @@
 # Story 1.1: 项目初始化与目录结构搭建
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -21,39 +21,39 @@ So that 我可以立即开始编写符合架构规范的功能代码。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 初始化 npm 项目与 package.json (AC: #2)
-  - [ ] 1.1 `npm init` 并配置 `"type": "module"`
-  - [ ] 1.2 声明所有核心 dependencies 和 devDependencies（版本见 Dev Notes）
-  - [ ] 1.3 配置 scripts：`build`、`test`、`lint`、`format`、`type-check`
-  - [ ] 1.4 配置 `bin` 字段指向 CLI 入口（`"cord": "./dist/cli/index.js"`）
-- [ ] Task 2: 创建 D5 完整目录结构 (AC: #1, #7)
-  - [ ] 2.1 创建 src/ 下全部架构层目录及子目录
-  - [ ] 2.2 创建每个层的 index.ts 门面文件（空导出占位）
-  - [ ] 2.3 创建 CLI 入口文件 `src/cli/index.ts`（最小 Commander 骨架）
-  - [ ] 2.4 创建 MCP 门面文件 `src/mcp/index.ts`（空导出占位）
-  - [ ] 2.5 创建 MCP Server 入口 `src/mcp/server.ts`（最小薄壳占位，与 tsup.config.ts 构建入口对齐）
-- [ ] Task 3: 配置 TypeScript (AC: #3)
-  - [ ] 3.1 创建 tsconfig.json（strict、ESNext、NodeNext）
-  - [ ] 3.2 配置 paths、include/exclude
-- [ ] Task 4: 配置 tsup 构建 (AC: #4)
-  - [ ] 4.1 创建 tsup.config.ts（ESM 输出、入口点配置）
-  - [ ] 4.2 验证 `npm run build` 成功
-- [ ] Task 5: 配置 Vitest (AC: #5)
-  - [ ] 5.1 创建 vitest.config.ts
-  - [ ] 5.2 创建占位测试 `tests/unit/setup.test.ts`
-  - [ ] 5.3 验证 `npm test` 通过
-- [ ] Task 6: 配置 ESLint + Prettier (AC: #6)
-  - [ ] 6.1 创建 ESLint 配置文件（见 Dev Notes 关于版本选择）
-  - [ ] 6.2 创建 .prettierrc
-  - [ ] 6.3 验证 `npm run lint` 通过
-- [ ] Task 7: 创建 tests/ 目录结构 (AC: #8)
-  - [ ] 7.1 创建 tests/unit/ 镜像 src/ 结构
-  - [ ] 7.2 创建 tests/integration/ 和 tests/fixtures/ 目录
-  - [ ] 7.3 创建 fixtures 子目录：sample-projects/、documents/、configs/
-- [ ] Task 8: 创建基础配置文件
-  - [ ] 8.1 创建 .gitignore（node_modules/、dist/、.cord/、*.db、coverage/）
-  - [ ] 8.2 创建 .npmignore
-  - [ ] 8.3 创建 LICENSE (MIT)
+- [x] Task 1: 初始化 npm 项目与 package.json (AC: #2)
+  - [x] 1.1 `npm init` 并配置 `"type": "module"`
+  - [x] 1.2 声明所有核心 dependencies 和 devDependencies（版本见 Dev Notes）
+  - [x] 1.3 配置 scripts：`build`、`test`、`lint`、`format`、`type-check`
+  - [x] 1.4 配置 `bin` 字段指向 CLI 入口（`"cord": "./dist/cli/index.js"`）
+- [x] Task 2: 创建 D5 完整目录结构 (AC: #1, #7)
+  - [x] 2.1 创建 src/ 下全部架构层目录及子目录
+  - [x] 2.2 创建每个层的 index.ts 门面文件（空导出占位）
+  - [x] 2.3 创建 CLI 入口文件 `src/cli/index.ts`（最小 Commander 骨架）
+  - [x] 2.4 创建 MCP 门面文件 `src/mcp/index.ts`（空导出占位）
+  - [x] 2.5 创建 MCP Server 入口 `src/mcp/server.ts`（最小薄壳占位，与 tsup.config.ts 构建入口对齐）
+- [x] Task 3: 配置 TypeScript (AC: #3)
+  - [x] 3.1 创建 tsconfig.json（strict、ESNext、NodeNext）
+  - [x] 3.2 配置 paths、include/exclude
+- [x] Task 4: 配置 tsup 构建 (AC: #4)
+  - [x] 4.1 创建 tsup.config.ts（ESM 输出、入口点配置）
+  - [x] 4.2 验证 `npm run build` 成功
+- [x] Task 5: 配置 Vitest (AC: #5)
+  - [x] 5.1 创建 vitest.config.ts
+  - [x] 5.2 创建占位测试 `tests/unit/setup.test.ts`
+  - [x] 5.3 验证 `npm test` 通过
+- [x] Task 6: 配置 ESLint + Prettier (AC: #6)
+  - [x] 6.1 创建 ESLint 配置文件（eslint.config.js，flat config）
+  - [x] 6.2 创建 .prettierrc
+  - [x] 6.3 验证 `npm run lint` 通过
+- [x] Task 7: 创建 tests/ 目录结构 (AC: #8)
+  - [x] 7.1 创建 tests/unit/ 镜像 src/ 结构
+  - [x] 7.2 创建 tests/integration/ 和 tests/fixtures/ 目录
+  - [x] 7.3 创建 fixtures 子目录：sample-projects/、documents/、configs/
+- [x] Task 8: 创建基础配置文件
+  - [x] 8.1 创建 .gitignore（node_modules/、dist/、.cord/、*.db、coverage/）
+  - [x] 8.2 创建 .npmignore
+  - [x] 8.3 创建 LICENSE (MIT)
 
 ## Dev Notes
 
@@ -272,8 +272,73 @@ tests/
 
 ### Agent Model Used
 
+Claude Sonnet 4.6 (GitHub Copilot)
+
 ### Debug Log References
+
+- ESLint 10 flat config 需要 `@eslint/js` 作为独立 devDependency（未在 Story Dev Notes 中列出），已补充安装并更新 package.json。
 
 ### Completion Notes List
 
+- 所有 8 个 Task 全部完成，全部 AC 满足。
+- `npm run build` ✅ tsup ESM 输出成功（cli/index.js + mcp/server.js）
+- `npm test` ✅ Vitest 1 passed
+- `npm run lint` ✅ ESLint flat config 通过
+- `npm run type-check` ✅ tsc --noEmit 无报错
+- 补充 `@eslint/js` devDependency（ESLint 10 flat config 所需）
+- `src/adapters/index.ts` 通过 `export * from './framework/index.js'` 和 `export * from './ide/index.js'` 聚合两个子门面（符合 P6 跨层引用规则）
+
 ### File List
+
+- package.json
+- tsconfig.json
+- tsup.config.ts
+- vitest.config.ts
+- eslint.config.js
+- .prettierrc
+- .gitignore
+- .npmignore
+- LICENSE
+- src/cli/index.ts
+- src/cli/commands/.gitkeep
+- src/cli/formatters/.gitkeep
+- src/mcp/index.ts
+- src/mcp/server.ts
+- src/mcp/tools/.gitkeep
+- src/services/index.ts
+- src/repositories/index.ts
+- src/repositories/migrations/.gitkeep
+- src/scanner/index.ts
+- src/scanner/rules/.gitkeep
+- src/scanner/plugins/.gitkeep
+- src/adapters/index.ts
+- src/adapters/framework/index.ts
+- src/adapters/framework/bmad/.gitkeep
+- src/adapters/framework/generic/.gitkeep
+- src/adapters/ide/index.ts
+- src/schemas/index.ts
+- src/utils/index.ts
+- src/types/index.ts
+- tests/unit/setup.test.ts
+- tests/unit/services/.gitkeep
+- tests/unit/repositories/.gitkeep
+- tests/unit/scanner/rules/.gitkeep
+- tests/unit/adapters/framework/bmad/.gitkeep
+- tests/unit/adapters/ide/.gitkeep
+- tests/unit/utils/.gitkeep
+- tests/integration/cli/.gitkeep
+- tests/integration/mcp/.gitkeep
+- tests/integration/flows/.gitkeep
+- tests/fixtures/sample-projects/bmad-project/.gitkeep
+- tests/fixtures/sample-projects/generic-project/.gitkeep
+- tests/fixtures/sample-projects/empty-project/.gitkeep
+- tests/fixtures/documents/.gitkeep
+- tests/fixtures/configs/.gitkeep
+
+## Change Log
+
+- 2026-04-26: Story implemented — full project scaffold created (package.json, tsconfig, tsup, vitest, eslint flat config, prettier, all src/ and tests/ directories with index.ts facades). All ACs satisfied, build/test/lint verified. Added @eslint/js devDependency (required by ESLint 10 flat config).
+
+## Status
+
+review
