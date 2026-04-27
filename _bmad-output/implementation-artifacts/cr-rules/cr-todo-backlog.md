@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 4 |
+| Open | 5 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **4** |
+| **合计** | **5** |
 
 ---
 
@@ -77,6 +77,22 @@
   - `src/mcp/server.ts`
 - **问题描述**：`src/mcp/server.ts` 当前为仅含注释的占位文件（符合 Task 2.5 显式要求），构建后 `node dist/mcp/server.js` 静默退出（exit code 0），运维层面难以区分"正常启动"与"空实现静默退出"。
 - **建议时机**：Epic 5 启动时，将占位文件升级为防御性实现（如 `throw new Error('not implemented')` 或向 stderr 输出提示信息）
+- **解决记录**：—
+
+---
+
+### TODO-005
+
+- **标题**：`applyVerboseFlag` 在 `parse()` 之后调用，首条 subcommand action 内 `logger.debug` 会被吞掉
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 1-2 / Round 3 / 2026-04-26（发现 #2；R3~R5 评估轮次均维持降级）
+- **涉及文件**：
+  - `src/cli/index.ts`
+  - `src/cli/verbose.ts`
+- **问题描述**：`runCli()` 中 `program.parse(process.argv)` 先于 `applyVerboseFlag(program.opts(), process.env)` 执行。当前 skeleton 无任何 `.action()` 注册，AC5 字面满足，问题不出现。但一旦引入真实 subcommand action，action handler 内部的 `logger.debug()` 调用将在 `--verbose` 下被吞掉（verbose 尚未生效），排障日志全部丢失。
+- **建议时机**：引入首条 subcommand action 的 Story（如 `cord scan` 或 `cord init`），改用 `program.hook('preAction', () => applyVerboseFlag(...))` 或在 action 执行前预先从 `process.argv` / `process.env` 判断并设置 verbose
 - **解决记录**：—
 
 ---

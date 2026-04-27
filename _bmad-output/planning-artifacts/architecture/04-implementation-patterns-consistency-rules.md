@@ -275,6 +275,93 @@ type UpdateStrategy = 'auto' | 'suggest' | 'log_only';
 // 未知 key 宽容处理：回退到 suggest，记录 debug 日志但不报错
 ```
 
+## CLI 入口规则（来源：Story 1-2 CR 历史）
+
+**P19. ESM CLI entrypoint 守卫三步归一化（CR-CLI-01）：**
+
+⚠️ 禁止使用以下写法作为 entrypoint 守卫：
+- `` `file://${process.argv[1]}` ``（字符串拼接，空格路径失效）
+- `pathToFileURL(process.argv[1]).href`（无判空，`argv[1]` 缺失时崩溃）
+
+✅ 必须使用三步归一化写法：
+
+```ts
+import { realpathSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+// Step 1: 判空 — argv[1] 缺失时（stdin/--eval/--input-type=module）静默跳过
+const entryArg = process.argv[1];
+if (entryArg) {
+  let entryUrl: string;
+  try {
+    // Step 2: realpathSync 解析 symlink 真实路径（与 import.meta.url 对齐）
+    // Step 3: pathToFileURL 处理 RFC 3986 百分号编码（空格 → %20）
+    entryUrl = pathToFileURL(realpathSync(entryArg)).href;
+  } catch {
+    entryUrl = pathToFileURL(entryArg).href; // 兜底：realpathSync 失败时回退
+  }
+  if (import.meta.url === entryUrl) {
+    runCli();
+  }
+}
+```
+
+**根因**：`import.meta.url` 始终是 Node.js 解析后的真实文件 file URL（含 RFC 3986 编码）；`process.argv[1]` 可能是 symlink 路径且未编码。两侧不做归一化在特殊路径（含空格、symlink）下必然静默失效（exitcode=0，无输出）。
+
+**P20. CLI 入口文件副作用隔离（CR-CLI-02）：**
+
+- `src/cli/index.ts` 等 CLI 入口文件**禁止**在模块顶层执行 `program.parse()` 或任何会调用 `process.exit()` 的代码
+- 所有 CLI 执行逻辑必须封装在函数中，并由 entrypoint 守卫（P19）保护
+- 无副作用的 CLI helper（如 `applyVerboseFlag`）必须提取到独立模块（如 `src/cli/verbose.ts`），测试直接导入 helper，不导入 CLI 入口
+
+```ts
+// ✅ 正确结构：
+export function createProgram(): Command { ... }
+export function runCli(program = createProgram()): void {
+  program.parse(process.argv);
+  applyVerboseFlag(program.opts(), process.env);
+}
+// entrypoint 守卫（P19 三步写法）
+const entryArg = process.argv[1];
+// ...
+
+// ❌ 禁止：顶层直接执行
+const program = new Command();
+program.parse(process.argv);  // 任何导入都会触发，破坏可测试性
+```
+
+**P21. Commander.js `preAction` 钩子使用约束（CR-CLI-03）：**
+
+- 禁止在**没有任何 `.action()` 或 subcommand action 注册**的情况下，依赖 `preAction` 处理全局选项（如 `--verbose`）
+- `preAction` 只在 Commander 执行某个 action handler 之前触发；无 action 时该钩子永不触发
+- 替代方案：在 `program.parse()` 之后同步读取 `program.opts()` 处理全局选项；或在引入首条 subcommand 时改用 `program.hook('preAction', ...)`
+
+## 覆盖率配置规则（来源：Story 1-2 CR 历史）
+
+**P22. coverage.exclude 必须显式枚举（CR-COV-01）：**
+
+⚠️ **禁止**使用 blanket glob（如 `src/**/index.ts`）作为覆盖率排除规则——此类写法会将含业务逻辑的文件（如 `src/cli/index.ts`）一并排除，导致 coverage gate 形同虚设。
+
+✅ **只排除**纯 re-export barrel 文件（零业务逻辑），逐一显式列举：
+
+```ts
+// vitest.config.ts — ✅ 正确：显式枚举纯 barrel 文件
+coverage: {
+  exclude: [
+    'src/**/*.d.ts',
+    // 仅排除纯 re-export barrel 文件（无业务逻辑）：
+    'src/adapters/index.ts', 'src/adapters/framework/index.ts', 'src/adapters/ide/index.ts',
+    'src/mcp/index.ts', 'src/repositories/index.ts', 'src/scanner/index.ts',
+    'src/schemas/index.ts', 'src/services/index.ts', 'src/types/index.ts', 'src/utils/index.ts',
+    // ⚠️ 含业务逻辑的文件（src/cli/index.ts 等）禁止出现在此列表中
+  ],
+}
+```
+
+**P23. Story 级覆盖率 AC 优先于架构 D8 分级（CR-COV-02）：**
+
+架构 D8 表定义了各层覆盖率**最低下限**。若单 Story 的 AC 明文要求更高覆盖率（如某 Story 要求整体 ≥ 90%），以 Story AC 为准，该 Story 验收时不可用 D8 下限豁免。
+
 ## Enforcement Guidelines
 
 **所有 AI Agent 必须遵守：**
@@ -307,6 +394,19 @@ async queryRelations(docPath: string, type?: string, depth?: number)  // 禁止
 
 // ❌ 吞掉异常
 try { ... } catch (e) { /* 静默忽略 */ }  // 禁止
+
+// ❌ CLI 入口顶层执行 parse（CR-CLI-02）
+const program = new Command();
+program.parse(process.argv);  // 顶层执行，任何导入都会触发副作用
+
+// ❌ CLI entrypoint 守卫字符串拼接（CR-CLI-01）
+if (import.meta.url === `file://${process.argv[1]}`) { ... }  // 空格路径静默失效
+
+// ❌ CLI entrypoint 守卫无判空调用（CR-CLI-01）
+if (import.meta.url === pathToFileURL(process.argv[1]).href) { ... }  // argv[1] 缺失时崩溃
+
+// ❌ coverage.exclude blanket glob（CR-COV-01）
+exclude: ['src/**/index.ts']  // 误伤含业务逻辑的 src/cli/index.ts
 ```
 
 **P18. AGENTS.md 共享文件处理规则（NFR12 appendable 例外）：**

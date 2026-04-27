@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-09
-last_updated: 2026-04-26 20:00
+last_updated: 2026-04-27 00:00
 project: CORD
 project_key: NOKEY
 tracking_system: file-system
@@ -45,7 +45,7 @@ development_status:
   # Epic 1: 工程就绪——开发者可开始编写功能代码
   epic-1: in-progress
   1-1-project-initialization-and-directory-structure: done
-  1-2-corderror-error-handling-and-logger-system: ready-for-dev
+  1-2-corderror-error-handling-and-logger-system: done
   1-3-zod-validation-layer-and-core-type-definitions: ready-for-dev
   1-4-sqlite-storage-layer-and-data-migration: ready-for-dev
   1-5-ci-cd-pipeline-and-quality-gates: ready-for-dev

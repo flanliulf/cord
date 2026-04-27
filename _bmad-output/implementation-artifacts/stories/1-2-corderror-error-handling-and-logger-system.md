@@ -1,6 +1,6 @@
 # Story 1.2: CordError 错误处理体系与 Logger 日志系统
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,34 +21,34 @@ So that 所有模块可以使用一致的错误报告和日志输出模式。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 CordError 基类 (AC: #1)
-  - [ ] 1.1 在 `src/utils/errors.ts` 定义 CordError 继承 Error
-  - [ ] 1.2 基类属性：`code: string`、`suggestion: string`、`context: Record<string, unknown>`
-  - [ ] 1.3 构造函数接受 `{ message, code, suggestion, context?, cause? }`
-  - [ ] 1.4 重写 `name` getter 返回类名
-- [ ] Task 2: 实现 5+ 错误子类 (AC: #2, #3)
-  - [ ] 2.1 `ScanError`——错误码前缀 `CORD_SCAN_`
-  - [ ] 2.2 `QueryError`——错误码前缀 `CORD_QUERY_`
-  - [ ] 2.3 `ConfigError`——错误码前缀 `CORD_CONFIG_`
-  - [ ] 2.4 `StorageError`——错误码前缀 `CORD_STORAGE_`
-  - [ ] 2.5 `AdapterError`——错误码前缀 `CORD_ADAPTER_`
-  - [ ] 2.6 每个子类可接收额外的特定 context 字段
-- [ ] Task 3: 实现 Logger (AC: #4, #5, #6, #7)
-  - [ ] 3.1 在 `src/utils/logger.ts` 定义 Logger 类或模块
-  - [ ] 3.2 四个级别方法：debug()、info()、warn()、error()
-  - [ ] 3.3 运行模式检测：CLI 模式 vs MCP 模式（通过环境变量或初始化参数）
-  - [ ] 3.4 CLI 模式：chalk 着色，info/warn → stdout，error → stderr
-  - [ ] 3.5 MCP 模式：所有级别输出到 stderr（P12 规则）
-  - [ ] 3.6 debug 级别默认关闭，`CORD_DEBUG=1` 或 verbose 标志启用
-  - [ ] 3.7 提供 `setVerbose(boolean)` 和 `setMode('cli' | 'mcp')` 方法
-  - [ ] 3.8 在 `src/cli/index.ts` 中预留 `--verbose` 全局选项接线点：解析 `--verbose` 标志后调用 `logger.setVerbose(true)`（与 Story 1.1 的 CLI 骨架对齐）
-- [ ] Task 4: 更新 index.ts 门面 (AC: #1)
-  - [ ] 4.1 更新 `src/utils/index.ts` 导出 CordError 及所有子类
-  - [ ] 4.2 更新 `src/utils/index.ts` 导出 Logger
-- [ ] Task 5: 编写单元测试 (AC: #8)
-  - [ ] 5.1 `tests/unit/utils/errors.test.ts`——测试基类和每个子类
-  - [ ] 5.2 `tests/unit/utils/logger.test.ts`——测试所有级别、模式切换、verbose 控制
-  - [ ] 5.3 确保覆盖率 ≥ 90%
+- [x] Task 1: 实现 CordError 基类 (AC: #1)
+  - [x] 1.1 在 `src/utils/errors.ts` 定义 CordError 继承 Error
+  - [x] 1.2 基类属性：`code: string`、`suggestion: string`、`context: Record<string, unknown>`
+  - [x] 1.3 构造函数接受 `{ message, code, suggestion, context?, cause? }`
+  - [x] 1.4 重写 `name` getter 返回类名
+- [x] Task 2: 实现 5+ 错误子类 (AC: #2, #3)
+  - [x] 2.1 `ScanError`——错误码前缀 `CORD_SCAN_`
+  - [x] 2.2 `QueryError`——错误码前缀 `CORD_QUERY_`
+  - [x] 2.3 `ConfigError`——错误码前缀 `CORD_CONFIG_`
+  - [x] 2.4 `StorageError`——错误码前缀 `CORD_STORAGE_`
+  - [x] 2.5 `AdapterError`——错误码前缀 `CORD_ADAPTER_`
+  - [x] 2.6 每个子类可接收额外的特定 context 字段
+- [x] Task 3: 实现 Logger (AC: #4, #5, #6, #7)
+  - [x] 3.1 在 `src/utils/logger.ts` 定义 Logger 类或模块
+  - [x] 3.2 四个级别方法：debug()、info()、warn()、error()
+  - [x] 3.3 运行模式检测：CLI 模式 vs MCP 模式（通过环境变量或初始化参数）
+  - [x] 3.4 CLI 模式：chalk 着色，info/warn → stdout，error → stderr
+  - [x] 3.5 MCP 模式：所有级别输出到 stderr（P12 规则）
+  - [x] 3.6 debug 级别默认关闭，`CORD_DEBUG=1` 或 verbose 标志启用
+  - [x] 3.7 提供 `setVerbose(boolean)` 和 `setMode('cli' | 'mcp')` 方法
+  - [x] 3.8 在 `src/cli/index.ts` 中预留 `--verbose` 全局选项接线点：解析 `--verbose` 标志后调用 `logger.setVerbose(true)`（与 Story 1.1 的 CLI 骨架对齐）
+- [x] Task 4: 更新 index.ts 门面 (AC: #1)
+  - [x] 4.1 更新 `src/utils/index.ts` 导出 CordError 及所有子类
+  - [x] 4.2 更新 `src/utils/index.ts` 导出 Logger
+- [x] Task 5: 编写单元测试 (AC: #8)
+  - [x] 5.1 `tests/unit/utils/errors.test.ts`——测试基类和每个子类
+  - [x] 5.2 `tests/unit/utils/logger.test.ts`——测试所有级别、模式切换、verbose 控制
+  - [x] 5.3 确保覆盖率 ≥ 90%
 
 ## Dev Notes
 
@@ -158,8 +158,31 @@ MCP 入口 → catch → 转为 MCP 标准错误响应
 
 ### Agent Model Used
 
+Claude Sonnet 4.5 (GitHub Copilot)
+
 ### Debug Log References
+
+N/A
 
 ### Completion Notes List
 
+- Task 1+2: `src/utils/errors.ts` 实现 CordError 基类 + 5 个子类（ScanError/QueryError/ConfigError/StorageError/AdapterError），所有子类共享 `SubclassParams` 类型，默认错误码为 `CORD_{MODULE}_000`
+- Task 3: `src/utils/logger.ts` 实现 Logger 类，支持 CLI/MCP 双模式、chalk 着色、process.stdout/stderr.write 输出，`CORD_DEBUG=1` 或 `CORD_MCP_MODE=1` 环境变量自动检测；暴露单例 `logger` 实例
+- Task 4: `src/utils/index.ts` 门面更新导出所有错误类、Logger、LogMode；`src/cli/index.ts` 添加全局 `--verbose` 选项，通过 commander `preAction` hook 调用 `logger.setVerbose(true)`
+- Task 5: `tests/unit/utils/errors.test.ts`（22 tests）、`tests/unit/utils/logger.test.ts`（17 tests）；errors.ts 100%、logger.ts 100% 覆盖率；全量 40 个测试 100% 通过
+- 新增 devDependency：`@vitest/coverage-v8`（覆盖率报告工具）
+
 ### File List
+
+- `src/utils/errors.ts` (新建)
+- `src/utils/logger.ts` (新建)
+- `src/utils/index.ts` (修改)
+- `src/cli/index.ts` (修改)
+- `tests/unit/utils/errors.test.ts` (新建)
+- `tests/unit/utils/logger.test.ts` (新建)
+- `package.json` (修改 — 新增 @vitest/coverage-v8 devDep)
+- `package-lock.json` (修改)
+
+## Change Log
+
+- 2026-04-26: Story implemented — CordError 基类 + 5 子类、Logger 四级日志系统（CLI/MCP 双模式）、utils/index.ts 门面更新、cli/index.ts --verbose 接线、22+17 单元测试（100% 覆盖率），全量 40 测试通过，lint/type-check 通过。

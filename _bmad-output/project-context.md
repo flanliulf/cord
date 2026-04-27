@@ -171,6 +171,25 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - 所有命令支持 `--json` 标志输出 JSON 格式
 - 错误输出使用 chalk 着色 + CordError 的 suggestion 字段
 
+**CLI 入口文件约束（CR-CLI-01/02/03，来源：Story 1-2 CR 历史）：**
+
+- **禁止**在 `src/cli/index.ts` 等入口模块的顶层直接执行 `program.parse()`；所有 `parse()` / `process.exit()` 调用必须封装在函数内，并由 entrypoint 守卫保护（CR-CLI-02）
+- **ESM entrypoint 守卫必须使用三步归一化写法**（CR-CLI-01）：
+  ```ts
+  import { realpathSync } from 'node:fs';
+  import { pathToFileURL } from 'node:url';
+  const entryArg = process.argv[1];
+  if (entryArg) {
+    let entryUrl: string;
+    try { entryUrl = pathToFileURL(realpathSync(entryArg)).href; }
+    catch { entryUrl = pathToFileURL(entryArg).href; }
+    if (import.meta.url === entryUrl) { runCli(); }
+  }
+  ```
+  ⚠️ 禁止使用 `` `file://${process.argv[1]}` `` 或无判空的 `pathToFileURL(process.argv[1]).href`
+- **CLI helper 函数**（如 `applyVerboseFlag`）必须抽到独立的无副作用模块（如 `src/cli/verbose.ts`），测试直接导入 helper，不导入入口文件（CR-BP-01）
+- **禁止依赖 Commander `preAction` 处理全局选项**（如 `--verbose`），除非已注册至少一个 `.action()`；无 action 时改用 `parse()` 之后 `program.opts()` 同步处理（CR-CLI-03）
+
 ### 测试规则
 
 **测试框架与组织（P5）：**
@@ -217,6 +236,25 @@ describe('ScanService', () => {
 | Adapters | ≥ 80% | 适配逻辑需可靠 |
 | CLI / MCP 入口 | ≥ 70% | 薄壳，主要是参数转发 |
 | **整体** | **≥ 80%** | CI 质量门禁 |
+
+> ⚠️ **Story 级 AC 优先**：单 Story 若明文要求更高覆盖率（如 Story 1-2 AC8 要求 ≥ 90%），以 Story AC 为准，高于 D8 分层下限（CR-COV-02）。
+
+**覆盖率排除规则（CR-COV-01，来源：Story 1-2 CR 历史）：**
+- **禁止**使用 `src/**/index.ts` 等 blanket glob 作为 `coverage.exclude`；此类规则会将含业务逻辑的文件一并排除，导致 coverage gate 形同虚设
+- 只可显式枚举**纯 re-export barrel 文件**（零业务逻辑的 `index.ts`）：
+  ```ts
+  // vitest.config.ts — ✅ 正确：显式枚举纯 barrel 文件
+  coverage: {
+    exclude: [
+      'src/**/*.d.ts',
+      'src/adapters/index.ts', 'src/adapters/framework/index.ts', 'src/adapters/ide/index.ts',
+      'src/mcp/index.ts', 'src/repositories/index.ts', 'src/scanner/index.ts',
+      'src/schemas/index.ts', 'src/services/index.ts', 'src/types/index.ts', 'src/utils/index.ts',
+      // ⚠️ 含业务逻辑的文件（如 src/cli/index.ts）禁止出现在此列表中
+    ],
+  }
+  // ❌ 禁止：'src/**/index.ts'（会把含逻辑的 cli/index.ts 一并排除）
+  ```
 
 **必须遵守的测试原则：**
 - 新增功能**必须附带测试**，覆盖正常路径 + 至少一个异常路径

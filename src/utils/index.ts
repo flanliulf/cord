@@ -1,2 +1,11 @@
 // utils - shared utility functions
-export {};
+export {
+  CordError,
+  ScanError,
+  QueryError,
+  ConfigError,
+  StorageError,
+  AdapterError,
+} from './errors.js';
+export { Logger, logger } from './logger.js';
+export type { LogMode } from './logger.js';
