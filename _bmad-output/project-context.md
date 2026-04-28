@@ -417,6 +417,10 @@ const chalk = require('chalk');  // ESM 项目禁止 require
 7. **snake_case ↔ camelCase 边界** — 只在 Repository 层转换，其他层保持各自格式
 8. **CordError 必须携带 `code` + `suggestion`** — 错误码格式：`CORD_SCAN_001`
 9. **新增框架适配器不得修改核心源码** — NFR8 合规要求
+10. **Zod schema 文件必须同时导出 `validateXxx` 包装入口** — 裸 `xxxSchema.parse()` 抛 `ZodError`，违反统一错误体系（AC6）；必须通过 `validateWithCordError` 包装为 `ConfigError` 并携带 `CORD_SCHEMA_xxx` 错误码（如 `CORD_SCHEMA_001`）。禁止只导出裸 schema 对象作为对外验证接口
+11. **互斥可选字段必须收紧类型 + refine 双重约束** — `z.string().optional()` 允许空字符串，`Boolean('')===false` 使 refine 互斥判定失效；必须改为 `z.string().trim().min(1).optional()`，并补测 mixed-empty 分支（`{ fieldA: '', fieldB: '有效值' }`）以及 `neither`、`both`、`both-empty` 三类非法分支
+12. **测试数据缺字段用显式对象字面量，禁止 `_ 解构`** — `const { k: _, ...rest } = obj` 触发 `@typescript-eslint/no-unused-vars` lint 报错，应直接构造缺目标字段的对象字面量
+13. **Zod helper 泛型用 `ZodType<T, ZodTypeDef, unknown>` 不用 `ZodSchema<T>`** — `ZodSchema<T>` 将 Input=Output=T，与含 `.default()` / `.transform()` 的 schema（Input 为 `T|undefined`）类型不兼容，会导致 TypeScript 编译错误
 
 **安全规则：**
 - SQLite WAL 模式——数据目录 `.cord/` 应在 `.gitignore` 中

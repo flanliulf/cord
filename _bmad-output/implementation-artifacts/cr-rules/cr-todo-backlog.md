@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 5 |
+| Open | 6 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **5** |
+| **合计** | **6** |
 
 ---
 
@@ -93,6 +93,23 @@
   - `src/cli/verbose.ts`
 - **问题描述**：`runCli()` 中 `program.parse(process.argv)` 先于 `applyVerboseFlag(program.opts(), process.env)` 执行。当前 skeleton 无任何 `.action()` 注册，AC5 字面满足，问题不出现。但一旦引入真实 subcommand action，action handler 内部的 `logger.debug()` 调用将在 `--verbose` 下被吞掉（verbose 尚未生效），排障日志全部丢失。
 - **建议时机**：引入首条 subcommand action 的 Story（如 `cord scan` 或 `cord init`），改用 `program.hook('preAction', () => applyVerboseFlag(...))` 或在 action 执行前预先从 `process.argv` / `process.env` 判断并设置 verbose
+- **解决记录**：—
+
+---
+
+### TODO-006
+
+- **标题**：schema 时间字段缺 ISO 8601 约束；document.path / scan.projectRoot 缺路径格式约束
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 1-3 / Round 1 / 2026-04-27（发现 #3；Round 2、Round 3 均维持非阻塞）
+- **涉及文件**：
+  - `src/schemas/document.ts`
+  - `src/schemas/relation.ts`
+  - `src/schemas/scan-input.ts`
+- **问题描述**：`createdAt`/`updatedAt` 仅用 `z.string().min(1)` 校验，未约束 ISO 8601 格式（应改为 `z.string().datetime()`）；`document.path` 未约束相对路径语义；`scan.projectRoot` 未约束绝对路径语义。非法时间戳会污染排序和增量扫描判断，非法路径会破坏以路径为主键的查询/缓存键值一致性。
+- **建议时机**：首次真正消费上述 schema 字段的 Story（如 1-4 扫描器或查询模块），在引入真实路径处理逻辑时，叠加 `z.string().datetime()`、相对路径 `.refine()`、绝对路径 `.refine()` 约束，并同步补对应回归测试
 - **解决记录**：—
 
 ---

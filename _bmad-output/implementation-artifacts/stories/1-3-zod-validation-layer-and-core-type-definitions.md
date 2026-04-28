@@ -1,6 +1,6 @@
 # Story 1.3: Zod 统一验证层与核心类型定义
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,28 +21,28 @@ So that CLI/MCP/Service 层可以共享同一套输入验证和类型系统。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 定义核心类型 (AC: #1, #2, #3, #4)
-  - [ ] 1.1 `src/types/relations.ts` — RELATION_TYPES 常量和 RelationType 类型
-  - [ ] 1.2 `src/types/documents.ts` — DocumentNode 接口
-  - [ ] 1.3 `src/types/graph.ts` — GraphTraversalResult、RelationEdge 等
-  - [ ] 1.4 `src/types/config.ts` — CordConfig 接口
-  - [ ] 1.5 更新 `src/types/index.ts` 门面导出
-- [ ] Task 2: 创建 Zod schema (AC: #5, #6)
-  - [ ] 2.1 `src/schemas/document.ts` — documentSchema
-  - [ ] 2.2 `src/schemas/relation.ts` — relationSchema（含 `status: z.enum(['active', 'deprecated']).default('active')` 字段）
-  - [ ] 2.3 `src/schemas/config.ts` — configSchema（cord.config 初始 7 项配置；`updateStrategies` 第 8 项由 Story 4.3 Task 1 扩展）
-  - [ ] 2.4 `src/schemas/scan-input.ts` — scanInputSchema
-  - [ ] 2.5 `src/schemas/query-input.ts` — queryInputSchema
-  - [ ] 2.6 `src/schemas/impact-input.ts` — impactInputSchema
-  - [ ] 2.7 更新 `src/schemas/index.ts` 门面导出
-  - [ ] 2.8 Zod 验证失败封装为 CordError（创建辅助函数 `validateWithCordError`）
-- [ ] Task 3: JSON Schema 导出能力 (AC: #7)
-  - [ ] 3.1 安装 `zod-to-json-schema` 依赖
-  - [ ] 3.2 创建导出工具函数或脚本（为 MCP Tools inputSchema 预备）
-- [ ] Task 4: 编写单元测试 (AC: #8)
-  - [ ] 4.1 `tests/unit/schemas/` — 每个 schema 的有效/无效输入测试
-  - [ ] 4.2 测试 Zod 验证失败时是否正确抛出 CordError
-  - [ ] 4.3 测试 JSON Schema 导出是否正确
+- [x] Task 1: 定义核心类型 (AC: #1, #2, #3, #4)
+  - [x] 1.1 `src/types/relations.ts` — RELATION_TYPES 常量和 RelationType 类型
+  - [x] 1.2 `src/types/documents.ts` — DocumentNode 接口
+  - [x] 1.3 `src/types/graph.ts` — GraphTraversalResult、RelationEdge 等
+  - [x] 1.4 `src/types/config.ts` — CordConfig 接口
+  - [x] 1.5 更新 `src/types/index.ts` 门面导出
+- [x] Task 2: 创建 Zod schema (AC: #5, #6)
+  - [x] 2.1 `src/schemas/document.ts` — documentSchema
+  - [x] 2.2 `src/schemas/relation.ts` — relationSchema（含 `status: z.enum(['active', 'deprecated']).default('active')` 字段）
+  - [x] 2.3 `src/schemas/config.ts` — configSchema（cord.config 初始 7 项配置；`updateStrategies` 第 8 项由 Story 4.3 Task 1 扩展）
+  - [x] 2.4 `src/schemas/scan-input.ts` — scanInputSchema
+  - [x] 2.5 `src/schemas/query-input.ts` — queryInputSchema
+  - [x] 2.6 `src/schemas/impact-input.ts` — impactInputSchema
+  - [x] 2.7 更新 `src/schemas/index.ts` 门面导出
+  - [x] 2.8 Zod 验证失败封装为 CordError（创建辅助函数 `validateWithCordError`）
+- [x] Task 3: JSON Schema 导出能力 (AC: #7)
+  - [x] 3.1 安装 `zod-to-json-schema` 依赖
+  - [x] 3.2 创建导出工具函数或脚本（为 MCP Tools inputSchema 预备）
+- [x] Task 4: 编写单元测试 (AC: #8)
+  - [x] 4.1 `tests/unit/schemas/` — 每个 schema 的有效/无效输入测试
+  - [x] 4.2 测试 Zod 验证失败时是否正确抛出 CordError
+  - [x] 4.3 测试 JSON Schema 导出是否正确
 
 ## Dev Notes
 
@@ -208,8 +208,51 @@ export function validateWithCordError<T>(
 
 ### Agent Model Used
 
+Claude Sonnet 4.6 (GitHub Copilot)
+
 ### Debug Log References
+
+_无调试日志。_
 
 ### Completion Notes List
 
+- Task 1: 创建 4 个核心类型文件（relations/documents/graph/config），更新 `src/types/index.ts` 门面导出
+- Task 2: 创建 6 个 Zod schema 文件 + `helpers.ts`（validateWithCordError），更新 `src/schemas/index.ts`
+  - relationSchema 使用 `Object.values(RELATION_TYPES)` 动态派生枚举，避免重复维护
+  - configSchema.relationTypes 使用 `z.record(z.enum([...]), ...)` 约束只允许已知 9 类关系 key
+- Task 3: 安装 `zod-to-json-schema@^3.25.2`，创建 `src/schemas/json-schema.ts` 导出 `toJsonSchema` 工具函数
+- Task 4: 编写 8 个测试文件，共 61 条 schema 测试 + 完整回归 114 条全部通过；TypeScript 编译及 ESLint 均无错误
+
 ### File List
+
+**新增：**
+- `src/types/relations.ts`
+- `src/types/documents.ts`
+- `src/types/graph.ts`
+- `src/types/config.ts`
+- `src/schemas/document.ts`
+- `src/schemas/relation.ts`
+- `src/schemas/config.ts`
+- `src/schemas/scan-input.ts`
+- `src/schemas/query-input.ts`
+- `src/schemas/impact-input.ts`
+- `src/schemas/helpers.ts`
+- `src/schemas/json-schema.ts`
+- `tests/unit/schemas/document.test.ts`
+- `tests/unit/schemas/relation.test.ts`
+- `tests/unit/schemas/config.test.ts`
+- `tests/unit/schemas/scan-input.test.ts`
+- `tests/unit/schemas/query-input.test.ts`
+- `tests/unit/schemas/impact-input.test.ts`
+- `tests/unit/schemas/helpers.test.ts`
+- `tests/unit/schemas/json-schema.test.ts`
+
+**修改：**
+- `src/types/index.ts`
+- `src/schemas/index.ts`
+- `package.json`
+- `package-lock.json`
+
+## Change Log
+
+- 2026-04-27: Story 实现完成 — 核心类型（relations/documents/graph/config）、6 个 Zod schema + helpers + JSON Schema 导出工具创建完毕。安装 zod-to-json-schema@^3.25.2。61 条 schema 测试 + 114 条全量测试通过，TypeScript 编译 + ESLint 均无错误。所有 AC 满足。

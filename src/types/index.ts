@@ -1,2 +1,5 @@
 // types - domain type definitions
-export {};
+export * from './relations.js';
+export * from './documents.js';
+export * from './graph.js';
+export * from './config.js';
