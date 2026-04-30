@@ -190,6 +190,54 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - **CLI helper 函数**（如 `applyVerboseFlag`）必须抽到独立的无副作用模块（如 `src/cli/verbose.ts`），测试直接导入 helper，不导入入口文件（CR-BP-01）
 - **禁止依赖 Commander `preAction` 处理全局选项**（如 `--verbose`），除非已注册至少一个 `.action()`；无 action 时改用 `parse()` 之后 `program.opts()` 同步处理（CR-CLI-03）
 
+### Repository 层开发规则（来源：Story 1-4 CR 历史）
+
+**CR-REPO-01：update 方法禁止接受不可变字段**
+- 所有 `update*` 接口签名必须使用 `Omit<Partial<EntityType>, 'id' | 'createdAt' | 'updatedAt'>`，排除不可变字段
+- 实现层解构丢弃不可变字段，显式透传 `existing.createdAt`（避免 spread merge 覆盖）
+- 返回值必须与 DB 持久态完全一致，禁止返回「看似更新成功但实未写库」的值
+```typescript
+// ✅ 正确
+updateDocument(id: string, updates: Omit<Partial<DocumentNode>, 'id' | 'createdAt' | 'updatedAt'>): DocumentNode
+
+// ❌ 禁止：允许传入不可变字段
+updateDocument(id: string, updates: Partial<DocumentNode>): DocumentNode
+```
+
+**CR-REPO-02：Mapper 层必须对 DB 值做运行时防御校验**
+- JSON 字段：`try/catch` + 含 `{ cause }` 的上下文错误，禁止裸 `JSON.parse(raw) as T`
+- 枚举字段：白名单 `assertEnum<T>(value, VALID_SET, context)` 校验，禁止裸 `as EnumType`
+- DB 层 `CHECK` 约束必须与 TS 枚举白名单保持对称（两处必须同步更新）
+```typescript
+// ✅ 正确：带上下文的防御校验
+function parseJsonMetadata(raw, context): Record<string, unknown> | undefined {
+  try { return JSON.parse(raw); } catch (err) { throw new Error(`...`, { cause: err }); }
+}
+function assertEnum<T extends string>(value: string, valid: Set<string>, context: string): T {
+  if (!valid.has(value)) throw new Error(`[mappers] Invalid value "${value}" for ${context}`);
+  return value as T;
+}
+
+// ❌ 禁止：裸断言，脏数据会让整个查询链路崩溃
+return { relationType: row.relation_type as RelationType };
+```
+
+**CR-REPO-03：构建产物中的静态资源必须内联为 TS 模块（禁止运行时 readFileSync）**
+- 迁移 SQL 等构建时已知的静态文本：以 TS 模块字符串常量内联，编译时绑定
+- tsup 仅打包 TS/JS 文件，`.sql`/`.json` 等资源文件不会出现在 `dist/` 中
+- 见「数据库迁移（D2）」中的 CR-REPO-03 条目
+```typescript
+// ✅ 正确：内联为 TS 模块常量
+export const MIGRATION_001_SQL = `CREATE TABLE IF NOT EXISTS schema_migrations (...)`;
+
+// ❌ 禁止：运行时文件系统读取，dist/ 中不存在该文件
+const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 'utf-8');
+```
+
+**CR-REPO-04：唯一索引维度必须与接口 source 语义契约对齐**
+- 当接口暴露了「按 source 区分保留/删除」能力（如 `excludeSources` 参数），唯一索引必须包含 `source` 维度
+- DB `CHECK` 约束的枚举值必须与 TS 类型白名单完全一致，不得只改一处
+
 ### 测试规则
 
 **测试框架与组织（P5）：**
@@ -355,6 +403,8 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 - 迁移状态使用 `schema_migrations` 历史表追踪（非单值 schema_version），支持审计和部分回滚
 - 应用启动时查询 `schema_migrations` 表已执行版本后，按序执行未执行的迁移脚本
 - 迁移在事务中执行，失败可回滚
+- **迁移 SQL 内联规则（CR-REPO-03）**：迁移 SQL 以 TS 模块字符串常量内联（`export const MIGRATION_XXX_SQL = \`...\``），禁止运行时 `readFileSync`；tsup 仅打包 TS/JS 文件，`.sql` 资源不会出现在 `dist/` 中
+- **pre-release schema 重写约定**：v0.1 发布前可直接重写已有 migration；首个稳定 release 后切换为只增不改的增量迁移模式（参见 TODO-007）
 
 **配置管理（D6）：**
 - 支持 `cord.config.yaml`（推荐）和 `cord.config.json`

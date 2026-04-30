@@ -275,6 +275,100 @@ type UpdateStrategy = 'auto' | 'suggest' | 'log_only';
 // 未知 key 宽容处理：回退到 suggest，记录 debug 日志但不报错
 ```
 
+## Repository 层开发规则（来源：Story 1-4 CR 历史）
+
+**P24. update 方法禁止接受不可变字段（CR-REPO-01）：**
+
+所有 Repository `update*` 方法签名必须使用 `Omit<Partial<EntityType>, 'id' | 'createdAt' | 'updatedAt'>`，排除不可变字段；实现层解构丢弃不可变字段，显式透传 `existing.createdAt`。
+
+```typescript
+// ✅ 正确：收窄类型，禁止传入不可变字段
+updateDocument(
+  id: string,
+  updates: Omit<Partial<DocumentNode>, 'id' | 'createdAt' | 'updatedAt'>
+): DocumentNode {
+  const existing = this.getDocumentById(id)!;
+  const { id: _id, createdAt: _ca, updatedAt: _ua, ...safeUpdates } = updates as DocumentNode;
+  void _id; void _ca; void _ua;
+  const merged = { ...existing, ...safeUpdates, id, createdAt: existing.createdAt, updatedAt: new Date().toISOString() };
+  // ... SQL UPDATE ...
+  return merged;
+}
+
+// ❌ 禁止：允许传入 createdAt，内存/DB 状态漂移
+updateDocument(id: string, updates: Partial<DocumentNode>): DocumentNode
+```
+
+**根因**：`Partial<EntityType>` 包含 `createdAt` 等不可变字段，调用方传入后会被 spread 进返回对象，而 SQL UPDATE 不含 `created_at` 列，导致内存态与 DB 持久态不一致，污染上层缓存和日志。
+
+**P25. Mapper 层必须对 DB 值做运行时防御校验（CR-REPO-02）：**
+
+DB 数据可能被外部工具直接篡改或含有历史脏数据，不能假设其合法性。
+
+- **JSON 字段**：必须用 `try/catch` 包裹，失败时抛出含 `{ cause }` 的上下文错误（`{ table, id, column }`）
+- **枚举字段**：必须通过白名单常量校验（`assertEnum<T>`），禁止裸 `as EnumType` 断言
+- **DB `CHECK` 约束**：必须与 TS 枚举白名单保持对称，两处必须同步更新
+
+```typescript
+// ✅ 正确：带上下文的防御校验辅助函数
+function parseJsonMetadata(
+  raw: string | null,
+  context: { table: string; id: string; column: string }
+): Record<string, unknown> | undefined {
+  if (raw == null) return undefined;
+  try { return JSON.parse(raw) as Record<string, unknown>; }
+  catch (err) { throw new Error(`[mappers] Failed to parse JSON in ${context.table}.${context.column} for id="${context.id}"`, { cause: err }); }
+}
+
+function assertEnum<T extends string>(value: string, valid: Set<string>, context: string): T {
+  if (!valid.has(value)) throw new Error(`[mappers] Invalid value "${value}" for ${context}. Allowed: [${[...valid].join(', ')}]`);
+  return value as T;
+}
+
+// ❌ 禁止：裸断言，脏数据让整个 getAllDocuments() 崩溃
+return { relationType: row.relation_type as RelationType, ... };
+```
+
+**P26. 构建产物中的静态资源必须内联为 TS 模块（CR-REPO-03）：**
+
+tsup 打包产物（`dist/`）中只包含编译后的 JS/TS 文件，`.sql`、`.json` 等资源文件不会被复制。
+
+- **迁移 SQL**：必须以 TS 模块字符串常量内联，由编译器在构建时绑定，彻底规避运行时路径漂移
+- **其他静态资源**（`.json` 模板等）同理，内联为 TS 常量或在构建流程中显式配置复制
+
+```typescript
+// ✅ 正确：内联为 TS 模块常量（src/repositories/migrations/001-initial-schema.ts）
+export const MIGRATION_001_SQL = `
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    version     INTEGER PRIMARY KEY,
+    applied_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+  -- ...
+`;
+
+// ✅ 正确：runner.ts 从 TS 模块导入
+import { MIGRATION_001_SQL } from './001-initial-schema.js';
+
+// ❌ 禁止：运行时文件系统读取，dist/ 中不存在该文件
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 'utf-8');
+```
+
+**P27. 唯一索引维度必须与接口 source 语义契约对齐（CR-REPO-04）：**
+
+当 Repository 接口暴露了「按 source 区分保留/删除」能力（如 `deleteRelationsByDocId(id, { excludeSources })`），唯一索引必须包含 `source` 维度，否则「不同 source 的同类型关系并存」语义无法落地。
+
+```sql
+-- ✅ 正确：含 source 维度，允许 manual + auto_scan 在同一对节点间并存
+CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_unique_pair
+  ON relations(source_doc_id, target_doc_id, relation_type, source);
+
+-- ❌ 禁止：缺少 source，插入 manual 时会触发 UNIQUE constraint failed
+CREATE UNIQUE INDEX idx_relations_unique_pair
+  ON relations(source_doc_id, target_doc_id, relation_type);
+```
+
 ## CLI 入口规则（来源：Story 1-2 CR 历史）
 
 **P19. ESM CLI entrypoint 守卫三步归一化（CR-CLI-01）：**
@@ -407,6 +501,18 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) { ... }  // argv[1]
 
 // ❌ coverage.exclude blanket glob（CR-COV-01）
 exclude: ['src/**/index.ts']  // 误伤含业务逻辑的 src/cli/index.ts
+
+// ❌ Repository update 方法接受不可变字段（CR-REPO-01）
+updateDocument(id: string, updates: Partial<DocumentNode>): DocumentNode  // 禁止，Partial 含 id/createdAt
+
+// ❌ Mapper 裸断言 DB 枚举值（CR-REPO-02）
+return { relationType: row.relation_type as RelationType };  // 脏数据导致全链路崩溃
+
+// ❌ 运行时读取静态资源文件（CR-REPO-03）
+const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 'utf-8');  // dist/ 中不存在
+
+// ❌ 唯一索引缺少 source 维度（CR-REPO-04）
+CREATE UNIQUE INDEX idx_relations ON relations(source_doc_id, target_doc_id, relation_type);  // manual+auto_scan 并存时冲突
 ```
 
 **P18. AGENTS.md 共享文件处理规则（NFR12 appendable 例外）：**

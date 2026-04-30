@@ -1,6 +1,6 @@
 # Story 1.4: SQLite 存储层与数据迁移机制
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,33 +21,33 @@ So that Service 层可以通过抽象接口进行图谱数据的 CRUD 操作。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 定义 IGraphRepository 接口 (AC: #1)
-  - [ ] 1.1 `src/repositories/interfaces.ts` — 文档节点 CRUD 方法签名
-  - [ ] 1.2 关系边 CRUD 方法签名
-  - [ ] 1.3 同步状态查询/更新方法签名
-  - [ ] 1.4 事务支持方法签名
-  - [ ] 1.5 `getAllRelations(): RelationEdge[]` 全量读取方法签名（对称已有 `getAllDocuments()`，供 Story 3.4 导出功能依赖）
-- [ ] Task 2: 实现数据迁移机制 (AC: #4, #5, #6)
-  - [ ] 2.1 创建 `src/repositories/migrations/001-initial-schema.sql`
-  - [ ] 2.2 实现 `src/repositories/migrations/runner.ts` 迁移执行器，暴露 `runMigrations(db: Database): void` 公共方法
-  - [ ] 2.3 迁移使用事务保护，失败回滚
-  - [ ] 2.4 在 `SqliteGraphRepository` 构造函数（Task 4.1）中调用 `runMigrations(db)` 实现启动即迁移；确保首次连接和后续连接均可安全调用（幂等）
-- [ ] Task 3: 实现 mappers (AC: #3)
-  - [ ] 3.1 `src/repositories/mappers.ts` — snake_case → camelCase 转换
-  - [ ] 3.2 camelCase → snake_case 转换
-  - [ ] 3.3 文档行映射和关系行映射
-- [ ] Task 4: 实现 SqliteGraphRepository (AC: #2, #7)
-  - [ ] 4.1 `src/repositories/sqlite-graph-repository.ts` — 构造函数（接收 db 路径，启用 WAL）
-  - [ ] 4.2 实现文档节点 CRUD
-  - [ ] 4.3 实现关系边 CRUD
-  - [ ] 4.4 实现同步状态操作
-  - [ ] 4.5 实现事务支持（`transaction()` 包装）
-- [ ] Task 5: 更新门面导出 (AC: #1)
-  - [ ] 5.1 更新 `src/repositories/index.ts`
-- [ ] Task 6: 编写测试 (AC: #8)
-  - [ ] 6.1 `tests/unit/repositories/sqlite-graph-repository.test.ts`
-  - [ ] 6.2 `tests/unit/repositories/mappers.test.ts`
-  - [ ] 6.3 迁移执行器测试（正常路径 + 回滚）
+- [x] Task 1: 定义 IGraphRepository 接口 (AC: #1)
+  - [x] 1.1 `src/repositories/interfaces.ts` — 文档节点 CRUD 方法签名
+  - [x] 1.2 关系边 CRUD 方法签名
+  - [x] 1.3 同步状态查询/更新方法签名
+  - [x] 1.4 事务支持方法签名
+  - [x] 1.5 `getAllRelations(): RelationEdge[]` 全量读取方法签名（对称已有 `getAllDocuments()`，供 Story 3.4 导出功能依赖）
+- [x] Task 2: 实现数据迁移机制 (AC: #4, #5, #6)
+  - [x] 2.1 创建 `src/repositories/migrations/001-initial-schema.sql`
+  - [x] 2.2 实现 `src/repositories/migrations/runner.ts` 迁移执行器，暴露 `runMigrations(db: Database): void` 公共方法
+  - [x] 2.3 迁移使用事务保护，失败回滚
+  - [x] 2.4 在 `SqliteGraphRepository` 构造函数（Task 4.1）中调用 `runMigrations(db)` 实现启动即迁移；确保首次连接和后续连接均可安全调用（幂等）
+- [x] Task 3: 实现 mappers (AC: #3)
+  - [x] 3.1 `src/repositories/mappers.ts` — snake_case → camelCase 转换
+  - [x] 3.2 camelCase → snake_case 转换
+  - [x] 3.3 文档行映射和关系行映射
+- [x] Task 4: 实现 SqliteGraphRepository (AC: #2, #7)
+  - [x] 4.1 `src/repositories/sqlite-graph-repository.ts` — 构造函数（接收 db 路径，启用 WAL）
+  - [x] 4.2 实现文档节点 CRUD
+  - [x] 4.3 实现关系边 CRUD
+  - [x] 4.4 实现同步状态操作
+  - [x] 4.5 实现事务支持（`transaction()` 包装）
+- [x] Task 5: 更新门面导出 (AC: #1)
+  - [x] 5.1 更新 `src/repositories/index.ts`
+- [x] Task 6: 编写测试 (AC: #8)
+  - [x] 6.1 `tests/unit/repositories/sqlite-graph-repository.test.ts`
+  - [x] 6.2 `tests/unit/repositories/mappers.test.ts`
+  - [x] 6.3 迁移执行器测试（正常路径 + 回滚）
 
 ## Dev Notes
 
@@ -216,8 +216,31 @@ CREATE TABLE IF NOT EXISTS sync_states (
 
 ### Agent Model Used
 
+Claude Sonnet 4.6
+
 ### Debug Log References
+
+无阻断性问题。
 
 ### Completion Notes List
 
+- **AC#1**: `src/repositories/interfaces.ts` 定义 `IGraphRepository` 接口 + `SyncState` 类型，含完整文档/关系/同步状态/事务/统计方法签名。
+- **AC#2**: `src/repositories/sqlite-graph-repository.ts` 实现 `IGraphRepository`，使用 `better-sqlite3` 同步 API。
+- **AC#3**: `src/repositories/mappers.ts` 实现 `DocumentRow/RelationRow/SyncStateRow` DB 行类型 + 双向转换函数（`rowToDocument/documentToRow` 等）。
+- **AC#4**: `src/repositories/migrations/001-initial-schema.sql` 创建 `schema_migrations`、`documents`、`relations`、`sync_states` 四张表及全部索引。
+- **AC#5**: `src/repositories/migrations/runner.ts` 实现 `runMigrations(db)` — 查询已执行版本，幂等顺序执行未执行脚本。
+- **AC#6**: 每条迁移在独立事务中执行，`db.transaction(fn)` 包装；失败自动回滚。
+- **AC#7**: 构造函数中 `db.pragma('journal_mode = WAL')` + `db.pragma('foreign_keys = ON')` 启用。
+- **AC#8**: 190 个测试全通过，repositories 覆盖率 — Stmts 100%、Branch 96.42%、Funcs 100%（远超 85% 门槛）。
+- **注意**: runner.ts 使用 `readFileSync` + `fileURLToPath(import.meta.url)` 加载 SQL 文件。在 `dist/` 构建后需要 tsup 配置 `publicDir` 或手动复制 SQL，可在后续 Story 中处理。
+
 ### File List
+
+- `src/repositories/interfaces.ts` — 新增（IGraphRepository 接口 + SyncState 类型）
+- `src/repositories/mappers.ts` — 新增（DB 行类型 + 双向 mapper 函数）
+- `src/repositories/sqlite-graph-repository.ts` — 新增（IGraphRepository SQLite 实现）
+- `src/repositories/migrations/001-initial-schema.sql` — 新增（初始 schema）
+- `src/repositories/migrations/runner.ts` — 新增（迁移执行器）
+- `src/repositories/index.ts` — 修改（更新门面导出）
+- `tests/unit/repositories/mappers.test.ts` — 新增（15 个 mapper 单元测试）
+- `tests/unit/repositories/sqlite-graph-repository.test.ts` — 新增（56 个集成单元测试）
