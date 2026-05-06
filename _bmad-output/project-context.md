@@ -4,7 +4,7 @@ user_name: 'Fancyliu'
 date: '2026-04-09'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
 status: 'complete'
-rule_count: 48
+rule_count: 54
 optimized_for_llm: true
 ---
 
@@ -420,6 +420,12 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 - Release workflow 权限：必须同时声明 `permissions.id-token: write`（npm provenance OIDC）和 `permissions.contents: write`（GitHub Release / tags 创建）；显式声明任意权限时，未声明权限收缩为 `none`
 - 跨平台矩阵：ubuntu / macos / windows（better-sqlite3 native addon 验证）
 - npm provenance 从第一天启用
+- 发布工具版本约束：升级 `semantic-release` / `@semantic-release/*` 后，必须核对 lockfile 中 `engines.node`，并确保 release workflow 的 `actions/setup-node` 版本满足要求；CI/cross-platform 可按运行需求独立选择 Node 基线
+- semantic-release 提交版本变更时，`@semantic-release/git` 的 `assets` 必须包含 `CHANGELOG.md`、`package.json`、`package-lock.json`，避免 `npm ci` 因 lockfile 漂移失败
+- Release workflow 应显式依赖 CI 质量门禁成功（`workflow_run`、同工作流 `needs` 或等效机制）；若暂不串联，必须记录为工程加固 TODO/豁免
+- Release workflow 应配置 `concurrency` 串行化发布任务，通常按 workflow + ref 分组且 `cancel-in-progress: false`
+- 避免用宽泛 `contains(head_commit.message, '[skip ci]')` 跳过 release；如需跳过，必须窄化到 semantic-release 版本提交或 bot actor
+- PR 模板中的质量门禁必须写成可执行命令，覆盖率校验使用项目实际脚本（当前为 `npm run test:coverage`）
 
 ### 关键易错规则
 

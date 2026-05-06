@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 11 |
+| Open | 16 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **11** |
+| **合计** | **16** |
 
 ---
 
@@ -191,6 +191,85 @@
   - `src/repositories/mappers.ts`
 - **问题描述**：`mappers.ts` 中 JSON/枚举校验失败时直接 `throw new Error(...)`，缺少统一的 `RepositoryError` / `StorageError` 类型，上层如需稳定识别"数据损坏 / 枚举越界 / metadata 解析失败"等错误类别，只能依赖字符串匹配。这会弱化后续 CLI、日志与诊断体验的一致性，也让错误类型的集成测试缺乏稳定断言点。
 - **建议时机**：引入 CLI 错误处理或日志规范的 Story（如错误码统一 / 诊断体验 Story），与 CLI 诊断体验一并引入 `RepositoryError`，保留 `table/id/column/cause` 等结构化字段，并为上层消费路径补充错误类型断言测试。
+- **解决记录**：—
+
+---
+
+### TODO-012
+
+- **标题**：Release 工作流未显式依赖 CI 质量门禁成功
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 1-5 / Round 1-3 / 2026-04-30（R1 发现 #2；R2、R3 维持非阻塞）
+- **涉及文件**：
+  - `.github/workflows/release.yml`
+  - `.github/workflows/ci.yml`
+- **问题描述**：`release.yml` 由 `push` 到 `main` 直接触发，未通过 `workflow_run`、同工作流 `needs` 或等效机制等待 lint / type-check / test / coverage 成功。主分支提交若能 build 但未通过质量门禁，仍可能进入 semantic-release 发布链路。
+- **建议时机**：下次触及 release workflow 或执行工程加固 Story 时，将发布流程串联到 CI 成功之后；若继续保持分离触发，需在 D7 文档中记录明确豁免。
+- **解决记录**：—
+
+---
+
+### TODO-013
+
+- **标题**：AC-2 npm provenance 配置落点措辞需与实现口径统一
+- **状态**：open
+- **优先级**：P3（择机处理）
+- **类别**：other
+- **来源**：Story 1-5 / Round 1-3 / 2026-04-30（R1 发现 #1；R2、R3 维持非阻塞）
+- **涉及文件**：
+  - `_bmad-output/implementation-artifacts/stories/1-5-ci-cd-pipeline-and-quality-gates.md`
+  - `_bmad-output/project-context.md`
+  - `_bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md`
+- **问题描述**：Story AC-2 表述为“在 `npmPublish` 配置中启用 provenance”，容易被理解为 `@semantic-release/npm` 插件存在 `provenance` 配置项；实际实现和 Dev Notes 使用 `NPM_CONFIG_PROVENANCE: true` + `permissions.id-token: write`，这是 npm CLI / semantic-release 的正确落点。该歧义会导致后续 CR 将正确实现误判为规格不一致。
+- **建议时机**：下次清理 Story 1.5 规格或同步 CI/CD 架构文档时，将 AC/Task/Dev Notes 的 provenance 表述统一为“通过 release workflow 环境变量 `NPM_CONFIG_PROVENANCE=true` 与 OIDC 权限启用”。
+- **解决记录**：—
+
+---
+
+### TODO-014
+
+- **标题**：Release workflow 缺少 `concurrency` 串行发布保护
+- **状态**：open
+- **优先级**：P3（择机处理）
+- **类别**：tech-debt
+- **来源**：Story 1-5 / Round 1-3 / 2026-04-30（R1 发现 #3；R2、R3 维持非阻塞）
+- **涉及文件**：
+  - `.github/workflows/release.yml`
+- **问题描述**：`release.yml` 缺少 `concurrency` 配置。连续合并或短时间多次 push 到 `main` 时，多个 semantic-release job 可能并发运行，造成版本计算冲突、标签竞争或重复发布失败。
+- **建议时机**：与 TODO-012 的 release workflow 工程加固一并处理，按 workflow + ref 分组添加 `concurrency`，并设置 `cancel-in-progress: false`。
+- **解决记录**：—
+
+---
+
+### TODO-015
+
+- **标题**：`[skip ci]` release 跳过条件过宽
+- **状态**：open
+- **优先级**：P3（择机处理）
+- **类别**：tech-debt
+- **来源**：Story 1-5 / Round 2-3 / 2026-04-30（R2 发现 #2；R3 维持非阻塞）
+- **涉及文件**：
+  - `.github/workflows/release.yml`
+- **问题描述**：当前 release job 使用 `contains(github.event.head_commit.message, '[skip ci]')` 跳过整个发布流程，没有限定 commit 必须是 semantic-release 生成的 `chore(release):` 版本提交或 bot actor。普通主干提交消息若包含 `[skip ci]`，可能静默跳过合法发布。
+- **建议时机**：下次触及 release workflow 时，将跳过条件窄化到 release bot / `chore(release):` 提交，或评估移除该条件并依赖 semantic-release commit-analyzer 默认规则防循环发布。
+- **解决记录**：—
+
+---
+
+### TODO-016
+
+- **标题**：PR 模板未显式列出覆盖率验证命令
+- **状态**：open
+- **优先级**：P3（择机处理）
+- **类别**：test-gap
+- **来源**：Story 1-5 / Round 3 / 2026-04-30（发现 #1）
+- **涉及文件**：
+  - `.github/PULL_REQUEST_TEMPLATE.md`
+  - `package.json`
+- **问题描述**：PR 模板已有“覆盖率未下降（≥ 80%）”勾选项，但未写出项目实际覆盖率命令 `npm run test:coverage`。贡献者可能只执行 `npm test` 与 lint/type-check，未在本地复现覆盖率门禁；CI 会兜底，但本地验收动作与 AC-7 不完全一致。
+- **建议时机**：下次更新 PR 模板或协作流程文档时，将测试清单补全为 `npm run lint && npm run type-check && npm run test:coverage` 或单独新增 `npm run test:coverage` 勾选项。
 - **解决记录**：—
 
 ---

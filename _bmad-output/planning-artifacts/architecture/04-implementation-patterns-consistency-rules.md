@@ -456,6 +456,51 @@ coverage: {
 
 架构 D8 表定义了各层覆盖率**最低下限**。若单 Story 的 AC 明文要求更高覆盖率（如某 Story 要求整体 ≥ 90%），以 Story AC 为准，该 Story 验收时不可用 D8 下限豁免。
 
+## CI/CD 发布链路规则（来源：Story 1-5 CR 历史）
+
+**P24. semantic-release Node engines 对齐（CR-CI-01）：**
+
+升级 `semantic-release` / `@semantic-release/*` 后，必须核对 `package-lock.json` 中相关包的 `engines.node`，并确保 `.github/workflows/release.yml` 的 `actions/setup-node` 版本满足发布工具要求。CI / cross-platform 工作流可按自身运行需求独立选择 Node 基线，但 release workflow 必须满足发布工具 engines。
+
+```yaml
+# ✅ semantic-release@25 要求 Node ^22.14.0 || >=24.10.0
+- uses: actions/setup-node@v4
+  with:
+    node-version: '22'
+```
+
+**P25. semantic-release 版本提交必须包含 lockfile（CR-CI-02）：**
+
+npm 项目使用 `package-lock.json` 且流水线使用 `npm ci` 时，`@semantic-release/git` 的 `assets` 必须同时包含 `CHANGELOG.md`、`package.json`、`package-lock.json`，避免 release 提交后 `package.json` 与 lockfile 版本漂移。
+
+```json
+{
+  "assets": ["CHANGELOG.md", "package.json", "package-lock.json"]
+}
+```
+
+**P26. Release workflow 必须声明质量门禁关系（CR-CI-03）：**
+
+Release workflow 应显式依赖 CI 质量门禁成功，例如通过 `workflow_run` 监听 CI 成功，或在同一 workflow 中通过 `needs` 串联 lint / type-check / test / coverage 与 release。若暂不串联，必须记录为工程加固 TODO/豁免，避免 main 上未通过测试的提交被发布。
+
+**P27. Release workflow 必须串行化发布任务（CR-CI-04）：**
+
+push 到 main 触发 semantic-release 的项目，应配置 `concurrency` 串行化发布任务，通常按 workflow + ref 分组，并设置 `cancel-in-progress: false`，避免连续合并时多个 semantic-release 实例竞争 tag/version。
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+```
+
+**P28. `[skip ci]` 跳过 release 的条件必须窄化（CR-CI-05）：**
+
+禁止仅凭 `contains(github.event.head_commit.message, '[skip ci]')` 跳过整个 release job。若需要跳过 semantic-release 生成的版本提交，应窄化到 `chore(release):` 提交、bot actor，或评估直接移除该条件并依赖 commit-analyzer 默认规则防循环。
+
+**P29. PR 模板质量门禁必须使用可执行命令（CR-CI-06）：**
+
+PR 模板中的本地验证清单必须写出项目实际脚本名。覆盖率校验当前使用 `npm run test:coverage`，不要只写「覆盖率未下降」而不提供可执行命令。
+
 ## Enforcement Guidelines
 
 **所有 AI Agent 必须遵守：**
