@@ -1,6 +1,6 @@
 # Story 2.1: 框架适配器接口与通用规则退化
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -20,20 +20,20 @@ So that 扫描引擎可以在无框架时通过通用规则引擎进行关系发
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 定义 IFrameworkAdapter 接口 (AC: #1)
-  - [ ] 1.1 `src/adapters/framework/interfaces.ts` — 接口定义
-  - [ ] 1.2 定义 DocTypeDefinition 和 PresetRule 类型
-- [ ] Task 2: 实现 AbstractFrameworkAdapter (AC: #2)
-  - [ ] 2.1 `src/adapters/framework/abstract-base.ts` — 通用逻辑：路径过滤、文件发现、默认排除模式
-- [ ] Task 3: 实现 GenericFrameworkAdapter (AC: #3, #4, #5)
-  - [ ] 3.1 `src/adapters/framework/generic/adapter.ts`
-  - [ ] 3.2 默认排除 src/、node_modules/、.git/、dist/
-  - [ ] 3.3 detectFramework() 始终返回 true（兜底适配器）
-- [ ] Task 4: 更新 index.ts 门面 (AC: #6)
-  - [ ] 4.1 维护 adapter registry 数组，GenericFrameworkAdapter 始终在末尾
-  - [ ] 4.2 导出 `resolveAdapter(config, projectRoot)` 函数
-- [ ] Task 5: 编写单元测试 (AC: #7)
-  - [ ] 5.4 adapter resolution 测试：显式指定 / 自动检测优先级 / generic 兜底 / 无效名称报错
+- [x] Task 1: 定义 IFrameworkAdapter 接口 (AC: #1)
+  - [x] 1.1 `src/adapters/framework/interfaces.ts` — 接口定义
+  - [x] 1.2 定义 DocTypeDefinition 和 PresetRule 类型
+- [x] Task 2: 实现 AbstractFrameworkAdapter (AC: #2)
+  - [x] 2.1 `src/adapters/framework/abstract-base.ts` — 通用逻辑：路径过滤、文件发现、默认排除模式
+- [x] Task 3: 实现 GenericFrameworkAdapter (AC: #3, #4, #5)
+  - [x] 3.1 `src/adapters/framework/generic/adapter.ts`
+  - [x] 3.2 默认排除 src/、node_modules/、.git/、dist/
+  - [x] 3.3 detectFramework() 始终返回 true（兜底适配器）
+- [x] Task 4: 更新 index.ts 门面 (AC: #6)
+  - [x] 4.1 维护 adapter registry 数组，GenericFrameworkAdapter 始终在末尾
+  - [x] 4.2 导出 `resolveAdapter(config, projectRoot)` 函数
+- [x] Task 5: 编写单元测试 (AC: #7)
+  - [x] 5.4 adapter resolution 测试：显式指定 / 自动检测优先级 / generic 兜底 / 无效名称报错
 
 ## Dev Notes
 
@@ -128,8 +128,34 @@ function resolveAdapter(config: CordConfig, projectRoot: string, registry: IFram
 
 ### Agent Model Used
 
+GPT-5.4
+
 ### Debug Log References
+
+- `npm test -- tests/unit/adapters/framework.test.ts`
+- `npm run type-check`
+- `npm run lint`
+- `npm test`
+- `npm run test:coverage`
 
 ### Completion Notes List
 
+- **AC#1**: `src/adapters/framework/interfaces.ts` 定义 `IFrameworkAdapter`、`DocTypeDefinition`、`PresetRule`，并为公共 API 补充 JSDoc。
+- **AC#2**: `src/adapters/framework/abstract-base.ts` 实现通用扫描路径默认值、排除路径合并、递归 Markdown 发现和项目根目录边界保护。
+- **AC#3**: `src/adapters/framework/generic/adapter.ts` 实现 `GenericFrameworkAdapter`，提供空文档类型/预设规则声明和恒真 `detectFramework()`。
+- **AC#4**: Generic 适配器默认扫描项目根目录，支持 `scanPaths` 自定义范围；`discoverDocuments()` 直接消费 effective scan paths 结果。
+- **AC#5**: 默认排除 `src/`、`node_modules/`、`.git/`、`dist/`，并与用户 `excludePaths` 合并生效。
+- **AC#6**: `src/adapters/framework/index.ts` 建立声明式 `frameworkAdapters` 注册表，并导出支持显式指定/自动检测/兜底逻辑的 `resolveAdapter()`。
+- **AC#7**: `tests/unit/adapters/framework.test.ts` 新增 9 个单元测试，覆盖接口契约、文档发现、路径排除、显式指定、自动检测优先级、generic 兜底和无效名称报错；完整覆盖率门槛通过，framework adapter slice 覆盖率达到 Stmts 86.79%、Branch 80.55%、Funcs 91.66%、Lines 86.79%。
+
 ### File List
+
+- `src/adapters/framework/interfaces.ts` — 新增（框架适配器接口、文档类型定义、预设规则定义）
+- `src/adapters/framework/abstract-base.ts` — 新增（通用扫描路径、排除路径与 Markdown 文档发现逻辑）
+- `src/adapters/framework/generic/adapter.ts` — 新增（GenericFrameworkAdapter 兜底实现）
+- `src/adapters/framework/index.ts` — 修改（门面导出、声明式注册表、resolveAdapter）
+- `tests/unit/adapters/framework.test.ts` — 新增（framework adapter 单元测试）
+
+## Change Log
+
+- 2026-05-06: 实现 framework adapter 接口、抽象基类、generic fallback 与 adapter resolution，并补齐单元测试与覆盖率验证。

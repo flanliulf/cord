@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 16 |
+| Open | 18 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **16** |
+| **合计** | **18** |
 
 ---
 
@@ -207,6 +207,37 @@
   - `.github/workflows/ci.yml`
 - **问题描述**：`release.yml` 由 `push` 到 `main` 直接触发，未通过 `workflow_run`、同工作流 `needs` 或等效机制等待 lint / type-check / test / coverage 成功。主分支提交若能 build 但未通过质量门禁，仍可能进入 semantic-release 发布链路。
 - **建议时机**：下次触及 release workflow 或执行工程加固 Story 时，将发布流程串联到 CI 成功之后；若继续保持分离触发，需在 D7 文档中记录明确豁免。
+- **解决记录**：—
+
+---
+
+### TODO-017
+
+- **标题**：Framework 扫描原生 fs 异常缺少结构化错误包装
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-1 / Round 2 / 2026-05-07（R1-#2；Round 2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/abstract-base.ts`
+- **问题描述**：`discoverDocuments()` 的递归扫描在 `src/adapters/framework/abstract-base.ts:84` 和 `src/adapters/framework/abstract-base.ts:91` 直接调用 `lstatSync()` / `readdirSync()`。当扫描期间发生权限错误、文件消失或目录状态竞态时，`ENOENT` / `EACCES` 等原生异常会直接逃逸到上层，当前没有统一转换为可诊断的 `CordError` / `AdapterError` 语义，后续接入 ScanService 后会削弱错误分级和诊断稳定性。
+- **建议时机**：在 ScanService 接入或统一错误策略落地的 Story 中一并处理，明确“入口失败即中止”与“单路径失败跳过并告警”的边界，并补对应回归测试。
+- **解决记录**：—
+
+---
+
+### TODO-018
+
+- **标题**：Framework 文档发现同步递归存在事件循环阻塞风险
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-1 / Round 2 / 2026-05-07（R1-#3；Round 2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/abstract-base.ts`
+  - `src/adapters/framework/interfaces.ts`
+- **问题描述**：`src/adapters/framework/interfaces.ts:59` 将 `discoverDocuments()` 约束为同步返回 `string[]`，实现层在 `src/adapters/framework/abstract-base.ts:41` 也同步递归遍历目录。对深层或大规模目录树，这种同步 `lstatSync()` / `readdirSync()` 扫描会阻塞 CLI / MCP 所在的 Node.js 事件循环；当前不阻塞 2-1 交付，但会成为后续冷启动扫描和性能治理的上限。
+- **建议时机**：在 ScanService 冷启动/增量扫描编排或性能治理 Story 中统一处理，评估异步发现 API、分批遍历、目录规模保护和进度反馈策略。
 - **解决记录**：—
 
 ---
