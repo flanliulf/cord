@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 18 |
+| Open | 19 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **18** |
+| **合计** | **19** |
 
 ---
 
@@ -238,6 +238,22 @@
   - `src/adapters/framework/interfaces.ts`
 - **问题描述**：`src/adapters/framework/interfaces.ts:59` 将 `discoverDocuments()` 约束为同步返回 `string[]`，实现层在 `src/adapters/framework/abstract-base.ts:41` 也同步递归遍历目录。对深层或大规模目录树，这种同步 `lstatSync()` / `readdirSync()` 扫描会阻塞 CLI / MCP 所在的 Node.js 事件循环；当前不阻塞 2-1 交付，但会成为后续冷启动扫描和性能治理的上限。
 - **建议时机**：在 ScanService 冷启动/增量扫描编排或性能治理 Story 中统一处理，评估异步发现 API、分批遍历、目录规模保护和进度反馈策略。
+- **解决记录**：—
+
+---
+
+### TODO-019
+
+- **标题**：Markdown 链接规则补齐通用 URI scheme 过滤
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-2 / Round 1-2 / 2026-05-07（R1-#2；Round 2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/scanner/rules/markdown-link-rule.ts`
+  - `tests/unit/scanner/rules.test.ts`
+- **问题描述**：`src/scanner/rules/markdown-link-rule.ts` 中的 `sanitizeReference()` 当前只显式过滤 `http://` 和 `https://`，`mailto:`、`tel:`、`file:` 等其他 URI scheme 仍会继续进入路径解析分支。`tests/unit/scanner/rules.test.ts` 目前只通过 `mailto:test@example.com` 的间接 fixture 证明“当前未产生关系”，没有把“非文件 URI scheme 一律跳过”固化为显式规则契约；如果后续出现唯一后缀匹配，可能引入噪声关系。
+- **建议时机**：下次触及 scanner 规则或 Epic 2 内继续补强 `markdown-link-rule` 时，统一引入通用 URI scheme 过滤，并补 `mailto:`、`tel:`、`file:` 等定向回归测试。
 - **解决记录**：—
 
 ---
