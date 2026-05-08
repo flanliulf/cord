@@ -1,6 +1,6 @@
 # Story 2.4: 配置加载与文档管辖范围
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -22,17 +22,17 @@ So that 我可以自定义哪些文档被扫描、哪些路径被排除。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 config-loader.ts (AC: #1, #2, #3, #4)
-  - [ ] 1.1 加载优先级：cord.config.yaml > cord.config.json
-  - [ ] 1.2 复用 `src/schemas/config.ts` 的 `configSchema` 进行 Zod schema 验证（与 Story 1.3 共享 schema，禁止创建私有 schema）
-  - [ ] 1.3 默认值合并
-- [ ] Task 2: 默认配置定义 (AC: #4, #6)
-  - [ ] 2.1 默认 excludePaths: ["src/", "node_modules/", ".git/", "dist/"]
-  - [ ] 2.2 默认 confidenceThreshold: 0.50
-  - [ ] 2.3 默认 scanPaths: ["."]
-- [ ] Task 3: 框架预设路径集成（IDE 预设路径延至 Epic 5）(AC: #5, #7, #8)
-- [ ] Task 4: 更新 index.ts 门面
-- [ ] Task 5: 编写测试 (AC: #9)
+- [x] Task 1: 实现 config-loader.ts (AC: #1, #2, #3, #4)
+  - [x] 1.1 加载优先级：cord.config.yaml > cord.config.json
+  - [x] 1.2 复用 `src/schemas/config.ts` 的 `configSchema` 进行 Zod schema 验证（与 Story 1.3 共享 schema，禁止创建私有 schema）
+  - [x] 1.3 默认值合并
+- [x] Task 2: 默认配置定义 (AC: #4, #6)
+  - [x] 2.1 默认 excludePaths: ["src/", "node_modules/", ".git/", "dist/"]
+  - [x] 2.2 默认 confidenceThreshold: 0.50
+  - [x] 2.3 默认 scanPaths: ["."]
+- [x] Task 3: 框架预设路径集成（IDE 预设路径延至 Epic 5）(AC: #5, #7, #8)
+- [x] Task 4: 更新 index.ts 门面
+- [x] Task 5: 编写测试 (AC: #9)
 
 ## Dev Notes
 
@@ -113,8 +113,31 @@ config-loader 导出的 `loadConfig()` 返回 `CordConfig` 后，ScanService（S
 
 ### Agent Model Used
 
+- GPT-5.4
+
 ### Debug Log References
+
+- `npm test -- tests/unit/utils/config-loader.test.ts tests/unit/adapters/framework/bmad/adapter.test.ts`
+- `npm test -- tests/unit/adapters/framework.test.ts tests/unit/adapters/framework/bmad/adapter.test.ts tests/unit/adapters/framework/bmad/classification.test.ts tests/unit/utils/errors.test.ts tests/unit/utils/logger.test.ts tests/unit/utils/config-loader.test.ts`
+- `npm test && npm run type-check && npm run lint`
 
 ### Completion Notes List
 
+- 实现 `src/utils/config-loader.ts`，支持 `cord.config.yaml` 优先于 `cord.config.json` 加载，并在无配置文件时返回默认配置。
+- 复用 `src/schemas/config.ts` 中的共享校验逻辑完成 7 项配置验证，非法 YAML/JSON 或 schema 违例统一抛出 `ConfigError`。
+- 为 BMAD 适配器补充框架预设扫描路径 `_bmad-output` 与 `docs`，并保持用户 `scanPaths` 可覆盖预设；IDE 预设路径按 Story 范围继续延后到 Epic 5。
+- 新增/更新单元测试覆盖 YAML/JSON 加载优先级、默认值回退、Zod 校验、BMAD 预设路径与用户覆盖路径场景。
+
 ### File List
+
+- src/utils/config-loader.ts
+- src/utils/index.ts
+- src/adapters/framework/bmad/adapter.ts
+- tests/unit/utils/config-loader.test.ts
+- tests/unit/adapters/framework/bmad/adapter.test.ts
+- _bmad-output/implementation-artifacts/stories/2-4-config-loading-and-document-scope.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+
+## Change Log
+
+- 2026-05-08: 实现 cord.config 加载器、默认配置、BMAD 预设扫描路径与对应测试。

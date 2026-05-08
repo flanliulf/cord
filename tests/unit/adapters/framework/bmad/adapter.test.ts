@@ -40,10 +40,16 @@ describe('BmadFrameworkAdapter', () => {
     expect(adapter.detectFramework(projectRoot)).toBe(true);
   });
 
-  it('inherits root scanning and excludes BMAD template directories by default', () => {
+  it('uses BMAD preset scan paths and excludes template directories by default', () => {
     const adapter = new BmadFrameworkAdapter();
 
-    expect(adapter.getScanPaths({})).toEqual(['.']);
+    expect(adapter.getScanPaths({})).toEqual(['_bmad-output', 'docs']);
     expect(adapter.getExcludePaths({})).toEqual(['src/', 'node_modules/', '.git/', 'dist/', '_bmad/']);
+  });
+
+  it('lets user-configured scanPaths override BMAD preset scan paths', () => {
+    const adapter = new BmadFrameworkAdapter();
+
+    expect(adapter.getScanPaths({ scanPaths: ['notes', 'docs'] })).toEqual(['notes', 'docs']);
   });
 });
