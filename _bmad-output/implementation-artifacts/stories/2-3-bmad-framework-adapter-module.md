@@ -1,6 +1,6 @@
 # Story 2.3: BMAD 框架适配模块
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -19,19 +19,19 @@ So that 我的 BMAD 项目文档关系可以被准确识别，无需手动配置
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 定义 16 种 v0.1 Markdown BMAD 文档类型 (AC: #2)
-  - [ ] 1.1 `src/adapters/framework/bmad/doc-types.ts`（v0.1 仅包含 Markdown 类型，YAML 类型 #6/#18 延至 v0.2）
-- [ ] Task 2: 定义预设关系规则 (AC: #3, #5)
-  - [ ] 2.1 `src/adapters/framework/bmad/preset-rules.ts`
-- [ ] Task 3: 实现 5 层递进检测 (AC: #4)
-  - [ ] 3.1 `src/adapters/framework/bmad/detector.ts`
-- [ ] Task 4: 实现 BmadFrameworkAdapter (AC: #1)
-  - [ ] 4.1 `src/adapters/framework/bmad/adapter.ts`
-- [ ] Task 5: 更新 index.ts 门面
-- [ ] Task 6: 编写测试 (AC: #6)
-  - [ ] 6.1 正例测试：当前仓库真实 BMAD 文件（prd.md, architecture/*.md, epic-*.md 等）正确命中对应文档类型
-  - [ ] 6.2 反例测试：非 BMAD 文件（`_bmad/` 模板、流程说明等）不被误识别为 BMAD 文档类型
-  - [ ] 6.3 预设规则匹配 + 框架检测 + 覆盖率验证
+- [x] Task 1: 定义 16 种 v0.1 Markdown BMAD 文档类型 (AC: #2)
+  - [x] 1.1 `src/adapters/framework/bmad/doc-types.ts`（v0.1 仅包含 Markdown 类型，YAML 类型 #6/#18 延至 v0.2）
+- [x] Task 2: 定义预设关系规则 (AC: #3, #5)
+  - [x] 2.1 `src/adapters/framework/bmad/preset-rules.ts`
+- [x] Task 3: 实现 5 层递进检测 (AC: #4)
+  - [x] 3.1 `src/adapters/framework/bmad/detector.ts`
+- [x] Task 4: 实现 BmadFrameworkAdapter (AC: #1)
+  - [x] 4.1 `src/adapters/framework/bmad/adapter.ts`
+- [x] Task 5: 更新 index.ts 门面
+- [x] Task 6: 编写测试 (AC: #6)
+  - [x] 6.1 正例测试：当前仓库真实 BMAD 文件（prd.md, architecture/*.md, epic-*.md 等）正确命中对应文档类型
+  - [x] 6.2 反例测试：非 BMAD 文件（`_bmad/` 模板、流程说明等）不被误识别为 BMAD 文档类型
+  - [x] 6.3 预设规则匹配 + 框架检测 + 覆盖率验证
 
 ## Dev Notes
 
@@ -111,8 +111,45 @@ const BMAD_PRESET_RULES: PresetRule[] = [
 
 ### Agent Model Used
 
+GPT-5.4
+
 ### Debug Log References
+
+- `npm test -- tests/unit/adapters/framework/bmad/doc-types.test.ts`
+- `npm test -- tests/unit/adapters/framework/bmad/preset-rules.test.ts`
+- `npm test -- tests/unit/adapters/framework/bmad/detector.test.ts`
+- `npm test -- tests/unit/adapters/framework/bmad/adapter.test.ts`
+- `npm test -- tests/unit/adapters/framework.test.ts`
+- `npm test -- tests/unit/adapters/framework/bmad/classification.test.ts`
+- `npm test`
+- `npm run test:coverage`
+- `npm run lint`
+- `npm run type-check`
 
 ### Completion Notes List
 
+- 实现 `BmadFrameworkAdapter`、`BMAD_DOCUMENT_TYPES`、`BMAD_PRESET_RULES` 与 5 层检测器，默认注册到 framework 门面并优先于 Generic 兜底。
+- 为当前仓库真实 BMAD 文件补充正例分类测试，并通过 `_bmad/` 模板目录排除测试验证误匹配护栏。
+- 基于真实仓库样本收窄 `epic` glob 到 `**/epics/epic*.md`，并为 retrospective 增加 `**/retrospectives/**/*.md` 目录模式，消除现有 `epic-*-retro-*.md` 的分类歧义。
+- 以 fixture 覆盖仓库当前不存在的 `sprint-plan` 与 `ux-design` 两类 v0.1 文档，保证 16 种类型全部有测试命中。
+- 完成全量测试、覆盖率、lint、type-check 验证；`src/adapters/framework/bmad/*` 覆盖率为 95%+。
+
 ### File List
+
+- `src/adapters/framework/bmad/adapter.ts`
+- `src/adapters/framework/bmad/detector.ts`
+- `src/adapters/framework/bmad/doc-types.ts`
+- `src/adapters/framework/bmad/preset-rules.ts`
+- `src/adapters/framework/index.ts`
+- `tests/unit/adapters/framework.test.ts`
+- `tests/unit/adapters/framework/bmad/adapter.test.ts`
+- `tests/unit/adapters/framework/bmad/classification.test.ts`
+- `tests/unit/adapters/framework/bmad/detector.test.ts`
+- `tests/unit/adapters/framework/bmad/doc-types.test.ts`
+- `tests/unit/adapters/framework/bmad/preset-rules.test.ts`
+- `_bmad-output/implementation-artifacts/stories/2-3-bmad-framework-adapter-module.md`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+## Change Log
+
+- 2026-05-07: 完成 Story 2.3 BMAD 框架适配模块实现、测试与验证，状态更新为 review。

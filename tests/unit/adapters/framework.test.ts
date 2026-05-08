@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   AbstractFrameworkAdapter,
+  BmadFrameworkAdapter,
   GenericFrameworkAdapter,
   resolveAdapter,
   frameworkAdapters,
@@ -183,8 +184,21 @@ describe('GenericFrameworkAdapter', () => {
 });
 
 describe('resolveAdapter', () => {
+  const createdRoots: string[] = [];
+
+  afterEach(() => {
+    for (const projectRoot of createdRoots.splice(0)) {
+      rmSync(projectRoot, { force: true, recursive: true });
+    }
+  });
+
   it('keeps GenericFrameworkAdapter at the end of the declarative registry', () => {
     expect(frameworkAdapters.at(-1)?.name).toBe('generic');
+  });
+
+  it('registers the BMAD adapter ahead of the generic fallback in the default registry', () => {
+    expect(frameworkAdapters.at(0)).toBeInstanceOf(BmadFrameworkAdapter);
+    expect(frameworkAdapters.map((adapter) => adapter.name)).toEqual(['bmad', 'generic']);
   });
 
   it('returns the explicitly configured adapter when framework is specified', () => {
@@ -211,6 +225,18 @@ describe('resolveAdapter', () => {
     const adapter = resolveAdapter({}, '/tmp/project', registry);
 
     expect(adapter.name).toBe('generic');
+  });
+
+  it('auto-detects BMAD projects before generic fallback when using the default registry', () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'cord-framework-bmad-'));
+    createdRoots.push(projectRoot);
+
+    mkdirSync(join(projectRoot, '_bmad'), { recursive: true });
+    mkdirSync(join(projectRoot, '_bmad-output'), { recursive: true });
+
+    const adapter = resolveAdapter({}, projectRoot);
+
+    expect(adapter.name).toBe('bmad');
   });
 
   it('throws ConfigError when the configured adapter name is unknown', () => {

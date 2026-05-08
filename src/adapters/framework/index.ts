@@ -1,14 +1,19 @@
 import type { CordConfig } from '../../types/index.js';
 import { ConfigError } from '../../utils/index.js';
+import { BmadFrameworkAdapter } from './bmad/adapter.js';
 import { GenericFrameworkAdapter } from './generic/adapter.js';
 import type { IFrameworkAdapter } from './interfaces.js';
 
 export { AbstractFrameworkAdapter } from './abstract-base.js';
+export { BmadFrameworkAdapter } from './bmad/adapter.js';
 export { GenericFrameworkAdapter } from './generic/adapter.js';
 export type { DocTypeDefinition, IFrameworkAdapter, PresetRule } from './interfaces.js';
 
 /** 框架适配器声明式注册表；Generic 必须始终位于末尾作为兜底。 */
-export const frameworkAdapters: IFrameworkAdapter[] = [new GenericFrameworkAdapter()];
+export const frameworkAdapters: IFrameworkAdapter[] = [
+	new BmadFrameworkAdapter(),
+	new GenericFrameworkAdapter(),
+];
 
 /**
  * 根据显式配置或自动检测解析当前项目应使用的框架适配器。

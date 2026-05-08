@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 19 |
+| Open | 22 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **19** |
+| **合计** | **22** |
 
 ---
 
@@ -254,6 +254,54 @@
   - `tests/unit/scanner/rules.test.ts`
 - **问题描述**：`src/scanner/rules/markdown-link-rule.ts` 中的 `sanitizeReference()` 当前只显式过滤 `http://` 和 `https://`，`mailto:`、`tel:`、`file:` 等其他 URI scheme 仍会继续进入路径解析分支。`tests/unit/scanner/rules.test.ts` 目前只通过 `mailto:test@example.com` 的间接 fixture 证明“当前未产生关系”，没有把“非文件 URI scheme 一律跳过”固化为显式规则契约；如果后续出现唯一后缀匹配，可能引入噪声关系。
 - **建议时机**：下次触及 scanner 规则或 Epic 2 内继续补强 `markdown-link-rule` 时，统一引入通用 URI scheme 过滤，并补 `mailto:`、`tel:`、`file:` 等定向回归测试。
+- **解决记录**：—
+
+---
+
+### TODO-020
+
+- **标题**：BMAD 检测器补局部文件系统容错与异常路径测试
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/bmad/detector.ts`
+  - `tests/unit/adapters/framework/bmad/detector.test.ts`
+- **问题描述**：`src/adapters/framework/bmad/detector.ts` 中 `hasBmadSkillsDirectory()` 和 `collectMarkdownCandidates()` 仍直接调用 `readdirSync()` / `lstatSync()`；当 skills 目录不可读、路径在遍历期间被删除或发生权限/竞态变化时，BMAD 检测可能直接抛出原生文件系统异常，而不是将该路径视为未命中并继续检测。当前 `tests/unit/adapters/framework/bmad/detector.test.ts` 也未覆盖这类异常路径。
+- **建议时机**：下次触及 `src/adapters/framework/bmad/detector.ts` 或执行 Epic 2 扫描健壮性补强 Story 时，一并加入局部 `try/catch`、不可读路径跳过策略和异常路径回归测试。
+- **解决记录**：—
+
+---
+
+### TODO-021
+
+- **标题**：BMAD frontmatter 结束标记解析收窄为行级匹配
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/bmad/detector.ts`
+  - `tests/unit/adapters/framework/bmad/detector.test.ts`
+- **问题描述**：`src/adapters/framework/bmad/detector.ts` 中 `extractYamlFrontmatter()` 仍通过 `content.indexOf('\n---', 4)` 查找结束标记，没有保证结束分隔符独占一行；`---not-a-delimiter`、尾随文本或 CRLF 边界仍可能被误当作合法 frontmatter 结束点，进而制造 `bmad-frontmatter` 误检信号。对应测试也尚未覆盖这些反例。
+- **建议时机**：下次触及 BMAD detector 的 frontmatter 解析逻辑时，改为只接受独立 `---` 行作为结束标记，并补 `---not-a-delimiter`、尾随文本、CRLF 等反例测试。
+- **解决记录**：—
+
+---
+
+### TODO-022
+
+- **标题**：BMAD frontmatter 检测采用高价值路径优先或分层预算
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/bmad/detector.ts`
+  - `tests/unit/adapters/framework/bmad/detector.test.ts`
+- **问题描述**：`src/adapters/framework/bmad/detector.ts` 仍将 `MAX_FRONTMATTER_FILES` 固定为 64，且达到上限后停止 Markdown 候选遍历。对于大型仓库，如果真正带有 BMAD frontmatter 的文件排序靠后，而仓库只有另一个 BMAD 信号，自动检测可能因预算截断而出现 false negative；当前测试也未覆盖“超过 64 个 Markdown 候选且有效文件靠后”的场景。
+- **建议时机**：下次优化 BMAD detector 检测质量或处理大型仓库扫描策略时，引入 `_bmad-output/`、`docs/`、项目根核心文档等高价值路径优先策略，或改为分层预算，并补充超过 64 个候选文件的回归测试。
 - **解决记录**：—
 
 ---

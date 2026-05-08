@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-09
-last_updated: 2026-05-07 16:05
+last_updated: 2026-05-08 14:34
 project: CORD
 project_key: NOKEY
 tracking_system: file-system
@@ -55,7 +55,7 @@ development_status:
   epic-2: in-progress
   2-1-framework-adapter-interface-and-generic-fallback: done
   2-2-scan-engine-core-pipeline-remark-ast-and-rules: done
-  2-3-bmad-framework-adapter-module: ready-for-dev
+  2-3-bmad-framework-adapter-module: done
   2-4-config-loading-and-document-scope: ready-for-dev
   2-5-scanservice-cold-start-scan-and-graph-write: ready-for-dev
   2-6-incremental-scan-and-document-lifecycle-detection: ready-for-dev
