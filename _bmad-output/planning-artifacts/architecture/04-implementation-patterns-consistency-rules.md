@@ -275,7 +275,7 @@ type UpdateStrategy = 'auto' | 'suggest' | 'log_only';
 // 未知 key 宽容处理：回退到 suggest，记录 debug 日志但不报错
 ```
 
-## Repository 层开发规则（来源：Story 1-4 CR 历史）
+## Repository 层开发规则（来源：Story 1-4、2-5 CR 历史）
 
 **P24. update 方法禁止接受不可变字段（CR-REPO-01）：**
 
@@ -369,7 +369,40 @@ CREATE UNIQUE INDEX idx_relations_unique_pair
   ON relations(source_doc_id, target_doc_id, relation_type);
 ```
 
-## CLI 入口规则（来源：Story 1-2 CR 历史）
+**P30. 批量写入事务必须先收敛可持久化 workset（CR-REPO-05）：**
+
+涉及 documents / relations / sync_states 的多阶段批量写入时，必须先在事务外过滤不可持久化项，并记录 warning；事务内只执行已经验证过的完整写入计划。
+
+- **禁止**在 transaction callback 中用普通 `return` 表达“跳过当前项”
+- 若事务内发现端点映射或写入计划失配，必须 `throw` 触发回滚
+- 对外返回的统计字段（如 discovered / written counts）必须与过滤后的实际写入策略一致
+
+```typescript
+// ✅ 正确：事务外先收敛 workset，事务内只执行完整计划
+const persistableRelations = collectPersistableRelations(relations, documentMap, warnings);
+
+repository.transaction(() => {
+  for (const relation of persistableRelations) {
+    const sourceDoc = persistedDocuments.get(relation.sourceDoc);
+    const targetDoc = persistedDocuments.get(relation.targetDoc);
+    if (!sourceDoc || !targetDoc) {
+      throw new ScanError('Persistable relation endpoints are missing');
+    }
+    repository.addRelation({ ...relation, sourceDocId: sourceDoc.id, targetDocId: targetDoc.id });
+  }
+});
+
+// ❌ 禁止：在事务回调内 return，会把“跳过当前项”变成“提前正常提交”
+repository.transaction(() => {
+  for (const relation of relations) {
+    if (!sourceDoc || !targetDoc) {
+      return;
+    }
+  }
+});
+```
+
+## CLI 入口规则（来源：Story 1-2、2-5 CR 历史）
 
 **P19. ESM CLI entrypoint 守卫三步归一化（CR-CLI-01）：**
 
@@ -407,17 +440,21 @@ if (entryArg) {
 - `src/cli/index.ts` 等 CLI 入口文件**禁止**在模块顶层执行 `program.parse()` 或任何会调用 `process.exit()` 的代码
 - 所有 CLI 执行逻辑必须封装在函数中，并由 entrypoint 守卫（P19）保护
 - 无副作用的 CLI helper（如 `applyVerboseFlag`）必须提取到独立模块（如 `src/cli/verbose.ts`），测试直接导入 helper，不导入 CLI 入口
+- 若 Commander 树中存在任何 `async` action，`runCli()` 必须返回 `Promise<void>` 并使用 `await program.parseAsync(process.argv)`；entrypoint 守卫使用 `void runCli().catch(reportUnhandledCliError)` 或等效方式兜底异步失败（CR-CLI-04）
+- 真实 CLI 入口是退出码契约与异步完成语义的最终 owner；入口级回归测试必须直接覆盖成功路径、Commander parse error、业务 `ConfigError` 与 runtime error（CR-CLI-04）
 
 ```ts
 // ✅ 正确结构：
 export function createProgram(): Command { ... }
-export function runCli(program = createProgram()): void {
-  program.parse(process.argv);
-  applyVerboseFlag(program.opts(), process.env);
+export async function runCli(program = createProgram()): Promise<void> {
+  await program.parseAsync(process.argv);
 }
 // entrypoint 守卫（P19 三步写法）
 const entryArg = process.argv[1];
 // ...
+if (import.meta.url === entryUrl) {
+  void runCli().catch(reportUnhandledCliError);
+}
 
 // ❌ 禁止：顶层直接执行
 const program = new Command();

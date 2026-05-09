@@ -83,16 +83,17 @@
 
 ### TODO-005
 
-- **标题**：`applyVerboseFlag` 在 `parse()` 之后调用，首条 subcommand action 内 `logger.debug` 会被吞掉
+- **标题**：`--verbose` 在 async CLI action 内生效过晚，action 内 `logger.debug` 会被吞掉
 - **状态**：open
-- **优先级**：P2（Epic 内处理）
+- **优先级**：P3（择机处理）
 - **类别**：tech-debt
-- **来源**：Story 1-2 / Round 3 / 2026-04-26（发现 #2；R3~R5 评估轮次均维持降级）
+- **来源**：Story 1-2 / Round 3 / 2026-04-26（发现 #2；R3~R5 评估轮次均维持降级） + Story 2-5 / Round 4 / 2026-05-09（非阻塞复核确认）
 - **涉及文件**：
   - `src/cli/index.ts`
   - `src/cli/verbose.ts`
-- **问题描述**：`runCli()` 中 `program.parse(process.argv)` 先于 `applyVerboseFlag(program.opts(), process.env)` 执行。当前 skeleton 无任何 `.action()` 注册，AC5 字面满足，问题不出现。但一旦引入真实 subcommand action，action handler 内部的 `logger.debug()` 调用将在 `--verbose` 下被吞掉（verbose 尚未生效），排障日志全部丢失。
-- **建议时机**：引入首条 subcommand action 的 Story（如 `cord scan` 或 `cord init`），改用 `program.hook('preAction', () => applyVerboseFlag(...))` 或在 action 执行前预先从 `process.argv` / `process.env` 判断并设置 verbose
+  - `tests/unit/cli/index.test.ts`
+- **问题描述**：`runCli()` 现已改为 `await program.parseAsync(process.argv)`，但 `applyVerboseFlag(program.opts(), process.env)` 仍在 async action 完成后才生效。因此通过 `--verbose` 打开的 debug 级别不会覆盖 action 执行期间的 `logger.debug()` 调用，真实子命令路径中的排障日志会被吞掉。`CORD_DEBUG=1` 路径不受影响，因为 logger 初始化时已读取环境变量。Story 2-5 round 4 已在真实 `cord scan` async action 语义下再次确认这是同一类非阻塞问题，因此不再新增重复 TODO。
+- **建议时机**：下次触及 CLI 根选项处理或调试体验增强的 Story 时一并处理；可在 parse 前预解析 root-level `--verbose`，或在确认 Commander action 注册稳定后使用 root `preAction` 提前启用 verbose，并补入口级 action 内 debug 行为回归测试
 - **解决记录**：—
 
 ---

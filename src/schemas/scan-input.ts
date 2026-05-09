@@ -13,7 +13,10 @@ export const scanInputSchema = z.object({
   /** 指定扫描的子路径列表（可选，默认扫描整个项目）。 */
   paths: z.array(z.string()).optional(),
 
-  /** 是否强制全量重扫（忽略增量缓存）。 */
+  /** 是否执行全量重建（删除现有图谱后重新写入）。 */
+  rebuild: z.boolean().optional().default(false),
+
+  /** 是否跳过 manual 关系确认；需与 rebuild 搭配，实际确认逻辑由后续 Story 实现。 */
   force: z.boolean().optional().default(false),
 });
 

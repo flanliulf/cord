@@ -41,6 +41,7 @@
   - `src/repositories/migrations/` 目录存放有序编号的 SQL 脚本（`001-initial-schema.sql`、`002-add-index.sql`...，kebab-case 命名）
   - 应用启动时 Repository 层自动检测并执行待执行的迁移
   - 迁移在事务中执行，失败可回滚
+  - 图谱批量写入（documents / relations / sync_states）必须先在事务外收敛可持久化 workset；事务内仅执行完整写入计划，若发现端点映射或计划失配必须抛错回滚，禁止用普通 `return` 提前结束 transaction callback
   - `cord status` 展示当前已执行迁移版本数及最新版本号
 
 ## Error Handling & Logging
@@ -53,6 +54,8 @@
 - **实现要点：**
   - `CordError` 基类包含 `code: string`、`suggestion: string`、`context: Record<string, unknown>`
   - CLI 入口层：捕获 CordError，用 chalk 格式化输出错误信息和修复建议
+  - Commander CLI 若包含 async action，真实入口必须暴露 async `runCli()` 并 `await program.parseAsync(process.argv)`；entrypoint 守卫负责 Promise rejection 兜底
+  - 参数解析错误、业务 `ConfigError` 和 runtime error 的退出码映射必须在真实 CLI 入口层统一处理，并由入口级测试覆盖
   - MCP 入口层：捕获 CordError，转换为 MCP 标准错误响应格式
   - 错误码命名规范：`CORD_SCAN_001`、`CORD_QUERY_001` 等
 

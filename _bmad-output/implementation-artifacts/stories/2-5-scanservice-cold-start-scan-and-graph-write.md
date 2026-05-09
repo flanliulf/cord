@@ -1,6 +1,6 @@
 # Story 2.5: ScanService 冷启动扫描与图谱写入
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -24,23 +24,23 @@ So that 文档间的关系图谱从零建立，我可以看到文档之间有哪
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 ScanService (AC: #1, #2, #3, #4)
-  - [ ] 1.1 `src/services/scan-service.ts` — 构造函数注入 IGraphRepository + pipeline + adapter registry
-  - [ ] 1.2 resolveAdapter() 选择适配器（参见 Story 2.1 Adapter Resolution 契约）
-  - [ ] 1.3 scan() 方法：loadConfig → resolveAdapter → computeEffectiveScanPaths → discoverDocuments → pipeline.process → docType classify → preset merge → merge/dedupe → relationTypes 过滤 → 事务写入
-  - [ ] 1.4 docType classify：用 adapter.getDocumentTypes() 对 ParsedDocument 匹配文档类型
-  - [ ] 1.5 preset merge：用 adapter.getPresetRules() 根据已分类文档生成预设关系（source: 'framework_preset'）
-  - [ ] 1.6 merge/dedupe：scan results + preset results 去重，同 (sourceDoc, targetDoc, relationType) 保留高置信度
-  - [ ] 1.6b relationTypes 过滤：按 config.relationTypes 移除 enabled: false 的关系类型条目
-  - [ ] 1.7 事务包装保证原子性（参见下方事务契约）
-  - [ ] 1.8 --rebuild：同事务内 `deleteAllDocuments()`（级联清除全部关系和同步状态）+ INSERT ALL 全量重建
-- [ ] Task 2: 实现 CLI 命令 (AC: #5, #6, #7, #8)
-  - [ ] 2.1 `src/cli/commands/scan.ts` — 薄壳：参数解析（--rebuild、--force、--json）→ ScanService → 格式化输出
-- [ ] Task 3: 创建测试 fixtures (AC: #11)
-  - [ ] 3.1 `tests/fixtures/sample-projects/bmad-project/` — BMAD 样本
-  - [ ] 3.2 `tests/fixtures/sample-projects/generic-project/` — 通用样本
-- [ ] Task 4: 更新 index.ts 门面
-- [ ] Task 5: 编写单元 + 集成测试 (AC: #9)
+- [x] Task 1: 实现 ScanService (AC: #1, #2, #3, #4)
+  - [x] 1.1 `src/services/scan-service.ts` — 构造函数注入 IGraphRepository + pipeline + adapter registry
+  - [x] 1.2 resolveAdapter() 选择适配器（参见 Story 2.1 Adapter Resolution 契约）
+  - [x] 1.3 scan() 方法：loadConfig → resolveAdapter → computeEffectiveScanPaths → discoverDocuments → pipeline.process → docType classify → preset merge → merge/dedupe → relationTypes 过滤 → 事务写入
+  - [x] 1.4 docType classify：用 adapter.getDocumentTypes() 对 ParsedDocument 匹配文档类型
+  - [x] 1.5 preset merge：用 adapter.getPresetRules() 根据已分类文档生成预设关系（source: 'framework_preset'）
+  - [x] 1.6 merge/dedupe：scan results + preset results 去重，同 (sourceDoc, targetDoc, relationType) 保留高置信度
+  - [x] 1.6b relationTypes 过滤：按 config.relationTypes 移除 enabled: false 的关系类型条目
+  - [x] 1.7 事务包装保证原子性（参见下方事务契约）
+  - [x] 1.8 --rebuild：同事务内 `deleteAllDocuments()`（级联清除全部关系和同步状态）+ INSERT ALL 全量重建
+- [x] Task 2: 实现 CLI 命令 (AC: #5, #6, #7, #8)
+  - [x] 2.1 `src/cli/commands/scan.ts` — 薄壳：参数解析（--rebuild、--force、--json）→ ScanService → 格式化输出
+- [x] Task 3: 创建测试 fixtures (AC: #11)
+  - [x] 3.1 `tests/fixtures/sample-projects/bmad-project/` — BMAD 样本
+  - [x] 3.2 `tests/fixtures/sample-projects/generic-project/` — 通用样本
+- [x] Task 4: 更新 index.ts 门面
+- [x] Task 5: 编写单元 + 集成测试 (AC: #9)
 
 ## Dev Notes
 
@@ -143,8 +143,50 @@ repo.transaction(() => {                  // 阶段 2：事务内短写
 
 ### Agent Model Used
 
+- GPT-5.4
+
 ### Debug Log References
+
+- `npm test -- tests/unit/services/scan-service.test.ts`
+- `npm test -- tests/unit/cli/commands/scan.test.ts`
+- `npm test -- tests/unit/cli/index.test.ts`
+- `npm test -- tests/integration/cli/scan.test.ts`
+- `npm test && npm run type-check && npm run lint`
+- `npm test`
 
 ### Completion Notes List
 
+- 完成 `src/services/scan-service.ts`，实现冷启动扫描编排、文档类型匹配、framework preset 关系生成、去重、relationTypes 过滤与事务写入。
+- 新增 `tests/unit/services/scan-service.test.ts`，覆盖冷启动写库、source 优先级/去重、禁用关系过滤、rebuild 顺序和事务回滚。
+- 完成 `src/cli/commands/scan.ts` 薄壳命令，接入 `createProgram()`，实现 `--rebuild`、`--force`、`--json` 参数解析、成功/失败输出与 0/1/2 退出码映射。
+- 新增 `tests/unit/cli/commands/scan.test.ts`，覆盖人类可读输出、JSON 输出、参数错误和运行时错误路径；补充 `tests/unit/cli/index.test.ts` 覆盖主程序命令注册。
+- 创建 `tests/fixtures/sample-projects/bmad-project/` 与 `generic-project/` 实际样本内容，用于真实 adapter + CLI 冷启动链路验证。
+- 新增 `tests/integration/cli/scan.test.ts`，覆盖 BMAD 冷启动写库、generic CLI 默认 `.cord/cord.db` 创建，以及 4 docs/s 的性能门槛验证。
+- 通过最终回归：`npm test && npm run type-check && npm run lint`。
+
 ### File List
+
+- src/services/scan-service.ts
+- src/services/index.ts
+- src/schemas/scan-input.ts
+- src/cli/commands/scan.ts
+- src/cli/commands/index.ts
+- src/cli/index.ts
+- tests/unit/cli/commands/scan.test.ts
+- tests/unit/cli/index.test.ts
+- tests/unit/services/scan-service.test.ts
+- tests/unit/schemas/scan-input.test.ts
+- tests/integration/cli/scan.test.ts
+- tests/fixtures/sample-projects/bmad-project/_bmad/config.yaml
+- tests/fixtures/sample-projects/bmad-project/_bmad-output/prd.md
+- tests/fixtures/sample-projects/bmad-project/_bmad-output/architecture/overview-architecture.md
+- tests/fixtures/sample-projects/bmad-project/_bmad-output/epics/epic-1.md
+- tests/fixtures/sample-projects/bmad-project/_bmad-output/stories/2-1-scan-core.md
+- tests/fixtures/sample-projects/generic-project/docs/overview.md
+- tests/fixtures/sample-projects/generic-project/docs/notes.md
+- _bmad-output/implementation-artifacts/stories/2-5-scanservice-cold-start-scan-and-graph-write.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+
+## Change Log
+
+- 2026-05-08: 完成 ScanService 冷启动扫描、scan CLI、sample-project fixtures 与端到端测试，Story 状态更新为 review。

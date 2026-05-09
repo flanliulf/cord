@@ -4,19 +4,22 @@ import { ConfigError } from '../../../src/utils/errors.js';
 
 describe('scanInputSchema', () => {
   describe('valid inputs', () => {
-    it('accepts minimal required fields with default force=false', () => {
+    it('accepts minimal required fields with default rebuild=false and force=false', () => {
       const result = scanInputSchema.parse({ projectRoot: '/home/user/project' });
       expect(result.projectRoot).toBe('/home/user/project');
+      expect(result.rebuild).toBe(false);
       expect(result.force).toBe(false);
     });
 
-    it('accepts with explicit paths and force=true', () => {
+    it('accepts with explicit paths, rebuild=true, and force=true', () => {
       const result = scanInputSchema.parse({
         projectRoot: '/project',
         paths: ['docs/', 'src/'],
+        rebuild: true,
         force: true,
       });
       expect(result.paths).toEqual(['docs/', 'src/']);
+      expect(result.rebuild).toBe(true);
       expect(result.force).toBe(true);
     });
   });

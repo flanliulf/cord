@@ -1,7 +1,51 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Command } from 'commander';
+import { createScanCommand } from '../../../src/cli/commands/index.js';
 import { applyVerboseFlag } from '../../../src/cli/verbose.js';
 import { createProgram, runCli } from '../../../src/cli/index.js';
+import { ConfigError } from '../../../src/utils/errors.js';
 import { logger } from '../../../src/utils/index.js';
+
+interface BufferingWriter {
+  write(chunk: string): boolean;
+  read(): string;
+}
+
+function createWriter(): BufferingWriter {
+  const chunks: string[] = [];
+
+  return {
+    write(chunk: string): boolean {
+      chunks.push(chunk);
+      return true;
+    },
+    read(): string {
+      return chunks.join('');
+    },
+  };
+}
+
+function createCliProgramWithScanCommand(options: {
+  scan: (input: { projectRoot: string; rebuild?: boolean; force?: boolean }) => Promise<unknown>;
+  stdout?: BufferingWriter;
+  stderr?: BufferingWriter;
+}): Command {
+  const program = new Command();
+  program
+    .name('cord')
+    .option('-v, --verbose', 'enable debug output')
+    .addCommand(
+      createScanCommand({
+        cwd: () => '/tmp/project',
+        serviceFactory: () => ({
+          scan: options.scan,
+        }),
+        stdout: options.stdout,
+        stderr: options.stderr,
+      }),
+    );
+  return program;
+}
 
 describe('CLI verbose flag activation', () => {
   beforeEach(() => {
@@ -47,6 +91,11 @@ describe('createProgram', () => {
     expect(prog.name()).toBe('cord');
   });
 
+  it('registers the scan command', () => {
+    const prog = createProgram();
+    expect(prog.commands.some((command) => command.name() === 'scan')).toBe(true);
+  });
+
   it('has --verbose / -v option', () => {
     const prog = createProgram();
     const hasVerbose = prog.options.some((o) => o.long === '--verbose');
@@ -64,36 +113,129 @@ describe('runCli (with injected mock program)', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env['CORD_DEBUG'];
+    process.exitCode = undefined;
   });
 
-  it('calls program.parse with process.argv', () => {
+  it('calls program.parseAsync with process.argv', async () => {
     const mockProgram = {
-      parse: vi.fn(),
+      parseAsync: vi.fn().mockResolvedValue(undefined),
       opts: vi.fn().mockReturnValue({}),
     };
-    runCli(mockProgram as never);
-    expect(mockProgram.parse).toHaveBeenCalledWith(process.argv);
+    await runCli(mockProgram as never);
+    expect(mockProgram.parseAsync).toHaveBeenCalledWith(process.argv);
   });
 
-  it('activates verbose when --verbose flag is parsed', () => {
+  it('activates verbose when --verbose flag is parsed', async () => {
     const mockProgram = {
-      parse: vi.fn(),
+      parseAsync: vi.fn().mockResolvedValue(undefined),
       opts: vi.fn().mockReturnValue({ verbose: true }),
     };
     const spy = vi.spyOn(logger, 'setVerbose');
-    runCli(mockProgram as never);
+    await runCli(mockProgram as never);
     expect(spy).toHaveBeenCalledWith(true);
   });
 
-  it('activates verbose when CORD_DEBUG=1 is set', () => {
+  it('activates verbose when CORD_DEBUG=1 is set', async () => {
     process.env['CORD_DEBUG'] = '1';
     const mockProgram = {
-      parse: vi.fn(),
+      parseAsync: vi.fn().mockResolvedValue(undefined),
       opts: vi.fn().mockReturnValue({}),
     };
     const spy = vi.spyOn(logger, 'setVerbose');
-    runCli(mockProgram as never);
+    await runCli(mockProgram as never);
     expect(spy).toHaveBeenCalledWith(true);
+  });
+
+  it('waits for async scan success before resolving', async () => {
+    const savedArgv = process.argv.slice();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const program = createCliProgramWithScanCommand({
+      scan: vi.fn().mockResolvedValue({
+        documentsFound: 2,
+        relationsDiscovered: 3,
+        warnings: [],
+        durationMs: 20,
+      }),
+      stdout,
+      stderr,
+    });
+    process.argv = ['node', 'cord', 'scan'];
+
+    try {
+      await runCli(program);
+      expect(process.exitCode ?? 0).toBe(0);
+      expect(stdout.read()).toContain('关系数: 3');
+      expect(stderr.read()).toBe('');
+    } finally {
+      process.argv = savedArgv;
+    }
+  });
+
+  it('waits for async scan ConfigError mapping before resolving', async () => {
+    const savedArgv = process.argv.slice();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const program = createCliProgramWithScanCommand({
+      scan: vi.fn().mockRejectedValue(
+        new ConfigError({
+          message: '配置损坏',
+          suggestion: '请检查 cord.config.yaml',
+        }),
+      ),
+      stdout,
+      stderr,
+    });
+    process.argv = ['node', 'cord', 'scan'];
+
+    try {
+      await runCli(program);
+      expect(process.exitCode).toBe(2);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('配置损坏');
+    } finally {
+      process.argv = savedArgv;
+    }
+  });
+
+  it('waits for async scan runtime error mapping before resolving', async () => {
+    const savedArgv = process.argv.slice();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const program = createCliProgramWithScanCommand({
+      scan: vi.fn().mockRejectedValue(new Error('boom')),
+      stdout,
+      stderr,
+    });
+    process.argv = ['node', 'cord', 'scan'];
+
+    try {
+      await runCli(program);
+      expect(process.exitCode).toBe(1);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('boom');
+    } finally {
+      process.argv = savedArgv;
+    }
+  });
+
+  it('maps Commander parse errors to exit code 2 at the real CLI entrypoint', async () => {
+    const savedArgv = process.argv.slice();
+    process.argv = ['node', 'cord', 'scan', '--unknown'];
+    const program = createProgram();
+    program.exitOverride();
+    program.configureOutput({
+      writeErr: vi.fn(),
+      outputError: vi.fn(),
+    });
+
+    try {
+      await runCli(program);
+      expect(process.exitCode).toBe(2);
+    } finally {
+      process.argv = savedArgv;
+      process.exitCode = undefined;
+    }
   });
 });
 

@@ -171,9 +171,11 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - 所有命令支持 `--json` 标志输出 JSON 格式
 - 错误输出使用 chalk 着色 + CordError 的 suggestion 字段
 
-**CLI 入口文件约束（CR-CLI-01/02/03，来源：Story 1-2 CR 历史）：**
+**CLI 入口文件约束（CR-CLI-01/02/03/04，来源：Story 1-2、2-5 CR 历史）：**
 
 - **禁止**在 `src/cli/index.ts` 等入口模块的顶层直接执行 `program.parse()`；所有 `parse()` / `process.exit()` 调用必须封装在函数内，并由 entrypoint 守卫保护（CR-CLI-02）
+- **若 Commander 树中存在任何 `async` action，`runCli()` 必须为 `async` 并使用 `await program.parseAsync(process.argv)`；entrypoint 守卫必须以 `void runCli().catch(reportUnhandledCliError)` 或等效方式兜底未捕获异步错误**（CR-CLI-04）
+- **CLI 退出码契约的最终 owner 是真实入口 `runCli()`**：不能只在单个 command factory 中处理 `ConfigError` / parse error；入口级测试必须直接覆盖这些路径（CR-CLI-04）
 - **ESM entrypoint 守卫必须使用三步归一化写法**（CR-CLI-01）：
   ```ts
   import { realpathSync } from 'node:fs';
@@ -183,14 +185,14 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
     let entryUrl: string;
     try { entryUrl = pathToFileURL(realpathSync(entryArg)).href; }
     catch { entryUrl = pathToFileURL(entryArg).href; }
-    if (import.meta.url === entryUrl) { runCli(); }
+    if (import.meta.url === entryUrl) { void runCli().catch(reportUnhandledCliError); }
   }
   ```
   ⚠️ 禁止使用 `` `file://${process.argv[1]}` `` 或无判空的 `pathToFileURL(process.argv[1]).href`
 - **CLI helper 函数**（如 `applyVerboseFlag`）必须抽到独立的无副作用模块（如 `src/cli/verbose.ts`），测试直接导入 helper，不导入入口文件（CR-BP-01）
 - **禁止依赖 Commander `preAction` 处理全局选项**（如 `--verbose`），除非已注册至少一个 `.action()`；无 action 时改用 `parse()` 之后 `program.opts()` 同步处理（CR-CLI-03）
 
-### Repository 层开发规则（来源：Story 1-4 CR 历史）
+### Repository 层开发规则（来源：Story 1-4、2-5 CR 历史）
 
 **CR-REPO-01：update 方法禁止接受不可变字段**
 - 所有 `update*` 接口签名必须使用 `Omit<Partial<EntityType>, 'id' | 'createdAt' | 'updatedAt'>`，排除不可变字段
@@ -237,6 +239,11 @@ const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 
 **CR-REPO-04：唯一索引维度必须与接口 source 语义契约对齐**
 - 当接口暴露了「按 source 区分保留/删除」能力（如 `excludeSources` 参数），唯一索引必须包含 `source` 维度
 - DB `CHECK` 约束的枚举值必须与 TS 类型白名单完全一致，不得只改一处
+
+**CR-REPO-05：批量写入必须先计算可持久化 workset，再进入事务**
+- 涉及 documents / relations / sync_states 等多阶段批量写入时，必须先在事务外过滤不可持久化项，并为被跳过项记录 warning
+- 事务内只处理已经验证过的完整 workset；若发现端点映射或写入计划失配，必须抛错回滚，禁止用普通 `return` 提前结束 transaction callback
+- 对外暴露的统计字段（如 discovered / written counts）必须与过滤后的实际写入策略一致，不能返回“计划总数”却只提交部分结果
 
 ### 测试规则
 
@@ -310,6 +317,8 @@ describe('ScanService', () => {
 - Scanner 引擎测试使用 `tests/fixtures/documents/` 下的真实 Markdown 文件
 - 集成测试验证跨层调用流程（如 scan → query → impact 完整链路）
 - Mock 策略：Service 测试 mock `IGraphRepository` 接口；CLI/MCP 测试 mock Service 层
+- 含 `async` Commander action 或自定义退出码契约的 CLI 命令，必须同时覆盖 command factory 层与真实 `runCli()` 入口层；入口层至少断言成功路径、Commander parse error、业务 `ConfigError` 和 runtime error
+- 事务性批量写入流程必须覆盖“部分输入无效”回归测试，断言返回计数与 documents / relations / sync_states 的最终落库结果一致，防止部分提交被误判为成功
 
 ### 代码质量与风格规则
 

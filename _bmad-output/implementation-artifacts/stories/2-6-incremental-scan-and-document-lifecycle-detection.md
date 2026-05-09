@@ -15,7 +15,7 @@ So that 日常使用中扫描速度极快，且图谱自动保持与文件系统
 3. **Given** 文档重命名 **When** 检测到 **Then** 更新图谱中的文档路径（v0.1：仅更新 `documents.path`；路径敏感的 docType 重分类与 preset 关系刷新延至 v0.2）
 4. **Given** 文档移动 **When** 检测到 **Then** 更新文档路径（v0.1 约束同 AC 3）
 5. **Given** 文档删除 **When** 检测到 **Then** 清理孤立节点和失效关系边（FR8）
-6. **Given** cord scan **When** 执行 **Then** 自动判断冷启动 vs 增量扫描
+6. **Given** cord scan **When** 在已有图谱的项目中重复执行且未传 `--rebuild` **Then** 自动判断并进入增量扫描/无变更快速返回路径，而不是再次执行冷启动 INSERT ALL；不得因重复插入 `documents.path` 触发唯一约束
 7. **Given** 无变更 **When** 增量扫描 **Then** p95 < 100ms（NFR6）
 8. **Given** 实现完毕 **When** 运行测试 **Then** 覆盖增量扫描 + 生命周期检测 + 无变更快速返回
 
@@ -27,9 +27,9 @@ So that 日常使用中扫描速度极快，且图谱自动保持与文件系统
   - [ ] 1.3 移动检测
   - [ ] 1.4 删除检测和清理
 - [ ] Task 2: 扩展 ScanService 增量模式 (AC: #1, #6)
-  - [ ] 2.1 检测图谱是否已有数据 → 自动选择模式
+  - [ ] 2.1 检测图谱是否已有数据 → 自动选择模式；已有图谱且未传 `--rebuild` 时必须进入增量路径，不得回退到冷启动 INSERT ALL
   - [ ] 2.2 对比 mtime 确定变更文档
-  - [ ] 2.3 仅处理变更文档
+  - [ ] 2.3 仅处理变更文档；无变更时直接返回，不触发 documents/relations/sync_states 的重复冷启动写入
 - [ ] Task 3: 无变更优化 (AC: #7)
   - [ ] 3.1 早期返回：无 mtime 变化时直接返回
 - [ ] Task 4: 编写测试 (AC: #8)
@@ -94,6 +94,7 @@ function detectLifecycle(
 2. 对每个文件收集 fs.statSync + contentHash → CurrentFileSnapshot[]
 3. repo 读取已存储文档 → StoredDocRecord[]  （包含 lastObservedMtimeMs）
 4. detectLifecycle(currentFiles, storedDocs) → LifecycleResult
+4b. 若图谱中已存在文档记录且未传 `--rebuild`，本次 `cord scan` 的默认语义即为增量扫描；禁止回退到 Story 2.5 的冷启动 INSERT ALL 路径，否则会对 `documents.path UNIQUE` 产生重复插入风险
 5. 对 modified + added 文档执行与冷启动相同的完整构建子链路：
    pipeline.process → ScanPipelineResult { document, relations, warnings }
    → docType classify → preset merge → merge/dedupe → relationTypes 过滤
@@ -133,6 +134,7 @@ repo.transaction(() => {
 ### 架构约束
 
 - 增量扫描遵循两阶段事务契约（与 Story 2.5 冷启动一致）：事务外计算、事务内短写（NFR15）
+- AC #6 的 owner 在 ScanService 模式选择逻辑：已有图谱且未传 `--rebuild` 时必须进入增量/无变更快速返回语义，避免再次走冷启动插入路径触发 `documents.path UNIQUE`
 - lifecycle-detector 是纯函数模块，不直接操作 Repository
 - 重命名/移动只更新 `documents.path`，关系边按 `docId` 建立无需修改
 - **excludeSources 依赖**：步骤 9a 使用 `deleteRelationsByDocId(docId, 'source', { excludeSources: ['manual'] })`，要求 Story 1.4 `IGraphRepository` 接口已支持 `options?.excludeSources` 可选参数，Story 4.2 Task 1.4 执行该接口升级
