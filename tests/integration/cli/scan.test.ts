@@ -117,4 +117,25 @@ describe('scan integration', () => {
     expect(repo.getAllSyncStates()).toHaveLength(2);
     repo.close();
   });
+
+  it('reuses incremental mode on repeated scans and fast-returns when the project is unchanged', async () => {
+    const projectRoot = createTempProjectFromFixture('generic-project');
+    createdRoots.push(projectRoot);
+    mkdirSync(join(projectRoot, '.cord'), { recursive: true });
+    const repo = new SqliteGraphRepository(join(projectRoot, '.cord', 'cord.db'));
+    const service = new ScanService(repo);
+
+    await service.scan({ projectRoot });
+    const result = await service.scan({ projectRoot });
+
+    expect(result.documentsFound).toBe(0);
+    expect(result.relationsDiscovered).toBe(0);
+    expect(result.warnings).toEqual([]);
+    expect(result.durationMs).toBeLessThan(100);
+    expect(repo.getDocumentCount()).toBe(2);
+    expect(repo.getRelationCount()).toBe(2);
+    expect(repo.getAllSyncStates()).toHaveLength(2);
+
+    service.close();
+  });
 });

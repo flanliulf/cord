@@ -245,6 +245,17 @@ const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 
 - 事务内只处理已经验证过的完整 workset；若发现端点映射或写入计划失配，必须抛错回滚，禁止用普通 `return` 提前结束 transaction callback
 - 对外暴露的统计字段（如 discovered / written counts）必须与过滤后的实际写入策略一致，不能返回“计划总数”却只提交部分结果
 
+### Scanner / 增量扫描开发规则（来源：Story 2-6 CR 历史）
+
+**CR-SCAN-01：生命周期重绑定必须满足双向唯一最优，歧义时降级为 delete + add**
+- 适用范围：所有基于 `contentHash`、路径、basename 等弱身份信号推断 rename / move / merge 的逻辑
+- **禁止**使用数组顺序、FIFO `shift()`、字典序 tiebreaker 等非语义排序直接决定既有 `docId` 与新路径的绑定关系
+- 只有 stored 侧与 current 侧都形成**唯一最优匹配**时，才允许认定为 rename / move；可使用同目录、同 basename、basename 编辑距离、路径距离等语义信号做评分
+- 若第一名与第二名并列，或多候选下无法形成双向唯一最优匹配，必须保守降级为 delete + add，禁止静默强配对
+- 相关测试必须同时覆盖两类场景：
+  - 存在稳定路径信号时可正确消歧
+  - 真正歧义时降级为 delete + add，而不是错误更新 `docId`
+
 ### 测试规则
 
 **测试框架与组织（P5）：**

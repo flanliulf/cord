@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,6 +21,10 @@ class InMemoryGraphRepository implements IGraphRepository {
   failOnAddRelation = false;
 
   addDocument(doc: Omit<DocumentNode, 'id' | 'createdAt' | 'updatedAt'>): DocumentNode {
+    if (this.documents.some((document) => document.path === doc.path)) {
+      throw new Error(`Duplicate document path: ${doc.path}`);
+    }
+
     this.operations.push(`addDocument:${doc.path}`);
     const now = new Date().toISOString();
     const full: DocumentNode = {
@@ -50,6 +56,8 @@ class InMemoryGraphRepository implements IGraphRepository {
       throw new Error(`Document not found: ${id}`);
     }
 
+    this.operations.push(`updateDocument:${existing.path}->${updates.path ?? existing.path}`);
+
     const updated: DocumentNode = {
       ...existing,
       ...updates,
@@ -67,7 +75,17 @@ class InMemoryGraphRepository implements IGraphRepository {
     const index = this.documents.findIndex((document) => document.id === id);
 
     if (index >= 0) {
-      this.documents.splice(index, 1);
+      const [deletedDocument] = this.documents.splice(index, 1);
+
+      if (deletedDocument !== undefined) {
+        this.operations.push(`deleteDocument:${deletedDocument.path}`);
+        this.deleteRelationsByDocId(id, 'both');
+        const syncStateIndex = this.syncStates.findIndex((state) => state.docId === id);
+
+        if (syncStateIndex >= 0) {
+          this.syncStates.splice(syncStateIndex, 1);
+        }
+      }
     }
   }
 
@@ -146,9 +164,29 @@ class InMemoryGraphRepository implements IGraphRepository {
     }
   }
 
-  deleteRelationsByDocId(docId: string): void {
+  deleteRelationsByDocId(
+    docId: string,
+    direction: 'source' | 'target' | 'both' = 'both',
+    options?: { excludeSources?: RelationEdge['source'][] },
+  ): void {
+    this.operations.push(`deleteRelationsByDocId:${docId}:${direction}`);
+
     for (let index = this.relations.length - 1; index >= 0; index -= 1) {
       const relation = this.relations[index];
+
+      const matchesDirection = direction === 'both'
+        ? relation.sourceDocId === docId || relation.targetDocId === docId
+        : direction === 'source'
+          ? relation.sourceDocId === docId
+          : relation.targetDocId === docId;
+
+      if (!matchesDirection) {
+        continue;
+      }
+
+      if (options?.excludeSources?.includes(relation.source)) {
+        continue;
+      }
 
       if (relation.sourceDocId === docId || relation.targetDocId === docId) {
         this.relations.splice(index, 1);
@@ -264,6 +302,18 @@ class StubFrameworkAdapter implements IFrameworkAdapter {
   }
 }
 
+class MutableDiscoveryAdapter extends StubFrameworkAdapter {
+  constructor(private readonly getDocuments: (projectRoot: string) => string[]) {
+    super();
+  }
+
+  override discoverDocuments(projectRoot: string, scanPaths: string[], excludePaths: string[]): string[] {
+    this.receivedScanPaths.splice(0, this.receivedScanPaths.length, ...scanPaths);
+    this.receivedExcludePaths.splice(0, this.receivedExcludePaths.length, ...excludePaths);
+    return this.getDocuments(projectRoot);
+  }
+}
+
 class StubPipeline {
   readonly allDocPathsLog: string[][] = [];
 
@@ -277,7 +327,7 @@ class StubPipeline {
           frontmatter: { title: 'Product Requirements' },
           links: ['./architecture.md'],
           headings: [{ depth: 1, text: 'PRD' }],
-          contentHash: 'hash-prd',
+          contentHash: readFileContentHash(filePath),
         },
         relations: [
           {
@@ -307,7 +357,7 @@ class StubPipeline {
         frontmatter: {},
         links: [],
         headings: [{ depth: 1, text: 'Architecture' }],
-        contentHash: 'hash-architecture',
+        contentHash: readFileContentHash(filePath),
       },
       relations: [],
       warnings: ['architecture warning'],
@@ -330,7 +380,7 @@ class MissingEndpointPipeline extends StubPipeline {
           frontmatter: { title: 'Product Requirements' },
           links: [],
           headings: [{ depth: 1, text: 'PRD' }],
-          contentHash: 'hash-prd',
+          contentHash: readFileContentHash(filePath),
         },
         relations: [
           {
@@ -352,12 +402,16 @@ class MissingEndpointPipeline extends StubPipeline {
         frontmatter: {},
         links: [],
         headings: [{ depth: 1, text: 'Architecture' }],
-        contentHash: 'hash-architecture',
+        contentHash: readFileContentHash(filePath),
       },
       relations: [],
       warnings: [],
     };
   }
+}
+
+function readFileContentHash(filePath: string): string {
+  return createHash('sha256').update(readFileSync(filePath)).digest('hex');
 }
 
 function createProjectRoot(): string {
@@ -473,5 +527,115 @@ describe('ScanService', () => {
     expect(repo.documents).toEqual([]);
     expect(repo.relations).toEqual([]);
     expect(repo.syncStates).toEqual([]);
+  });
+
+  it('automatically switches to incremental mode and returns early when no files changed', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const adapter = new StubFrameworkAdapter();
+    const pipeline = new StubPipeline();
+    const service = new ScanService(repo, pipeline, [adapter]);
+
+    await service.scan({ projectRoot });
+    const initialProcessCount = pipeline.allDocPathsLog.length;
+    const initialAddDocumentCount = repo.operations.filter((operation) => operation.startsWith('addDocument:')).length;
+
+    const result = await service.scan({ projectRoot });
+
+    expect(result.documentsFound).toBe(0);
+    expect(result.relationsDiscovered).toBe(0);
+    expect(result.warnings).toEqual([]);
+    expect(repo.documents).toHaveLength(2);
+    expect(repo.relations).toHaveLength(2);
+    expect(pipeline.allDocPathsLog).toHaveLength(initialProcessCount);
+    expect(repo.operations.filter((operation) => operation.startsWith('addDocument:'))).toHaveLength(initialAddDocumentCount);
+  });
+
+  it('reprocesses only mtime-changed documents during incremental scans', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const adapter = new StubFrameworkAdapter();
+    const pipeline = new StubPipeline();
+    const service = new ScanService(repo, pipeline, [adapter]);
+
+    await service.scan({ projectRoot });
+    writeFileSync(join(projectRoot, 'docs', 'prd.md'), '# Product Requirements\n\nUpdated');
+
+    const result = await service.scan({ projectRoot });
+
+    expect(result.documentsFound).toBe(1);
+    expect(result.relationsDiscovered).toBe(2);
+    expect(repo.documents).toHaveLength(2);
+    expect(repo.relations).toHaveLength(2);
+    expect(pipeline.allDocPathsLog).toHaveLength(3);
+    expect(repo.operations).toContain('updateDocument:docs/prd.md->docs/prd.md');
+    expect(repo.operations.some((operation) => operation.startsWith('deleteRelationsByDocId:doc-1:source'))).toBe(true);
+    expect(repo.operations.filter((operation) => operation.startsWith('addDocument:docs/prd.md'))).toHaveLength(1);
+  });
+
+  it('updates document paths for rename and move events without rebuilding the graph', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    let discoveredDocuments = [
+      join(projectRoot, 'docs', 'prd.md'),
+      join(projectRoot, 'docs', 'architecture.md'),
+    ];
+    const repo = new InMemoryGraphRepository();
+    const adapter = new MutableDiscoveryAdapter(() => discoveredDocuments);
+    const service = new ScanService(repo, new StubPipeline(), [adapter]);
+
+    await service.scan({ projectRoot });
+
+    mkdirSync(join(projectRoot, 'archive'), { recursive: true });
+    writeFileSync(join(projectRoot, 'docs', 'product-requirements.md'), '# Product Requirements');
+    rmSync(join(projectRoot, 'docs', 'prd.md'));
+    writeFileSync(join(projectRoot, 'archive', 'architecture.md'), '# Architecture');
+    rmSync(join(projectRoot, 'docs', 'architecture.md'));
+    discoveredDocuments = [
+      join(projectRoot, 'docs', 'product-requirements.md'),
+      join(projectRoot, 'archive', 'architecture.md'),
+    ];
+
+    const result = await service.scan({ projectRoot });
+
+    expect(result.documentsFound).toBe(0);
+    expect(result.relationsDiscovered).toBe(0);
+    expect(repo.getDocumentByPath('docs/product-requirements.md')?.docType).toBe('prd');
+    expect(repo.getDocumentByPath('archive/architecture.md')?.docType).toBe('architecture');
+    expect(repo.getDocumentByPath('docs/prd.md')).toBeNull();
+    expect(repo.getDocumentByPath('docs/architecture.md')).toBeNull();
+    expect(repo.relations).toHaveLength(2);
+    expect(repo.syncStates).toHaveLength(2);
+    expect(repo.operations).toContain('updateDocument:docs/prd.md->docs/product-requirements.md');
+    expect(repo.operations).toContain('updateDocument:docs/architecture.md->archive/architecture.md');
+  });
+
+  it('deletes missing documents and cascades orphaned relations and sync states during incremental scans', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    let discoveredDocuments = [
+      join(projectRoot, 'docs', 'prd.md'),
+      join(projectRoot, 'docs', 'architecture.md'),
+    ];
+    const repo = new InMemoryGraphRepository();
+    const adapter = new MutableDiscoveryAdapter(() => discoveredDocuments);
+    const service = new ScanService(repo, new StubPipeline(), [adapter]);
+
+    await service.scan({ projectRoot });
+
+    rmSync(join(projectRoot, 'docs', 'architecture.md'));
+    discoveredDocuments = [join(projectRoot, 'docs', 'prd.md')];
+
+    const result = await service.scan({ projectRoot });
+
+    expect(result.documentsFound).toBe(0);
+    expect(result.relationsDiscovered).toBe(0);
+    expect(repo.getDocumentCount()).toBe(1);
+    expect(repo.getRelationCount()).toBe(0);
+    expect(repo.getAllSyncStates()).toHaveLength(1);
+    expect(repo.getDocumentByPath('docs/architecture.md')).toBeNull();
+    expect(repo.operations).toContain('deleteDocument:docs/architecture.md');
   });
 });

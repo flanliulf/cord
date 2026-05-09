@@ -402,6 +402,20 @@ repository.transaction(() => {
 });
 ```
 
+## Scanner / 增量扫描规则（来源：Story 2-6 CR 历史）
+
+**P31. 生命周期重绑定必须使用双向唯一最优匹配，歧义时降级为 delete + add（CR-SCAN-01）：**
+
+当增量扫描基于 `contentHash`、路径、basename 等弱身份信号推断 rename / move 时，正确性优先于“稳定但任意”的配对结果。
+
+- **禁止**依赖数组顺序、FIFO `shift()`、字典序 tiebreaker 等非语义排序，直接决定既有 `docId` 与新路径绑定关系
+- 只有 stored 侧与 current 侧都选出**唯一最优**候选时，才允许输出 rename / move
+- 评分信号可以包含同目录、同 basename、basename 编辑距离、路径距离等；但若第一名与第二名仍并列，则必须视为歧义
+- 歧义场景必须保守降级为 delete + add，避免把错误 `docId` 绑定到错误路径
+- 测试必须同时覆盖：
+  - 可稳定消歧的多候选同 hash 场景
+  - 无法唯一判断时的 delete + add 降级场景
+
 ## CLI 入口规则（来源：Story 1-2、2-5 CR 历史）
 
 **P19. ESM CLI entrypoint 守卫三步归一化（CR-CLI-01）：**

@@ -1,6 +1,6 @@
 # Story 2.6: 增量扫描与文档生命周期检测
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,18 +21,18 @@ So that 日常使用中扫描速度极快，且图谱自动保持与文件系统
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 lifecycle-detector.ts (AC: #2, #3, #4, #5)
-  - [ ] 1.1 对比文件系统与图谱记录
-  - [ ] 1.2 重命名检测（相同 content_hash，不同路径）
-  - [ ] 1.3 移动检测
-  - [ ] 1.4 删除检测和清理
-- [ ] Task 2: 扩展 ScanService 增量模式 (AC: #1, #6)
-  - [ ] 2.1 检测图谱是否已有数据 → 自动选择模式；已有图谱且未传 `--rebuild` 时必须进入增量路径，不得回退到冷启动 INSERT ALL
-  - [ ] 2.2 对比 mtime 确定变更文档
-  - [ ] 2.3 仅处理变更文档；无变更时直接返回，不触发 documents/relations/sync_states 的重复冷启动写入
-- [ ] Task 3: 无变更优化 (AC: #7)
-  - [ ] 3.1 早期返回：无 mtime 变化时直接返回
-- [ ] Task 4: 编写测试 (AC: #8)
+- [x] Task 1: 实现 lifecycle-detector.ts (AC: #2, #3, #4, #5)
+  - [x] 1.1 对比文件系统与图谱记录
+  - [x] 1.2 重命名检测（相同 content_hash，不同路径）
+  - [x] 1.3 移动检测
+  - [x] 1.4 删除检测和清理
+- [x] Task 2: 扩展 ScanService 增量模式 (AC: #1, #6)
+  - [x] 2.1 检测图谱是否已有数据 → 自动选择模式；已有图谱且未传 `--rebuild` 时必须进入增量路径，不得回退到冷启动 INSERT ALL
+  - [x] 2.2 对比 mtime 确定变更文档
+  - [x] 2.3 仅处理变更文档；无变更时直接返回，不触发 documents/relations/sync_states 的重复冷启动写入
+- [x] Task 3: 无变更优化 (AC: #7)
+  - [x] 3.1 早期返回：无 mtime 变化时直接返回
+- [x] Task 4: 编写测试 (AC: #8)
 
 ## Dev Notes
 
@@ -155,8 +155,38 @@ repo.transaction(() => {
 
 ### Agent Model Used
 
+- GPT-5.4
+
 ### Debug Log References
+
+- `npm test -- tests/unit/scanner/lifecycle-detector.test.ts`
+- `npm test -- tests/unit/services/scan-service.test.ts`
+- `npm test -- tests/integration/cli/scan.test.ts`
+- `npm test`
+- `npm test && npm run type-check && npm run lint`
 
 ### Completion Notes List
 
+- 完成 `src/scanner/lifecycle-detector.ts` 纯函数模块，按文件系统快照与图谱记录输出 renamed/moved/deleted/modified/unchanged/added 六类生命周期结果。
+- 完成 `src/services/scan-service.ts` 增量路径：已有图谱且未传 `--rebuild` 时自动切换到 snapshot + lifecycle 模式，按 mtime 仅重处理 modified/added 文档，并在无变更时快速返回。
+- 在事务内接入 rename/move/delete 生命周期写回：更新 `documents.path`、级联清理删除文档、刷新 changed 文档的 outgoing 非 manual 关系和对应 sync state。
+- 新增 `tests/unit/scanner/lifecycle-detector.test.ts`，覆盖基础分类、同目录重命名和跨目录移动场景。
+- 扩展 `tests/unit/services/scan-service.test.ts`，覆盖无变更快返、mtime 增量刷新、rename/move 路径更新和 delete 级联清理。
+- 扩展 `tests/integration/cli/scan.test.ts`，以真实 SQLite 仓储验证重复扫描自动进入增量/无变更快返，且本地小样本耗时 < 100ms。
+- 约定 rename/move 分类规则：同目录仅文件名变化记为 rename；目录变化记为 move，供 v0.1 路径更新流程复用。
+- 通过最终质量门：`npm test && npm run type-check && npm run lint`。
+
 ### File List
+
+- src/scanner/index.ts
+- src/scanner/lifecycle-detector.ts
+- src/services/scan-service.ts
+- tests/integration/cli/scan.test.ts
+- tests/unit/scanner/lifecycle-detector.test.ts
+- tests/unit/services/scan-service.test.ts
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/stories/2-6-incremental-scan-and-document-lifecycle-detection.md
+
+## Change Log
+
+- 2026-05-09: 完成增量扫描、生命周期检测、无变更快返与对应单元/集成测试，Story 状态更新为 review。

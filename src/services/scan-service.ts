@@ -1,5 +1,6 @@
-import { stat } from 'node:fs/promises';
-import { basename, extname, relative } from 'node:path';
+import { createHash } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
+import { basename, extname, join, relative } from 'node:path';
 import {
   frameworkAdapters,
   resolveAdapter,
@@ -10,11 +11,13 @@ import {
 import type { IGraphRepository, SyncState } from '../repositories/index.js';
 import { validateScanInput, type ScanInput } from '../schemas/index.js';
 import type {
+  CurrentFileSnapshot,
   DiscoveredRelation,
   ParsedDocument,
   ScanPipelineResult,
+  StoredDocRecord,
 } from '../scanner/index.js';
-import { ScanPipeline } from '../scanner/index.js';
+import { detectLifecycle, ScanPipeline } from '../scanner/index.js';
 import type { RelationEdge, RelationType } from '../types/index.js';
 import { loadConfig, ScanError } from '../utils/index.js';
 
@@ -72,33 +75,217 @@ export class ScanService {
       effectiveExcludePaths,
     );
 
-    const warnings: string[] = [];
-    const classifiedDocuments: ClassifiedDocument[] = [];
-    const scanRelations: PersistedRelationPlan[] = [];
+    if (!validatedInput.rebuild && this.repository.getDocumentCount() > 0) {
+      const currentSnapshots = await collectCurrentFileSnapshots(discoveredDocuments);
+      const storedDocs = collectStoredDocRecords(validatedInput.projectRoot, this.repository);
+      const lifecycle = detectLifecycle(currentSnapshots, storedDocs);
 
-    for (const filePath of discoveredDocuments) {
-      const pipelineResult = await this.pipeline.process(filePath, discoveredDocuments);
-      warnings.push(...this.pipeline.takeWarnings());
-
-      if (pipelineResult === null) {
-        continue;
+      if (!hasLifecycleChanges(lifecycle)) {
+        return {
+          documentsFound: 0,
+          relationsDiscovered: 0,
+          warnings: [],
+          durationMs: Date.now() - startedAt,
+        };
       }
 
-      warnings.push(...pipelineResult.warnings);
-      classifiedDocuments.push(
-        await classifyDocument(validatedInput.projectRoot, filePath, pipelineResult.document, adapter),
+      const batch = await buildScanBatch(
+        this.pipeline,
+        validatedInput.projectRoot,
+        lifecycle.modified.map((snapshot) => ({
+          filePath: snapshot.path,
+          observedMtimeMs: snapshot.mtimeMs,
+        })).concat(
+          lifecycle.added.map((snapshot) => ({
+            filePath: snapshot.path,
+            observedMtimeMs: snapshot.mtimeMs,
+          })),
+        ),
+        discoveredDocuments,
+        adapter,
       );
-      scanRelations.push(...toScanRelationPlans(pipelineResult.relations));
+      const storedDocuments = this.repository.getAllDocuments();
+      const syncStates = this.repository.getAllSyncStates();
+      const knownDocuments = buildKnownDocumentCatalog(
+        validatedInput.projectRoot,
+        storedDocuments,
+        syncStates,
+        lifecycle,
+        batch.classifiedDocuments,
+      );
+      const addedDocumentPaths = new Set(lifecycle.added.map((snapshot) => snapshot.path));
+      const changedDocumentPaths = new Set(batch.classifiedDocuments.map((document) => document.absolutePath));
+      const presetRelations = buildIncrementalPresetRelations(
+        knownDocuments,
+        adapter.getPresetRules(),
+        changedDocumentPaths,
+        addedDocumentPaths,
+      );
+      const warnings = [...batch.warnings];
+      const filteredRelations = filterDisabledRelationTypes(
+        dedupeRelations([...batch.scanRelations, ...presetRelations]),
+        config.relationTypes,
+      );
+      const persistableRelations = collectPersistableRelations(
+        validatedInput.projectRoot,
+        new Set(knownDocuments.map((document) => document.absolutePath)),
+        filteredRelations,
+        warnings,
+      );
+      const storedDocsById = new Map(storedDocs.map((document) => [document.docId, document]));
+      const modifiedDocumentPaths = new Set(lifecycle.modified.map((snapshot) => snapshot.path));
+
+      this.repository.transaction(() => {
+        const scannedAt = new Date().toISOString();
+        const existingDocumentsByPath = new Map(
+          storedDocuments.map((document) => [toAbsolutePath(validatedInput.projectRoot, document.path), document]),
+        );
+        const pathToDocId = new Map(
+          storedDocuments.map((document) => [toAbsolutePath(validatedInput.projectRoot, document.path), document.id]),
+        );
+        const processedDocIdsByPath = new Map<string, string>();
+
+        for (const deletedDocument of lifecycle.deleted) {
+          this.repository.deleteDocument(deletedDocument.docId);
+          pathToDocId.delete(deletedDocument.path);
+        }
+
+        for (const pathChange of [...lifecycle.renamed, ...lifecycle.moved]) {
+          this.repository.updateDocument(pathChange.docId, {
+            path: toRelativePath(validatedInput.projectRoot, pathChange.newPath),
+          });
+          pathToDocId.delete(pathChange.oldPath);
+          pathToDocId.set(pathChange.newPath, pathChange.docId);
+        }
+
+        for (const document of batch.classifiedDocuments) {
+          if (modifiedDocumentPaths.has(document.absolutePath)) {
+            const existingDocument = existingDocumentsByPath.get(document.absolutePath);
+
+            if (existingDocument === undefined) {
+              throw new ScanError({
+                message: `增量扫描缺少待更新文档: ${document.relativePath}`,
+                code: 'CORD_SCAN_004',
+                suggestion: '请检查 lifecycle-detector 与仓储中的文档路径是否保持一致。',
+                context: { path: document.relativePath },
+              });
+            }
+
+            this.repository.deleteRelationsByDocId(existingDocument.id, 'source', {
+              excludeSources: ['manual'],
+            });
+            this.repository.updateDocument(existingDocument.id, {
+              path: document.relativePath,
+              title: document.title,
+              docType: document.docType,
+              framework: adapter.name,
+              contentHash: document.contentHash,
+              metadata: document.metadata,
+            });
+            pathToDocId.set(document.absolutePath, existingDocument.id);
+            processedDocIdsByPath.set(document.absolutePath, existingDocument.id);
+            continue;
+          }
+
+          const persisted = this.repository.addDocument({
+            path: document.relativePath,
+            title: document.title,
+            docType: document.docType,
+            framework: adapter.name,
+            contentHash: document.contentHash,
+            metadata: document.metadata,
+          });
+
+          pathToDocId.set(document.absolutePath, persisted.id);
+          processedDocIdsByPath.set(document.absolutePath, persisted.id);
+        }
+
+        for (const relation of persistableRelations) {
+          const sourceDocId = pathToDocId.get(relation.sourceDocPath);
+          const targetDocId = pathToDocId.get(relation.targetDocPath);
+
+          if (sourceDocId === undefined || targetDocId === undefined) {
+            throw new ScanError({
+              message: '扫描写入计划与已持久化文档不一致，无法写入关系。',
+              code: 'CORD_SCAN_004',
+              suggestion: '请检查 ScanService 生成的关系端点是否都来自当前项目中的已知文档。',
+              context: {
+                sourceDocPath: relation.sourceDocPath,
+                targetDocPath: relation.targetDocPath,
+                relationType: relation.relationType,
+              },
+            });
+          }
+
+          this.repository.addRelation({
+            sourceDocId,
+            targetDocId,
+            relationType: relation.relationType,
+            confidence: relation.confidence,
+            source: relation.source,
+            status: 'active',
+            metadata: relation.metadata,
+          });
+        }
+
+        for (const document of batch.classifiedDocuments) {
+          const docId = processedDocIdsByPath.get(document.absolutePath);
+
+          if (docId === undefined) {
+            continue;
+          }
+
+          this.repository.upsertSyncState({
+            docId,
+            lastScannedAt: scannedAt,
+            lastObservedMtimeMs: document.lastObservedMtimeMs,
+            contentHash: document.contentHash,
+            status: 'synced',
+          });
+        }
+
+        for (const pathChange of [...lifecycle.renamed, ...lifecycle.moved]) {
+          const storedDocument = storedDocsById.get(pathChange.docId);
+
+          if (storedDocument === undefined) {
+            continue;
+          }
+
+          this.repository.upsertSyncState({
+            docId: pathChange.docId,
+            lastScannedAt: scannedAt,
+            lastObservedMtimeMs: pathChange.currentMtimeMs,
+            contentHash: storedDocument.contentHash,
+            status: storedDocument.status,
+          });
+        }
+      });
+
+      return {
+        documentsFound: batch.classifiedDocuments.length,
+        relationsDiscovered: persistableRelations.length,
+        warnings,
+        durationMs: Date.now() - startedAt,
+      };
     }
 
-    const presetRelations = buildPresetRelations(classifiedDocuments, adapter.getPresetRules());
+    const batch = await buildScanBatch(
+      this.pipeline,
+      validatedInput.projectRoot,
+      discoveredDocuments.map((filePath) => ({ filePath })),
+      discoveredDocuments,
+      adapter,
+    );
+    const warnings = [...batch.warnings];
+
+    const presetRelations = buildPresetRelations(batch.classifiedDocuments, adapter.getPresetRules());
     const filteredRelations = filterDisabledRelationTypes(
-      dedupeRelations([...scanRelations, ...presetRelations]),
+      dedupeRelations([...batch.scanRelations, ...presetRelations]),
       config.relationTypes,
     );
     const persistableRelations = collectPersistableRelations(
       validatedInput.projectRoot,
-      classifiedDocuments,
+      new Set(batch.classifiedDocuments.map((document) => document.absolutePath)),
       filteredRelations,
       warnings,
     );
@@ -111,7 +298,7 @@ export class ScanService {
       const persistedDocs = new Map<string, { id: string; contentHash: string; lastObservedMtimeMs: number }>();
       const scannedAt = new Date().toISOString();
 
-      for (const document of classifiedDocuments) {
+      for (const document of batch.classifiedDocuments) {
         const persisted = this.repository.addDocument({
           path: document.relativePath,
           title: document.title,
@@ -156,7 +343,7 @@ export class ScanService {
         });
       }
 
-      for (const document of classifiedDocuments) {
+      for (const document of batch.classifiedDocuments) {
         const persisted = persistedDocs.get(document.absolutePath);
 
         if (persisted === undefined) {
@@ -176,7 +363,7 @@ export class ScanService {
     });
 
     return {
-      documentsFound: classifiedDocuments.length,
+      documentsFound: batch.classifiedDocuments.length,
       relationsDiscovered: persistableRelations.length,
       warnings,
       durationMs: Date.now() - startedAt,
@@ -213,6 +400,7 @@ async function classifyDocument(
   absolutePath: string,
   document: ParsedDocument,
   adapter: IFrameworkAdapter,
+  observedMtimeMs?: number,
 ): Promise<ClassifiedDocument> {
   const relativePath = toRelativePath(projectRoot, absolutePath);
 
@@ -221,7 +409,7 @@ async function classifyDocument(
     relativePath,
     docType: matchDocType(relativePath, adapter.getDocumentTypes()),
     contentHash: document.contentHash,
-    lastObservedMtimeMs: await readObservedMtimeMs(absolutePath),
+    lastObservedMtimeMs: observedMtimeMs ?? await readObservedMtimeMs(absolutePath),
     metadata: {
       frontmatter: document.frontmatter,
       headings: document.headings,
@@ -364,17 +552,16 @@ function filterDisabledRelationTypes(
 
 function collectPersistableRelations(
   projectRoot: string,
-  documents: ClassifiedDocument[],
+  knownDocumentPaths: Set<string>,
   relations: PersistedRelationPlan[],
   warnings: string[],
 ): PersistedRelationPlan[] {
-  const discoveredPaths = new Set(documents.map((document) => document.absolutePath));
   const persistableRelations: PersistedRelationPlan[] = [];
 
   for (const relation of relations) {
     if (
-      discoveredPaths.has(relation.sourceDocPath) &&
-      discoveredPaths.has(relation.targetDocPath)
+      knownDocumentPaths.has(relation.sourceDocPath) &&
+      knownDocumentPaths.has(relation.targetDocPath)
     ) {
       persistableRelations.push(relation);
       continue;
@@ -386,6 +573,151 @@ function collectPersistableRelations(
   }
 
   return persistableRelations;
+}
+
+async function buildScanBatch(
+  pipeline: ScanPipelineLike,
+  projectRoot: string,
+  filesToProcess: Array<{ filePath: string; observedMtimeMs?: number }>,
+  allDocPaths: string[],
+  adapter: IFrameworkAdapter,
+): Promise<{
+  classifiedDocuments: ClassifiedDocument[];
+  scanRelations: PersistedRelationPlan[];
+  warnings: string[];
+}> {
+  const warnings: string[] = [];
+  const classifiedDocuments: ClassifiedDocument[] = [];
+  const scanRelations: PersistedRelationPlan[] = [];
+
+  for (const file of filesToProcess) {
+    const pipelineResult = await pipeline.process(file.filePath, allDocPaths);
+    warnings.push(...pipeline.takeWarnings());
+
+    if (pipelineResult === null) {
+      continue;
+    }
+
+    warnings.push(...pipelineResult.warnings);
+    classifiedDocuments.push(
+      await classifyDocument(
+        projectRoot,
+        file.filePath,
+        pipelineResult.document,
+        adapter,
+        file.observedMtimeMs,
+      ),
+    );
+    scanRelations.push(...toScanRelationPlans(pipelineResult.relations));
+  }
+
+  return {
+    classifiedDocuments,
+    scanRelations,
+    warnings,
+  };
+}
+
+async function collectCurrentFileSnapshots(filePaths: string[]): Promise<CurrentFileSnapshot[]> {
+  return Promise.all(filePaths.map((filePath) => readCurrentFileSnapshot(filePath)));
+}
+
+async function readCurrentFileSnapshot(filePath: string): Promise<CurrentFileSnapshot> {
+  try {
+    const [fileStat, rawFile] = await Promise.all([stat(filePath), readFile(filePath)]);
+
+    return {
+      path: filePath,
+      mtimeMs: fileStat.mtimeMs,
+      contentHash: createHash('sha256').update(rawFile).digest('hex'),
+    };
+  } catch (cause) {
+    throw new ScanError({
+      message: `读取文档快照失败: ${filePath}`,
+      code: 'CORD_SCAN_003',
+      suggestion: '请确认扫描目标文件仍然存在且当前进程具备读取与 stat 权限。',
+      context: { filePath },
+      cause: cause instanceof Error ? cause : undefined,
+    });
+  }
+}
+
+function collectStoredDocRecords(projectRoot: string, repository: IGraphRepository): StoredDocRecord[] {
+  const syncStatesByDocId = new Map(
+    repository.getAllSyncStates().map((syncState) => [syncState.docId, syncState]),
+  );
+
+  return repository.getAllDocuments().map((document) => {
+    const syncState = syncStatesByDocId.get(document.id);
+
+    return {
+      docId: document.id,
+      path: toAbsolutePath(projectRoot, document.path),
+      contentHash: syncState?.contentHash ?? document.contentHash ?? '',
+      lastObservedMtimeMs: syncState?.lastObservedMtimeMs ?? -1,
+      status: syncState?.status ?? 'modified',
+    };
+  });
+}
+
+function hasLifecycleChanges(lifecycle: ReturnType<typeof detectLifecycle>): boolean {
+  return lifecycle.renamed.length > 0
+    || lifecycle.moved.length > 0
+    || lifecycle.deleted.length > 0
+    || lifecycle.modified.length > 0
+    || lifecycle.added.length > 0;
+}
+
+function buildKnownDocumentCatalog(
+  projectRoot: string,
+  storedDocuments: ReturnType<IGraphRepository['getAllDocuments']>,
+  syncStates: SyncState[],
+  lifecycle: ReturnType<typeof detectLifecycle>,
+  changedDocuments: ClassifiedDocument[],
+): ClassifiedDocument[] {
+  const syncStatesByDocId = new Map(syncStates.map((syncState) => [syncState.docId, syncState]));
+  const deletedDocIds = new Set(lifecycle.deleted.map((document) => document.docId));
+  const updatedPathsByDocId = new Map(
+    [...lifecycle.renamed, ...lifecycle.moved].map((pathChange) => [pathChange.docId, pathChange.newPath]),
+  );
+  const catalog = new Map<string, ClassifiedDocument>();
+
+  for (const storedDocument of storedDocuments) {
+    if (deletedDocIds.has(storedDocument.id)) {
+      continue;
+    }
+
+    const syncState = syncStatesByDocId.get(storedDocument.id);
+    const absolutePath = updatedPathsByDocId.get(storedDocument.id)
+      ?? toAbsolutePath(projectRoot, storedDocument.path);
+
+    catalog.set(absolutePath, {
+      absolutePath,
+      relativePath: toRelativePath(projectRoot, absolutePath),
+      docType: storedDocument.docType,
+      contentHash: syncState?.contentHash ?? storedDocument.contentHash ?? '',
+      lastObservedMtimeMs: syncState?.lastObservedMtimeMs ?? 0,
+      metadata: storedDocument.metadata ?? {},
+      title: storedDocument.title,
+    });
+  }
+
+  for (const changedDocument of changedDocuments) {
+    catalog.set(changedDocument.absolutePath, changedDocument);
+  }
+
+  return [...catalog.values()];
+}
+
+function buildIncrementalPresetRelations(
+  knownDocuments: ClassifiedDocument[],
+  presetRules: PresetRule[],
+  changedDocumentPaths: Set<string>,
+  addedDocumentPaths: Set<string>,
+): PersistedRelationPlan[] {
+  return buildPresetRelations(knownDocuments, presetRules).filter(
+    (relation) => changedDocumentPaths.has(relation.sourceDocPath) || addedDocumentPaths.has(relation.targetDocPath),
+  );
 }
 
 function dedupePaths(paths: string[]): string[] {
@@ -410,6 +742,10 @@ function dedupePaths(paths: string[]): string[] {
 
 function toRelativePath(projectRoot: string, absolutePath: string): string {
   return relative(projectRoot, absolutePath).replaceAll('\\', '/');
+}
+
+function toAbsolutePath(projectRoot: string, documentPath: string): string {
+  return join(projectRoot, documentPath);
 }
 
 function formatRelationEndpoint(projectRoot: string, absolutePath: string): string {

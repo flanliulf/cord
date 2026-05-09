@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 22 |
+| Open | 23 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **22** |
+| **合计** | **23** |
 
 ---
 
@@ -303,6 +303,23 @@
   - `tests/unit/adapters/framework/bmad/detector.test.ts`
 - **问题描述**：`src/adapters/framework/bmad/detector.ts` 仍将 `MAX_FRONTMATTER_FILES` 固定为 64，且达到上限后停止 Markdown 候选遍历。对于大型仓库，如果真正带有 BMAD frontmatter 的文件排序靠后，而仓库只有另一个 BMAD 信号，自动检测可能因预算截断而出现 false negative；当前测试也未覆盖“超过 64 个 Markdown 候选且有效文件靠后”的场景。
 - **建议时机**：下次优化 BMAD detector 检测质量或处理大型仓库扫描策略时，引入 `_bmad-output/`、`docs/`、项目根核心文档等高价值路径优先策略，或改为分层预算，并补充超过 64 个候选文件的回归测试。
+- **解决记录**：—
+
+---
+
+### TODO-023
+
+- **标题**：无变更快速返回仍在判定前全量计算 contentHash
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-6 / Round 1-2 / 2026-05-09（R1 发现 #2；R2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/services/scan-service.ts`
+  - `tests/integration/cli/scan.test.ts`
+  - `tests/unit/services/scan-service.test.ts`
+- **问题描述**：`src/services/scan-service.ts` 的无变更快速返回路径仍会在判定前对所有发现文档执行 `stat + readFile + sha256`，导致耗时与文档数量和文件大小线性相关。当前 `tests/integration/cli/scan.test.ts` 的 `< 100ms` 断言仅覆盖 2 个 Markdown 文档的小样本，`tests/unit/services/scan-service.test.ts` 也只验证 pipeline 不再执行，尚未锁定大样本场景下的读取规模与性能口径。Story 2-6 v0.1 已接受这一实现边界，因此当前不阻塞交付，但仍应作为 v0.2 的性能治理 TODO 跟踪。
+- **建议时机**：下次触及 ScanService 无变更快返、v0.2 懒 hash 优化或增量扫描性能治理 Story 时，与大样本性能/行为测试口径补强一并处理。
 - **解决记录**：—
 
 ---

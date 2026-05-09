@@ -213,3 +213,17 @@ src/
   - **explicit-conflict**：格式不兼容时，返回 `AGENTS_MD_CONFLICT` 结构化错误，不自动覆盖（非 TTY 场景同样适用）
   - SHA-256 零侵入校验分为两类：居正不变（所有其他 IDE 专属配置文件） vs CORD 注释段外不变（`AGENTS.md`）
   - 此决策与 `04-implementation-patterns-consistency-rules.md` P18、`project-context.md` IDE 适配器模式章节、Story 5.3 共享文件处理契约互为镜像（Rule Document Registry 同步已完成）
+
+---
+
+## D10. 生命周期重绑定策略：双向唯一最优，歧义降级为 delete + add
+
+- **决策：** 增量扫描在根据 `contentHash`、路径、basename 等弱身份信号推断 rename / move 时，只能在 stored 侧与 current 侧均形成唯一最优匹配的前提下复用既有 `docId`；任何并列或多候选歧义一律降级为 delete + add。
+- **理由：** 图谱节点身份正确性高于“稳定但任意”的路径复用。若用 FIFO、数组顺序或字典序强行打破并列，虽然结果确定，但可能把错误 `docId` 绑定到错误路径，破坏 sync state 与关系图的一致性。
+- **影响范围：** `src/scanner/lifecycle-detector.ts`、`ScanService` 的增量消费路径、生命周期回归测试策略
+- **实现要点：**
+  - 可使用同目录、同 basename、basename 编辑距离、路径距离等语义信号构造评分
+  - **禁止**使用 FIFO `shift()`、数组顺序或字典序 tiebreaker 作为最终身份绑定依据
+  - 未形成双向唯一最优匹配时，保留 unmatched stored/current，并在上层表现为 delete + add
+  - 测试必须成对覆盖“存在稳定语义信号时可消歧”与“真正歧义时降级”两类场景
+  - 此决策与 `_bmad-output/project-context.md` 的 `CR-SCAN-01`、`04-implementation-patterns-consistency-rules.md` 的 `P31` 互为镜像（Rule Document Registry 同步已完成）
