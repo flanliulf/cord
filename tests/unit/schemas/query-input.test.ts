@@ -6,22 +6,25 @@ import type { RelationType } from '../../../src/types/index.js';
 
 describe('queryInputSchema', () => {
   describe('valid inputs', () => {
-    it('accepts docPath only and defaults includeDeprecated to false', () => {
+    it('accepts docPath only and defaults includeDeprecated to false and depth to 1', () => {
       const result = queryInputSchema.parse({ docPath: 'docs/prd.md' });
       expect(result.docPath).toBe('docs/prd.md');
       expect(result.includeDeprecated).toBe(false);
+      expect(result.depth).toBe(1);
     });
 
-    it('accepts relation type and includeDeprecated flag', () => {
+    it('accepts relation type, includeDeprecated flag and depth within 1 to 3', () => {
       const result = queryInputSchema.parse({
         docPath: 'docs/prd.md',
         type: RELATION_TYPES.SYNC_REQUIRED,
         includeDeprecated: true,
+        depth: 3,
       });
       const relationType: RelationType | undefined = result.type;
       expect(relationType).toBe(RELATION_TYPES.SYNC_REQUIRED);
       expect(result.type).toBe(RELATION_TYPES.SYNC_REQUIRED);
       expect(result.includeDeprecated).toBe(true);
+      expect(result.depth).toBe(3);
     });
   });
 
@@ -40,6 +43,14 @@ describe('queryInputSchema', () => {
 
     it('rejects non-boolean includeDeprecated', () => {
       expect(() => queryInputSchema.parse({ docPath: 'docs/prd.md', includeDeprecated: 'yes' })).toThrow();
+    });
+
+    it('rejects depth smaller than 1', () => {
+      expect(() => queryInputSchema.parse({ docPath: 'docs/prd.md', depth: 0 })).toThrow();
+    });
+
+    it('rejects depth larger than 3', () => {
+      expect(() => queryInputSchema.parse({ docPath: 'docs/prd.md', depth: 4 })).toThrow();
     });
   });
 

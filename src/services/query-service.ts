@@ -1,6 +1,6 @@
 import type { IGraphRepository } from '../repositories/index.js';
 import { type QueryInput, validateQueryInput } from '../schemas/index.js';
-import type { RelationEdge, RelationType } from '../types/index.js';
+import type { DocumentNode, RelationEdge, RelationType } from '../types/index.js';
 import { QueryError } from '../utils/index.js';
 
 export interface QueryResultItem {
@@ -10,6 +10,7 @@ export interface QueryResultItem {
   confidence: number;
   source: RelationEdge['source'];
   status: RelationEdge['status'];
+  hopDistance: number;
 }
 
 export interface QueryRelationsOutput {
@@ -33,18 +34,60 @@ export class QueryService {
       });
     }
 
-    const relations = this.repository
-      .getRelationsByDocId(sourceDocument.id, 'both')
-      .filter((relation) => validatedInput.includeDeprecated || relation.status === 'active')
-      .filter((relation) => validatedInput.type === undefined || relation.relationType === validatedInput.type)
-      .map((relation) => ({
-        relationId: relation.id,
-        targetPath: this.resolveTargetPath(sourceDocument.id, relation),
-        relationType: relation.relationType,
-        confidence: relation.confidence,
-        source: relation.source,
-        status: relation.status,
-      }));
+    const visitedDocIds = new Set<string>([sourceDocument.id]);
+    const seenRelationIds = new Set<string>();
+    const relations: QueryResultItem[] = [];
+    const queue: Array<{ docId: string; depth: number }> = [{ docId: sourceDocument.id, depth: 0 }];
+    let queueIndex = 0;
+
+    while (queueIndex < queue.length) {
+      const current = queue[queueIndex];
+      queueIndex += 1;
+
+      if (current === undefined || current.depth >= validatedInput.depth) {
+        continue;
+      }
+
+      const traversableEdges = this.repository
+        .getRelationsByDocId(current.docId, 'both')
+        .filter((relation) => validatedInput.includeDeprecated || relation.status === 'active');
+
+      for (const relation of traversableEdges) {
+        if (seenRelationIds.has(relation.id)) {
+          continue;
+        }
+
+        const hopDistance = current.depth + 1;
+        const shouldOutput = validatedInput.type === undefined || relation.relationType === validatedInput.type;
+        const shouldExpand = hopDistance < validatedInput.depth;
+
+        if (!shouldOutput && !shouldExpand) {
+          seenRelationIds.add(relation.id);
+          continue;
+        }
+
+        const relatedDocument = this.resolveRelatedDocument(current.docId, relation);
+
+        if (shouldOutput) {
+          relations.push({
+            relationId: relation.id,
+            targetPath: relatedDocument.path,
+            relationType: relation.relationType,
+            confidence: relation.confidence,
+            source: relation.source,
+            status: relation.status,
+            hopDistance,
+          });
+        }
+
+        seenRelationIds.add(relation.id);
+
+        if (!visitedDocIds.has(relatedDocument.id) && shouldExpand) {
+          visitedDocIds.add(relatedDocument.id);
+          queue.push({ docId: relatedDocument.id, depth: hopDistance });
+        }
+      }
+    }
 
     return {
       relations,
@@ -52,7 +95,7 @@ export class QueryService {
     };
   }
 
-  private resolveTargetPath(sourceDocId: string, relation: RelationEdge): string {
+  private resolveRelatedDocument(sourceDocId: string, relation: RelationEdge): DocumentNode {
     const targetDocId = relation.sourceDocId === sourceDocId ? relation.targetDocId : relation.sourceDocId;
     const targetDocument = this.repository.getDocumentById(targetDocId);
 
@@ -69,7 +112,7 @@ export class QueryService {
       });
     }
 
-    return targetDocument.path;
+    return targetDocument;
   }
 
   close(): void {

@@ -1,29 +1,65 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { describe, expect, it } from 'vitest';
-import type { IGraphRepository, SyncState } from '../../../src/repositories/index.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import { SqliteGraphRepository, type IGraphRepository, type SyncState } from '../../../src/repositories/index.js';
 import { QueryService } from '../../../src/services/query-service.js';
 import type { DocumentNode, RelationEdge, RelationType } from '../../../src/types/index.js';
 import { RELATION_TYPES } from '../../../src/types/index.js';
 import { QueryError } from '../../../src/utils/index.js';
 
+const sqliteDisposables: Array<{ repository: SqliteGraphRepository; root: string }> = [];
+
+afterEach(() => {
+  for (const disposable of sqliteDisposables.splice(0)) {
+    try {
+      disposable.repository.close();
+    } catch {
+      // ignore repeated close during test cleanup
+    }
+    rmSync(disposable.root, { recursive: true, force: true });
+  }
+});
+
 class InMemoryQueryRepository implements IGraphRepository {
   closed = false;
+
+  private readonly documentsById: Map<string, DocumentNode>;
+
+  private readonly documentsByPath: Map<string, DocumentNode>;
+
+  private readonly relationsById: Map<string, RelationEdge>;
+
+  private readonly relationsByDocId: Map<string, RelationEdge[]>;
 
   constructor(
     private readonly documents: DocumentNode[],
     private readonly relations: RelationEdge[],
-  ) {}
+  ) {
+    this.documentsById = new Map(documents.map((document) => [document.id, document]));
+    this.documentsByPath = new Map(documents.map((document) => [document.path, document]));
+    this.relationsById = new Map(relations.map((relation) => [relation.id, relation]));
+    this.relationsByDocId = new Map<string, RelationEdge[]>();
+
+    for (const relation of relations) {
+      this.pushRelation(relation.sourceDocId, relation);
+      if (relation.targetDocId !== relation.sourceDocId) {
+        this.pushRelation(relation.targetDocId, relation);
+      }
+    }
+  }
 
   addDocument(): DocumentNode {
     throw new Error('not implemented');
   }
 
   getDocumentById(id: string): DocumentNode | null {
-    return this.documents.find((document) => document.id === id) ?? null;
+    return this.documentsById.get(id) ?? null;
   }
 
   getDocumentByPath(path: string): DocumentNode | null {
-    return this.documents.find((document) => document.path === path) ?? null;
+    return this.documentsByPath.get(path) ?? null;
   }
 
   getAllDocuments(): DocumentNode[] {
@@ -47,21 +83,21 @@ class InMemoryQueryRepository implements IGraphRepository {
   }
 
   getRelationById(id: string): RelationEdge | null {
-    return this.relations.find((relation) => relation.id === id) ?? null;
+    return this.relationsById.get(id) ?? null;
   }
 
   getRelationsByDocId(docId: string, direction: 'source' | 'target' | 'both' = 'both'): RelationEdge[] {
+    const relations = this.relationsByDocId.get(docId) ?? [];
+
     if (direction === 'source') {
-      return this.relations.filter((relation) => relation.sourceDocId === docId);
+      return relations.filter((relation) => relation.sourceDocId === docId);
     }
 
     if (direction === 'target') {
-      return this.relations.filter((relation) => relation.targetDocId === docId);
+      return relations.filter((relation) => relation.targetDocId === docId);
     }
 
-    return this.relations.filter(
-      (relation) => relation.sourceDocId === docId || relation.targetDocId === docId,
-    );
+    return [...relations];
   }
 
   getRelationsByType(relationType: RelationType): RelationEdge[] {
@@ -110,6 +146,12 @@ class InMemoryQueryRepository implements IGraphRepository {
 
   close(): void {
     this.closed = true;
+  }
+
+  private pushRelation(docId: string, relation: RelationEdge): void {
+    const existing = this.relationsByDocId.get(docId) ?? [];
+    existing.push(relation);
+    this.relationsByDocId.set(docId, existing);
   }
 }
 
@@ -174,6 +216,134 @@ function createService(): QueryService {
   return new QueryService(new InMemoryQueryRepository(documents, relations));
 }
 
+function createMultiHopService(): QueryService {
+  const documents = [
+    createDocument('doc-a', 'docs/a.md'),
+    createDocument('doc-b', 'docs/b.md'),
+    createDocument('doc-c', 'docs/c.md'),
+    createDocument('doc-d', 'docs/d.md'),
+    createDocument('doc-e', 'docs/e.md'),
+  ];
+  const relations = [
+    createRelation({
+      id: 'rel-a-b',
+      sourceDocId: 'doc-a',
+      targetDocId: 'doc-b',
+      relationType: RELATION_TYPES.REFERENCES,
+    }),
+    createRelation({
+      id: 'rel-b-c',
+      sourceDocId: 'doc-b',
+      targetDocId: 'doc-c',
+      relationType: RELATION_TYPES.CONTEXT_FOR,
+    }),
+    createRelation({
+      id: 'rel-c-d',
+      sourceDocId: 'doc-c',
+      targetDocId: 'doc-d',
+      relationType: RELATION_TYPES.SYNC_REQUIRED,
+    }),
+    createRelation({
+      id: 'rel-c-a',
+      sourceDocId: 'doc-c',
+      targetDocId: 'doc-a',
+      relationType: RELATION_TYPES.DERIVED_FROM,
+    }),
+    createRelation({
+      id: 'rel-b-e',
+      sourceDocId: 'doc-b',
+      targetDocId: 'doc-e',
+      relationType: RELATION_TYPES.MUST_CONSISTENT,
+      status: 'deprecated',
+    }),
+  ];
+
+  return new QueryService(new InMemoryQueryRepository(documents, relations));
+}
+
+function createLinearGraphService(documentCount: number): QueryService {
+  const documents = Array.from({ length: documentCount }, (_, index) =>
+    createDocument(`doc-${index}`, `docs/${index}.md`),
+  );
+  const relations = documents.slice(0, -1).map((document, index) =>
+    createRelation({
+      id: `rel-${index}-${index + 1}`,
+      sourceDocId: document.id,
+      targetDocId: documents[index + 1]?.id ?? document.id,
+      relationType: RELATION_TYPES.REFERENCES,
+    }),
+  );
+
+  return new QueryService(new InMemoryQueryRepository(documents, relations));
+}
+
+function createSqliteLinearGraphService(documentCount: number): QueryService {
+  const root = mkdtempSync(join(tmpdir(), 'cord-query-service-'));
+  const repository = new SqliteGraphRepository(join(root, 'cord.db'));
+  const documents = repository.transaction(() => Array.from({ length: documentCount }, (_, index) =>
+    repository.addDocument({
+      path: `docs/${index}.md`,
+      title: `Doc ${index}`,
+      docType: 'story',
+      metadata: {},
+    })));
+
+  repository.transaction(() => {
+    for (let index = 0; index < documents.length - 1; index += 1) {
+      const sourceDocument = documents[index];
+      const targetDocument = documents[index + 1];
+
+      if (sourceDocument === undefined || targetDocument === undefined) {
+        continue;
+      }
+
+      repository.addRelation({
+        sourceDocId: sourceDocument.id,
+        targetDocId: targetDocument.id,
+        relationType: RELATION_TYPES.REFERENCES,
+        confidence: 0.8,
+        source: 'auto_scan',
+        status: 'active',
+      });
+    }
+  });
+
+  sqliteDisposables.push({ repository, root });
+  return new QueryService(repository);
+}
+
+function measureBatchP95(
+  service: QueryService,
+  input: { docPath: string; depth: number },
+  options: { batchSize?: number; warmupIterations?: number; sampleCount?: number } = {},
+): number {
+  const batchSize = options.batchSize ?? 25;
+  const warmupIterations = options.warmupIterations ?? 20;
+  const sampleCount = options.sampleCount ?? 200;
+
+  for (let iteration = 0; iteration < warmupIterations; iteration += 1) {
+    for (let batchIndex = 0; batchIndex < batchSize; batchIndex += 1) {
+      service.query(input);
+    }
+  }
+
+  const durations: number[] = [];
+
+  for (let iteration = 0; iteration < sampleCount; iteration += 1) {
+    const start = performance.now();
+
+    for (let batchIndex = 0; batchIndex < batchSize; batchIndex += 1) {
+      service.query(input);
+    }
+
+    durations.push(performance.now() - start);
+  }
+
+  durations.sort((left, right) => left - right);
+  const p95Index = Math.ceil(durations.length * 0.95) - 1;
+  return durations[p95Index] ?? Number.POSITIVE_INFINITY;
+}
+
 describe('QueryService', () => {
   it('returns one-hop relations with relationId, targetPath and status, filtering deprecated by default', () => {
     const service = createService();
@@ -189,6 +359,7 @@ describe('QueryService', () => {
           confidence: 0.8,
           source: 'auto_scan',
           status: 'active',
+          hopDistance: 1,
         },
         {
           relationId: 'rel-2',
@@ -197,6 +368,7 @@ describe('QueryService', () => {
           confidence: 0.8,
           source: 'manual',
           status: 'active',
+          hopDistance: 1,
         },
       ],
       totalCount: 2,
@@ -220,6 +392,76 @@ describe('QueryService', () => {
           confidence: 0.8,
           source: 'manual',
           status: 'active',
+          hopDistance: 1,
+        },
+      ],
+      totalCount: 1,
+    });
+  });
+
+  it('ignores non-matching broken edges when the query neither outputs nor expands them', () => {
+    const service = new QueryService(new InMemoryQueryRepository(
+      [
+        createDocument('doc-a', 'docs/a.md'),
+        createDocument('doc-b', 'docs/b.md'),
+      ],
+      [
+        createRelation({
+          id: 'rel-match',
+          sourceDocId: 'doc-a',
+          targetDocId: 'doc-b',
+          relationType: RELATION_TYPES.SYNC_REQUIRED,
+        }),
+        createRelation({
+          id: 'rel-broken-non-match',
+          sourceDocId: 'doc-a',
+          targetDocId: 'doc-missing',
+          relationType: RELATION_TYPES.REFERENCES,
+        }),
+      ],
+    ));
+
+    const result = service.query({
+      docPath: 'docs/a.md',
+      depth: 1,
+      type: RELATION_TYPES.SYNC_REQUIRED,
+    });
+
+    expect(result).toEqual({
+      relations: [
+        {
+          relationId: 'rel-match',
+          targetPath: 'docs/b.md',
+          relationType: RELATION_TYPES.SYNC_REQUIRED,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 1,
+        },
+      ],
+      totalCount: 1,
+    });
+  });
+
+  it('does not let type filtering block deeper matches reachable through non-matching edges', () => {
+    const service = createMultiHopService();
+
+    const result = service.query({
+      docPath: 'docs/a.md',
+      depth: 3,
+      type: RELATION_TYPES.SYNC_REQUIRED,
+    });
+
+    expect(result).toEqual({
+      relations: [
+        {
+          relationId: 'rel-c-d',
+          targetPath: 'docs/d.md',
+          relationType: RELATION_TYPES.SYNC_REQUIRED,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 2,
         },
       ],
       totalCount: 1,
@@ -239,6 +481,7 @@ describe('QueryService', () => {
       relationId: 'rel-3',
       targetPath: 'docs/d.md',
       status: 'deprecated',
+      hopDistance: 1,
     });
     expect(result.totalCount).toBe(3);
   });
@@ -249,6 +492,84 @@ describe('QueryService', () => {
     const result = service.query({ docPath: 'docs/d.md' });
 
     expect(result).toEqual({ relations: [], totalCount: 0 });
+  });
+
+  it('returns multi-hop relations in BFS order and annotates hopDistance', () => {
+    const service = createMultiHopService();
+
+    const result = service.query({ docPath: 'docs/a.md', depth: 3 });
+
+    expect(result).toEqual({
+      relations: [
+        {
+          relationId: 'rel-a-b',
+          targetPath: 'docs/b.md',
+          relationType: RELATION_TYPES.REFERENCES,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 1,
+        },
+        {
+          relationId: 'rel-c-a',
+          targetPath: 'docs/c.md',
+          relationType: RELATION_TYPES.DERIVED_FROM,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 1,
+        },
+        {
+          relationId: 'rel-b-c',
+          targetPath: 'docs/c.md',
+          relationType: RELATION_TYPES.CONTEXT_FOR,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 2,
+        },
+        {
+          relationId: 'rel-c-d',
+          targetPath: 'docs/d.md',
+          relationType: RELATION_TYPES.SYNC_REQUIRED,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 2,
+        },
+      ],
+      totalCount: 4,
+    });
+  });
+
+  it('respects the requested depth limit', () => {
+    const service = createMultiHopService();
+
+    const result = service.query({ docPath: 'docs/a.md', depth: 1 });
+
+    expect(result).toEqual({
+      relations: [
+        {
+          relationId: 'rel-a-b',
+          targetPath: 'docs/b.md',
+          relationType: RELATION_TYPES.REFERENCES,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 1,
+        },
+        {
+          relationId: 'rel-c-a',
+          targetPath: 'docs/c.md',
+          relationType: RELATION_TYPES.DERIVED_FROM,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          hopDistance: 1,
+        },
+      ],
+      totalCount: 2,
+    });
   });
 
   it('throws QueryError with code and suggestion when the document does not exist', () => {
@@ -322,5 +643,55 @@ describe('QueryService', () => {
     const p95 = durations[p95Index] ?? Number.POSITIVE_INFINITY;
 
     expect(p95).toBeLessThan(1);
+  });
+
+  it('meets the three-hop query p95 performance target on in-memory data', () => {
+    const service = createMultiHopService();
+
+    for (let iteration = 0; iteration < 50; iteration += 1) {
+      service.query({ docPath: 'docs/a.md', depth: 3 });
+    }
+
+    const durations: number[] = [];
+
+    for (let iteration = 0; iteration < 500; iteration += 1) {
+      const start = performance.now();
+      service.query({ docPath: 'docs/a.md', depth: 3 });
+      durations.push(performance.now() - start);
+    }
+
+    durations.sort((left, right) => left - right);
+    const p95Index = Math.ceil(durations.length * 0.95) - 1;
+    const p95 = durations[p95Index] ?? Number.POSITIVE_INFINITY;
+
+    expect(p95).toBeLessThan(5);
+  });
+
+  it('keeps three-hop traversal performance within 10% on indexed in-memory adjacency lookup', () => {
+    const smallGraphService = createLinearGraphService(200);
+    const largeGraphService = createLinearGraphService(2000);
+
+    const smallGraphP95 = measureBatchP95(smallGraphService, { docPath: 'docs/0.md', depth: 3 });
+    const largeGraphP95 = measureBatchP95(largeGraphService, { docPath: 'docs/0.md', depth: 3 });
+
+    expect(largeGraphP95).toBeLessThanOrEqual(smallGraphP95 * 1.1);
+  });
+
+  it('keeps three-hop traversal performance within 10% on SQLite repository when scaling from 200 to 2000 documents', () => {
+    const smallGraphService = createSqliteLinearGraphService(200);
+    const largeGraphService = createSqliteLinearGraphService(2000);
+
+    const smallGraphP95 = measureBatchP95(
+      smallGraphService,
+      { docPath: 'docs/0.md', depth: 3 },
+      { batchSize: 200, warmupIterations: 10, sampleCount: 80 },
+    );
+    const largeGraphP95 = measureBatchP95(
+      largeGraphService,
+      { docPath: 'docs/0.md', depth: 3 },
+      { batchSize: 200, warmupIterations: 10, sampleCount: 80 },
+    );
+
+    expect(largeGraphP95).toBeLessThanOrEqual(smallGraphP95 * 1.1);
   });
 });

@@ -1,6 +1,6 @@
 # Story 3.2: 多跳关系遍历
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -19,10 +19,10 @@ So that 我可以了解更深层的文档依赖链路。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 扩展 QueryService BFS 遍历 (AC: #1, #2, #3)
-- [ ] Task 2: 环路检测（visited set）
-- [ ] Task 3: 更新 CLI query 命令支持 --depth
-- [ ] Task 4: 编写测试 (AC: #4, #5, #6)
+- [x] Task 1: 扩展 QueryService BFS 遍历 (AC: #1, #2, #3)
+- [x] Task 2: 环路检测（visited set）
+- [x] Task 3: 更新 CLI query 命令支持 --depth
+- [x] Task 4: 编写测试 (AC: #4, #5, #6)
 
 ## Dev Notes
 
@@ -65,6 +65,37 @@ queryMultiHop(input: QueryInput & { depth: number }): MultiHopResult {
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5.4
+
+### Implementation Plan
+- 在 QueryService 中引入 BFS 队列遍历、visited 文档集合与 seen relation 集合，保证多跳结果按距离输出并避免环路重复展开。
+- 在 query 输入 schema 与 CLI 命令中加入 `depth`（1~3，默认 1），并把 `hopDistance` 纳入文本/JSON 输出契约。
+- 用单元测试覆盖 BFS 正确性、深度限制、环路处理、三跳 p95 和 200→2000 文档的相对性能退化。
+
 ### Debug Log References
+- `npx vitest run tests/unit/services/query-service.test.ts tests/unit/cli/commands/query.test.ts`
+- `npx vitest run tests/unit/services/query-service.test.ts tests/unit/cli/commands/query.test.ts tests/unit/schemas/query-input.test.ts`
+- `npm test`
+- `npm run lint`
+- `npm run type-check`
+
 ### Completion Notes List
+- 实现 QueryService 多跳 BFS 遍历，支持 `depth` 1~3 且默认 1 跳，为每条关系返回 `hopDistance`。
+- 使用 visited 文档集合和 seen relation 集合处理环路与重复边，保留按 BFS 距离输出的结果顺序。
+- 更新 CLI `query` 命令支持 `--depth`，并在表格输出中新增 `hopDistance` 列。
+- 新增并更新 query 相关单元测试与性能基准，验证深度限制、环路处理、p95 < 5ms 与 200→2000 文档退化 <= 10%。
+
 ### File List
+- src/schemas/query-input.ts
+- src/services/query-service.ts
+- src/cli/commands/query.ts
+- tests/unit/services/query-service.test.ts
+- tests/unit/cli/commands/query.test.ts
+- tests/unit/schemas/query-input.test.ts
+- tests/unit/cli/index.test.ts
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/stories/3-2-multi-hop-relation-traversal.md
+
+## Change Log
+
+- 2026-05-11: 实现多跳 BFS 查询、CLI `--depth`、`hopDistance` 输出及对应测试与性能基准。

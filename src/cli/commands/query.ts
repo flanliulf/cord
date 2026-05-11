@@ -38,12 +38,13 @@ export function createQueryCommand(
   const stderr = dependencies.stderr ?? process.stderr;
 
   return new Command('query')
-    .description('查询指定文档的一跳关联关系')
+    .description('查询指定文档的关联关系（支持 1~3 跳）')
     .argument('<doc>', '待查询的文档路径')
     .option('--type <relationType>', '按关系类型过滤')
+    .option('--depth <depth>', '遍历深度（1-3，默认 1）', parseDepthOption)
     .option('--include-deprecated', '包含 status=deprecated 的关系')
     .option('--json', 'JSON 格式输出')
-    .action((docPath: string, options: { type?: string; includeDeprecated?: boolean; json?: boolean }) => {
+    .action((docPath: string, options: { type?: string; depth?: number; includeDeprecated?: boolean; json?: boolean }) => {
       let service: QueryServiceLike | undefined;
 
       try {
@@ -51,6 +52,7 @@ export function createQueryCommand(
         const validatedInput = validateQueryInput({
           docPath: normalizeQueryDocPath(projectRoot, docPath),
           type: options.type,
+          depth: options.depth,
           includeDeprecated: options.includeDeprecated ?? false,
         });
         service = serviceFactory(projectRoot);
@@ -66,6 +68,10 @@ export function createQueryCommand(
         service?.close?.();
       }
     });
+}
+
+function parseDepthOption(rawValue: string): number {
+  return Number(rawValue);
 }
 
 function createDefaultQueryService(projectRoot: string): QueryService {
@@ -104,7 +110,7 @@ function writeSuccess(stdout: WriterLike, result: QueryRelationsOutput, asJson: 
 }
 
 function formatRelationTable(result: QueryRelationsOutput): string[] {
-  const headers = ['relationId', 'targetPath', 'relationType', 'confidence', 'source', 'status'];
+  const headers = ['relationId', 'targetPath', 'relationType', 'confidence', 'source', 'status', 'hopDistance'];
   const rows = result.relations.map((relation) => [
     relation.relationId,
     relation.targetPath,
@@ -112,6 +118,7 @@ function formatRelationTable(result: QueryRelationsOutput): string[] {
     relation.confidence.toFixed(2),
     relation.source,
     relation.status,
+    relation.hopDistance.toString(),
   ]);
   const widths = headers.map((header, index) => {
     const values = rows.map((row) => row[index] ?? '');

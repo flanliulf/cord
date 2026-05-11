@@ -278,6 +278,7 @@ describe('runCli (with injected mock program)', () => {
             confidence: 0.8,
             source: 'auto_scan',
             status: 'active',
+            hopDistance: 1,
           },
         ],
         totalCount: 1,

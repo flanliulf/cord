@@ -17,6 +17,7 @@ interface QueryCommandResult {
     confidence: number;
     source: string;
     status: 'active' | 'deprecated';
+    hopDistance: number;
   }>;
   totalCount: number;
 }
@@ -73,6 +74,7 @@ describe('createQueryCommand', () => {
           confidence: 0.92,
           source: 'auto_scan',
           status: 'active',
+          hopDistance: 1,
         },
       ],
       totalCount: 1,
@@ -89,9 +91,11 @@ describe('createQueryCommand', () => {
       docPath: 'docs/source.md',
       type: undefined,
       includeDeprecated: false,
+      depth: 1,
     });
     expect(stdout.read()).toContain('relationId');
     expect(stdout.read()).toContain('docs/target.md');
+    expect(stdout.read()).toContain('hopDistance');
     expect(stdout.read()).toContain('总数: 1');
     expect(stderr.read()).toBe('');
     expect(process.exitCode ?? 0).toBe(0);
@@ -110,6 +114,7 @@ describe('createQueryCommand', () => {
               confidence: 0.92,
               source: 'auto_scan',
               status: 'active',
+              hopDistance: 1,
             },
           ],
           totalCount: 1,
@@ -130,6 +135,7 @@ describe('createQueryCommand', () => {
           confidence: 0.92,
           source: 'auto_scan',
           status: 'active',
+          hopDistance: 1,
         },
       ],
       totalCount: 1,
@@ -156,6 +162,25 @@ describe('createQueryCommand', () => {
       docPath: 'docs/source.md',
       type: 'sync_required',
       includeDeprecated: true,
+      depth: 1,
+    });
+  });
+
+  it('forwards --depth to QueryInput', async () => {
+    const query = vi.fn().mockReturnValue({ relations: [], totalCount: 0 } satisfies QueryCommandResult);
+    const command = createQueryCommand({
+      serviceFactory: () => ({ query }),
+      stdout: createWriter(),
+      stderr: createWriter(),
+    });
+
+    await parseQueryCommand(command, ['query', 'docs/source.md', '--depth', '3']);
+
+    expect(query).toHaveBeenCalledWith({
+      docPath: 'docs/source.md',
+      type: undefined,
+      includeDeprecated: false,
+      depth: 3,
     });
   });
 
@@ -281,6 +306,7 @@ describe('createQueryCommand', () => {
       docPath: 'docs/source.md',
       type: undefined,
       includeDeprecated: false,
+      depth: 1,
     });
   });
 

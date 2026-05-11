@@ -198,6 +198,24 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - **凡是以 project-root 相对路径作为仓储查询契约的命令，CLI 层必须先把 `./...`、绝对路径等输入归一化为 project-relative POSIX path，并显式拒绝 `''`、`'..'`、`'../...'` 这类项目根外路径；拒绝必须发生在 service 初始化之前，并返回稳定 `ConfigError`**（CR-QUERY-02）
 - **若默认 Service 封装了带 `close()` 的 Repository / 连接资源，Service 层必须显式转发生命周期方法；禁止让入口层的 `finally { service?.close?.(); }` 在默认实现上退化为空调用**（CR-QUERY-03）
 
+**Query / Traversal 语义规则（CR-QUERY-05/06，CR-PERF-01，来源：Story 3-2 CR 历史）：**
+
+- **CR-QUERY-05：图遍历必须分离“可扩展边”与“可输出边”**
+  - 适用范围：所有基于关系图的 BFS / DFS 查询
+  - `type`、标签或展示过滤等结果语义只控制输出，不默认裁剪遍历；除非需求明确声明“过滤即截断路径”
+  - 可扩展边必须由路径有效性语义决定，例如 `includeDeprecated`、方向、深度或状态约束，而不是由最终展示过滤直接决定
+  - 回归测试至少覆盖：`depth + type` 场景下，经非匹配中间边仍可抵达深层匹配关系
+
+- **CR-QUERY-06：既不输出也不扩展的非匹配边必须在端点解析前跳过**
+  - 先计算 `hopDistance`、`shouldOutput`、`shouldExpand` 等派生条件，再决定是否解析 relation 另一端文档
+  - 当 `!shouldOutput && !shouldExpand` 时，必须直接跳过；禁止先解析端点再因过滤条件丢弃
+  - 回归测试至少覆盖：匹配有效边与非匹配缺失端点边并存时，过滤查询返回匹配结果，而不是被无关坏边阻断
+
+- **CR-PERF-01：性能 AC 必须让规模差异进入被测热路径，必要时补真实仓储路径验证**
+  - 性能回归/扩展性测试必须证明数据规模变化会改变实际访问的节点、边或底层查询成本；禁止只扩大图总量却仍测量常数大小局部子图
+  - 若内存仓储、预建索引或 mock 无法代表真实查询成本，必须补至少一条真实 repository 路径验证，覆盖实际 `getRelationsByDocId`、索引或 IO 行为
+  - 环境敏感但不影响运行时正确性的 benchmark 抖动可作为 CR TODO 跟踪，但不得替代当前 Story 的热路径验证
+
 ### Repository 层开发规则（来源：Story 1-4、2-5 CR 历史）
 
 **CR-REPO-01：update 方法禁止接受不可变字段**

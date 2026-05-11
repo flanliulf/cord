@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 23 |
+| Open | 25 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **23** |
+| **合计** | **25** |
 
 ---
 
@@ -320,6 +320,36 @@
   - `tests/unit/services/scan-service.test.ts`
 - **问题描述**：`src/services/scan-service.ts` 的无变更快速返回路径仍会在判定前对所有发现文档执行 `stat + readFile + sha256`，导致耗时与文档数量和文件大小线性相关。当前 `tests/integration/cli/scan.test.ts` 的 `< 100ms` 断言仅覆盖 2 个 Markdown 文档的小样本，`tests/unit/services/scan-service.test.ts` 也只验证 pipeline 不再执行，尚未锁定大样本场景下的读取规模与性能口径。Story 2-6 v0.1 已接受这一实现边界，因此当前不阻塞交付，但仍应作为 v0.2 的性能治理 TODO 跟踪。
 - **建议时机**：下次触及 ScanService 无变更快返、v0.2 懒 hash 优化或增量扫描性能治理 Story 时，与大样本性能/行为测试口径补强一并处理。
+- **解决记录**：—
+
+---
+
+### TODO-024
+
+- **标题**：SQLite p95 比例性能测试稳健性补强
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：test-gap
+- **来源**：Story 3-2 / Round 2-3 / 2026-05-11（R2-TODO-1；R3 评估维持非阻塞）
+- **涉及文件**：
+  - `tests/unit/services/query-service.test.ts`
+- **问题描述**：`tests/unit/services/query-service.test.ts` 中基于 SQLite repository 的 200→2000 文档 p95 比例断言当前仍受环境抖动影响，CI 机器性能、IO 波动或 SQLite query planner 差异都可能导致偶发不稳定。该问题当前不影响 Story 3.2 的 AC5 / NFR7 验收，但会削弱长期性能回归测试的稳定性；后续宜补 `EXPLAIN QUERY PLAN` / 索引命中断言，或迁移到独立 benchmark 流程。
+- **建议时机**：下次触及 QueryService / SQLite repository 性能验证，或处理 CI benchmark 稳定性治理时一并处理。
+- **解决记录**：—
+
+---
+
+### TODO-025
+
+- **标题**：SQLite 测试 helper 失败路径清理加固
+- **状态**：open
+- **优先级**：P3（择机处理）
+- **类别**：tech-debt
+- **来源**：Story 3-2 / Round 3 / 2026-05-11（R3-TODO-1）
+- **涉及文件**：
+  - `tests/unit/services/query-service.test.ts`
+- **问题描述**：`tests/unit/services/query-service.test.ts` 中的 SQLite 测试 helper 在 seed 完成后才把 disposable 注册进 `sqliteDisposables`；若 seed 中途抛错，临时目录和 repository 可能无法进入 `afterEach` 清理路径。该问题只影响测试失败路径下的资源回收，不影响 Story 3.2 的运行时行为或当前验收结果，但会让后续失败路径测试更脆弱。
+- **建议时机**：下次触及 SQLite 测试 helper、QueryService 测试基建，或补充失败路径回归测试时一并处理。
 - **解决记录**：—
 
 ---

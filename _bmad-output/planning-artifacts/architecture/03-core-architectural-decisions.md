@@ -231,3 +231,18 @@ src/
   - 未形成双向唯一最优匹配时，保留 unmatched stored/current，并在上层表现为 delete + add
   - 测试必须成对覆盖“存在稳定语义信号时可消歧”与“真正歧义时降级”两类场景
   - 此决策与 `_bmad-output/project-context.md` 的 `CR-SCAN-01`、`04-implementation-patterns-consistency-rules.md` 的 `P31` 互为镜像（Rule Document Registry 同步已完成）
+
+  ---
+
+  ## D11. 多跳查询遍历语义与性能验收必须分离输出过滤、避免无关坏边解析，并命中真实热路径
+
+  - **决策：** 所有基于关系图的多跳查询必须把“可扩展边”与“可输出边”分离建模；当一条边既不输出也不继续扩展时，必须在解析端点前跳过。涉及扩展性 AC 的性能测试必须证明规模差异进入被测热路径；若内存索引、fixture 或 mock 无法代表真实查询成本，必须补真实 repository 路径验证。
+  - **理由：** 把输出过滤直接用于 BFS / DFS 裁剪，会漏报经非匹配中间边可达的深层结果；对无关边过早解析端点，会让坏数据阻断本应成功的过滤查询；只扩大图总量却不改变实际访问局部子图，会对性能 AC 产生假阳性。
+  - **影响范围：** `QueryService`、后续关系图遍历服务、查询与性能回归测试策略
+  - **实现要点：**
+    - `type`、标签等过滤只控制输出；可扩展边由 `includeDeprecated`、方向、深度、状态等路径语义决定
+    - 在遍历循环中先计算 `hopDistance`、`shouldOutput`、`shouldExpand`；当 `!shouldOutput && !shouldExpand` 时直接跳过，不解析 relation 端点
+    - 测试必须成对覆盖“经非匹配中间边仍可命中深层匹配关系”与“非匹配缺失端点边不阻断过滤查询”
+    - 性能验收必须至少有一条用例让规模差异进入实际热路径；必要时增加真实 repository 路径验证，而不只依赖内存索引 benchmark
+    - 环境敏感但不影响运行时正确性的 benchmark 抖动可记录为 CR TODO，不得替代热路径验证
+  - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-QUERY-05`、`CR-QUERY-06`、`CR-PERF-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P36`、`P37`、`P38` 互为镜像（Rule Document Registry 同步已完成）

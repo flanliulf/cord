@@ -31,6 +31,9 @@ export const queryInputSchema = z.object({
 
   /** 是否包含已废弃关系。 */
   includeDeprecated: z.boolean().optional().default(false),
+
+  /** 查询的最大跳数深度。 */
+  depth: z.number().int().min(1).max(3).optional().default(1),
 });
 
 /** 由 schema 推导的类型。 */
