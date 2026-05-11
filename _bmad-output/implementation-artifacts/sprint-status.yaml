@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-09
-last_updated: 2026-05-09 14:44
+last_updated: 2026-05-11 11:01
 project: CORD
 project_key: NOKEY
 tracking_system: file-system
@@ -52,18 +52,18 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: 文档扫描与关系图谱构建
-  epic-2: in-progress
+  epic-2: done
   2-1-framework-adapter-interface-and-generic-fallback: done
   2-2-scan-engine-core-pipeline-remark-ast-and-rules: done
   2-3-bmad-framework-adapter-module: done
   2-4-config-loading-and-document-scope: done
   2-5-scanservice-cold-start-scan-and-graph-write: done
   2-6-incremental-scan-and-document-lifecycle-detection: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # Epic 3: 关系查询、影响分析与数据导出
   epic-3: in-progress
-  3-1-queryservice-relation-query-one-hop-and-type-filter: ready-for-dev
+  3-1-queryservice-relation-query-one-hop-and-type-filter: done
   3-2-multi-hop-relation-traversal: ready-for-dev
   3-3-impactservice-change-impact-analysis: ready-for-dev
   3-4-json-snapshot-export: ready-for-dev

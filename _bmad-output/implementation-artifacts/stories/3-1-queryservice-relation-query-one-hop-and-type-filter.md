@@ -1,6 +1,6 @@
 # Story 3.1: QueryService 关系查询（一跳 + 类型过滤）
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -24,13 +24,13 @@ So that 我可以了解某份文档与哪些其他文档有关联、关系类型
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 QueryService (AC: #1, #2, #3, #9, #10)
-  - [ ] 1.1 QueryInput 中增加可选 `includeDeprecated?: boolean`（默认 false）
-  - [ ] 1.2 默认查询结果过滤 `status='deprecated'` 的关系；`includeDeprecated=true` 时包含全量关系
-- [ ] Task 2: 实现 CLI 命令 (AC: #4, #5, #6, #8, #10)
-  - [ ] 2.1 `cord query` 新增 `--include-deprecated` flag，传递给 QueryInput
-- [ ] Task 3: 更新 index.ts
-- [ ] Task 4: 编写测试 (AC: #7, #11)，测试须验证 `QueryError` 携带有效 `code` 和 `suggestion` 字段
+- [x] Task 1: 实现 QueryService (AC: #1, #2, #3, #9, #10)
+  - [x] 1.1 QueryInput 中增加可选 `includeDeprecated?: boolean`（默认 false）
+  - [x] 1.2 默认查询结果过滤 `status='deprecated'` 的关系；`includeDeprecated=true` 时包含全量关系
+- [x] Task 2: 实现 CLI 命令 (AC: #4, #5, #6, #8, #10)
+  - [x] 2.1 `cord query` 新增 `--include-deprecated` flag，传递给 QueryInput
+- [x] Task 3: 更新 index.ts
+- [x] Task 4: 编写测试 (AC: #7, #11)，测试须验证 `QueryError` 携带有效 `code` 和 `suggestion` 字段
 
 ## Dev Notes
 
@@ -120,6 +120,33 @@ export class QueryError extends CordError {
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5.4
+
 ### Debug Log References
+- 2026-05-09 15:20 `npm test -- tests/unit/schemas/query-input.test.ts tests/unit/services/query-service.test.ts`
+- 2026-05-09 15:23 `npm test -- tests/unit/cli/commands/query.test.ts tests/unit/cli/index.test.ts`
+- 2026-05-09 15:24 `npm test`
+- 2026-05-09 15:24 `npm run lint`
+- 2026-05-09 15:24 `npm run type-check`
+
 ### Completion Notes List
+- 实现 `QueryService`，支持一跳双向关系查询、关系类型过滤、默认过滤 deprecated 关系，以及 `includeDeprecated` 全量读取。
+- 为缺失文档和缺失关系端点增加 `QueryError` 错误路径，输出符合 `[错误码] 错误描述 → 建议操作` 格式。
+- 新增 `cord query <doc>` 薄壳命令，支持 `--type`、`--include-deprecated`、人类可读表格输出和 `--json` 机器输出。
+- 更新服务层与 CLI 命令层的 `index.ts` 导出，并补齐 schema、服务、命令、CLI 入口测试及全量回归验证。
+
 ### File List
+- src/services/query-service.ts
+- src/services/index.ts
+- src/schemas/query-input.ts
+- src/cli/commands/query.ts
+- src/cli/commands/index.ts
+- src/cli/index.ts
+- tests/unit/services/query-service.test.ts
+- tests/unit/schemas/query-input.test.ts
+- tests/unit/cli/commands/query.test.ts
+- tests/unit/cli/index.test.ts
+
+## Change Log
+
+- 2026-05-09: 完成 Story 3.1，实现 QueryService 一跳查询、CLI query 命令、deprecated 读侧过滤策略及对应测试。
