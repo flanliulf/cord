@@ -3,26 +3,35 @@
  */
 
 import { z } from 'zod';
+import { RELATION_TYPES, type RelationType } from '../types/relations.js';
 import { validateWithCordError } from './helpers.js';
 
 /** 非空可选字符串：去除首尾空白后至少 1 个字符，防止空字符串穿过验证。 */
-const nonEmptyOptionalString = z.string().trim().min(1).optional();
+const nonEmptyString = z.string().trim().min(1, 'docPath 不能为空');
+
+const relationTypeValues = [
+  RELATION_TYPES.SYNC_REQUIRED,
+  RELATION_TYPES.CONTEXT_FOR,
+  RELATION_TYPES.LIFECYCLE_BOUND,
+  RELATION_TYPES.CONTAINS,
+  RELATION_TYPES.MUST_CONSISTENT,
+  RELATION_TYPES.SYNC_SUGGESTED,
+  RELATION_TYPES.DERIVED_FROM,
+  RELATION_TYPES.DEPRECATED,
+  RELATION_TYPES.REFERENCES,
+] as const satisfies readonly [RelationType, ...RelationType[]];
 
 /** 文档查询输入 Zod schema。 */
-export const queryInputSchema = z
-  .object({
-    /** 查询的文档 ID（与 `path` 二选一）。 */
-    docId: nonEmptyOptionalString,
+export const queryInputSchema = z.object({
+  /** 查询的文档路径，相对于项目根目录。 */
+  docPath: nonEmptyString,
 
-    /** 查询的文档路径，相对于项目根目录（与 `docId` 二选一）。 */
-    path: nonEmptyOptionalString,
+  /** 按关系类型过滤。 */
+  type: z.enum(relationTypeValues).optional(),
 
-    /** 是否同时获取关联关系列表。 */
-    includeRelations: z.boolean().optional().default(false),
-  })
-  .refine((d) => Boolean(d.docId) !== Boolean(d.path), {
-    message: 'docId 与 path 必须恰好提供一个',
-  });
+  /** 是否包含已废弃关系。 */
+  includeDeprecated: z.boolean().optional().default(false),
+});
 
 /** 由 schema 推导的类型。 */
 export type QueryInput = z.infer<typeof queryInputSchema>;

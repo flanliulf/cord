@@ -1,69 +1,55 @@
 import { describe, expect, it } from 'vitest';
 import { queryInputSchema, validateQueryInput } from '../../../src/schemas/query-input.js';
 import { ConfigError } from '../../../src/utils/errors.js';
+import { RELATION_TYPES } from '../../../src/types/index.js';
+import type { RelationType } from '../../../src/types/index.js';
 
 describe('queryInputSchema', () => {
   describe('valid inputs', () => {
-    it('accepts docId only', () => {
-      const result = queryInputSchema.parse({ docId: 'doc-001' });
-      expect(result.docId).toBe('doc-001');
-      expect(result.includeRelations).toBe(false);
+    it('accepts docPath only and defaults includeDeprecated to false', () => {
+      const result = queryInputSchema.parse({ docPath: 'docs/prd.md' });
+      expect(result.docPath).toBe('docs/prd.md');
+      expect(result.includeDeprecated).toBe(false);
     });
 
-    it('accepts path only', () => {
-      const result = queryInputSchema.parse({ path: 'docs/prd.md' });
-      expect(result.path).toBe('docs/prd.md');
-    });
-
-    it('accepts docId with includeRelations=true', () => {
-      const result = queryInputSchema.parse({ docId: 'doc-001', includeRelations: true });
-      expect(result.includeRelations).toBe(true);
+    it('accepts relation type and includeDeprecated flag', () => {
+      const result = queryInputSchema.parse({
+        docPath: 'docs/prd.md',
+        type: RELATION_TYPES.SYNC_REQUIRED,
+        includeDeprecated: true,
+      });
+      const relationType: RelationType | undefined = result.type;
+      expect(relationType).toBe(RELATION_TYPES.SYNC_REQUIRED);
+      expect(result.type).toBe(RELATION_TYPES.SYNC_REQUIRED);
+      expect(result.includeDeprecated).toBe(true);
     });
   });
 
   describe('invalid inputs', () => {
-    it('rejects neither docId nor path provided', () => {
+    it('rejects missing docPath', () => {
       expect(() => queryInputSchema.parse({})).toThrow();
     });
 
-    it('rejects both docId and path provided', () => {
-      expect(() =>
-        queryInputSchema.parse({ docId: 'doc-001', path: 'docs/prd.md' }),
-      ).toThrow();
+    it('rejects empty docPath', () => {
+      expect(() => queryInputSchema.parse({ docPath: '   ' })).toThrow();
     });
 
-    it('rejects both empty string docId and path', () => {
-      expect(() => queryInputSchema.parse({ docId: '', path: '' })).toThrow();
+    it('rejects invalid relation type', () => {
+      expect(() => queryInputSchema.parse({ docPath: 'docs/prd.md', type: 'invalid_type' })).toThrow();
     });
 
-    it('rejects mixed-empty: empty docId + valid path', () => {
-      expect(() => queryInputSchema.parse({ docId: '', path: 'docs/prd.md' })).toThrow();
-    });
-
-    it('rejects mixed-empty: valid docId + empty path', () => {
-      expect(() => queryInputSchema.parse({ docId: 'doc-001', path: '' })).toThrow();
-    });
-
-    it('rejects non-boolean includeRelations', () => {
-      expect(() => queryInputSchema.parse({ docId: 'doc-001', includeRelations: 'yes' })).toThrow();
+    it('rejects non-boolean includeDeprecated', () => {
+      expect(() => queryInputSchema.parse({ docPath: 'docs/prd.md', includeDeprecated: 'yes' })).toThrow();
     });
   });
 
   describe('validateQueryInput — ConfigError 断言（AC6）', () => {
-    it('throws ConfigError when neither docId nor path is provided', () => {
+    it('throws ConfigError when docPath is missing', () => {
       expect(() => validateQueryInput({})).toThrow(ConfigError);
     });
 
-    it('throws ConfigError when both docId and path are provided', () => {
-      expect(() => validateQueryInput({ docId: 'doc-001', path: 'docs/prd.md' })).toThrow(ConfigError);
-    });
-
-    it('throws ConfigError for mixed-empty: empty docId + valid path', () => {
-      expect(() => validateQueryInput({ docId: '', path: 'docs/prd.md' })).toThrow(ConfigError);
-    });
-
-    it('throws ConfigError for mixed-empty: valid docId + empty path', () => {
-      expect(() => validateQueryInput({ docId: 'doc-001', path: '' })).toThrow(ConfigError);
+    it('throws ConfigError when relation type is invalid', () => {
+      expect(() => validateQueryInput({ docPath: 'docs/prd.md', type: 'invalid_type' })).toThrow(ConfigError);
     });
 
     it('ConfigError carries CORD_SCHEMA_005 error code', () => {

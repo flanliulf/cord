@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
-import { createScanCommand } from './commands/index.js';
+import { createQueryCommand, createScanCommand } from './commands/index.js';
 import { applyVerboseFlag } from './verbose.js';
 
 const CLI_CONFIG_ERROR_EXIT_CODE = 2;
@@ -19,6 +19,7 @@ export function createProgram(): Command {
     .version('0.1.0')
     .option('-v, --verbose', 'enable debug output');
   program.addCommand(createScanCommand());
+  program.addCommand(createQueryCommand());
   return program;
 }
 

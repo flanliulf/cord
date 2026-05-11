@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
-import { createScanCommand } from '../../../src/cli/commands/index.js';
+import { createQueryCommand, createScanCommand } from '../../../src/cli/commands/index.js';
 import { applyVerboseFlag } from '../../../src/cli/verbose.js';
 import { createProgram, runCli } from '../../../src/cli/index.js';
 import { ConfigError } from '../../../src/utils/errors.js';
@@ -39,6 +39,27 @@ function createCliProgramWithScanCommand(options: {
         cwd: () => '/tmp/project',
         serviceFactory: () => ({
           scan: options.scan,
+        }),
+        stdout: options.stdout,
+        stderr: options.stderr,
+      }),
+    );
+  return program;
+}
+
+function createCliProgramWithQueryCommand(options: {
+  query: (input: { docPath: string; type?: string; includeDeprecated?: boolean }) => unknown;
+  stdout?: BufferingWriter;
+  stderr?: BufferingWriter;
+}): Command {
+  const program = new Command();
+  program
+    .name('cord')
+    .option('-v, --verbose', 'enable debug output')
+    .addCommand(
+      createQueryCommand({
+        serviceFactory: () => ({
+          query: options.query,
         }),
         stdout: options.stdout,
         stderr: options.stderr,
@@ -94,6 +115,11 @@ describe('createProgram', () => {
   it('registers the scan command', () => {
     const prog = createProgram();
     expect(prog.commands.some((command) => command.name() === 'scan')).toBe(true);
+  });
+
+  it('registers the query command', () => {
+    const prog = createProgram();
+    expect(prog.commands.some((command) => command.name() === 'query')).toBe(true);
   });
 
   it('has --verbose / -v option', () => {
@@ -235,6 +261,39 @@ describe('runCli (with injected mock program)', () => {
     } finally {
       process.argv = savedArgv;
       process.exitCode = undefined;
+    }
+  });
+
+  it('supports query command execution through the real CLI entrypoint', async () => {
+    const savedArgv = process.argv.slice();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const program = createCliProgramWithQueryCommand({
+      query: vi.fn().mockReturnValue({
+        relations: [
+          {
+            relationId: 'rel-1',
+            targetPath: 'docs/target.md',
+            relationType: 'references',
+            confidence: 0.8,
+            source: 'auto_scan',
+            status: 'active',
+          },
+        ],
+        totalCount: 1,
+      }),
+      stdout,
+      stderr,
+    });
+    process.argv = ['node', 'cord', 'query', 'docs/source.md'];
+
+    try {
+      await runCli(program);
+      expect(process.exitCode ?? 0).toBe(0);
+      expect(stdout.read()).toContain('docs/target.md');
+      expect(stderr.read()).toBe('');
+    } finally {
+      process.argv = savedArgv;
     }
   });
 });
