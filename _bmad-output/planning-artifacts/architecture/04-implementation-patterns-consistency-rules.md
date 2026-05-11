@@ -481,6 +481,48 @@ program.parse(process.argv);  // 任何导入都会触发，破坏可测试性
 - `preAction` 只在 Commander 执行某个 action handler 之前触发；无 action 时该钩子永不触发
 - 替代方案：在 `program.parse()` 之后同步读取 `program.opts()` 处理全局选项；或在引入首条 subcommand 时改用 `program.hook('preAction', ...)`
 
+**P32. CLI 必须在副作用前完成输入校验与路径归一化（CR-QUERY-01）：**
+
+- 适用范围：任何 command factory 中会创建默认 Service、Repository、数据库目录或其他文件系统副作用的 CLI 命令
+- 必须遵守顺序：`normalize input -> validate schema -> create service -> execute business logic`
+- **禁止**先调用 `serviceFactory()`，再把原始输入交给 Service 内部校验；否则纯输入错误会先触发目录创建、数据库连接或迁移副作用
+- 回归测试至少覆盖：无效枚举/缺失必填字段时，`serviceFactory` 不被调用，且返回稳定 `ConfigError`
+
+```ts
+// ✅ 正确：先归一化与校验，再创建默认 service
+const validatedInput = validateQueryInput({
+  docPath: normalizeQueryDocPath(projectRoot, docPath),
+  type: options.type,
+});
+const service = serviceFactory(projectRoot);
+return service.query(validatedInput);
+
+// ❌ 禁止：先创建 service，再依赖 Service 内部抛校验错误
+const service = serviceFactory(projectRoot);
+return service.query({ docPath, type: options.type });
+```
+
+**P33. project-root 相对路径契约必须同时定义归一化与拒绝规则（CR-QUERY-02）：**
+
+- 当 Repository / Service 的查询契约以 project-relative path 为准时，CLI 层必须先把 `./docs/a.md`、绝对路径等输入归一化为 project-relative POSIX path
+- 若归一化结果为 `''`、`'..'` 或以 `'../'` 开头，必须在入口层抛出 `ConfigError`，并且发生在 `serviceFactory()` 调用前
+- **禁止**把项目根外路径以 `'../...'` 形式继续传给 Service，再退化为普通“文档不存在”错误
+- 回归测试至少覆盖：`./` 命中同一文档、项目外相对路径被拒绝、项目外绝对路径被拒绝
+
+**P34. 默认 Service 必须转发生命周期方法到持久化资源（CR-QUERY-03）：**
+
+- 若默认 Service 内部持有实现了 `close()` 的 Repository、数据库连接或其他持久化资源，Service 必须显式暴露并转发 `close()`
+- **禁止**仅在 CLI 层写 `service?.close?.()`，却让默认 Service 本身不实现 `close()`，导致 finally 对默认实现无效
+- 优先与同层现有 Service 生命周期模式保持一致，例如 `ScanService.close() -> repository.close()`
+- 回归测试至少覆盖：Service 层 `close()` 转发、CLI 成功路径调用 `close()`、CLI 失败路径调用 `close()`
+
+**P35. CLI 与 Service 测试必须按层保护契约，避免重复端到端覆盖（CR-QUERY-04）：**
+
+- Service 层负责测试业务语义、过滤规则、错误码、suggestion 与异常分支
+- CLI 层负责测试参数转发、退出码、stdout/stderr 文本格式、JSON 序列化
+- 若 CLI 已验证 flag 正确转发，且 Service 层已验证过滤语义，则可豁免重复的 CLI 端到端语义输出测试；此类豁免必须以现有 Service 测试覆盖为前提
+- 新增错误路径时，至少在对应层补一条契约测试，保护 `CordError.code`、`suggestion` 或 JSON 错误载荷
+
 ## 覆盖率配置规则（来源：Story 1-2 CR 历史）
 
 **P22. coverage.exclude 必须显式枚举（CR-COV-01）：**

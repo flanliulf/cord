@@ -31,6 +31,8 @@
   - 定义 `src/schemas/` 目录存放所有 Zod schema
   - CLI 参数验证、MCP Tool inputSchema、Service 层输入验证共享同一套 schema
   - Zod schema 可通过 `zod-to-json-schema` 转换为 MCP Tools 所需的 JSON Schema
+  - 由字面量常量构造枚举 schema 时，必须保留字面量联合类型，禁止通过 `[string, ...string[]]` 等宽化写法喂给 `z.enum(...)`；同时至少补一条类型层断言测试，防止编译期契约退化
+  - 对路径型 CLI 输入，验证责任包含两步：先归一化到 project-relative POSIX path，再做 schema 校验；若归一化结果落到 projectRoot 外，必须在入口层直接返回 `ConfigError`
 
 **D2. 数据迁移策略：版本号 + 增量 SQL 脚本**
 
@@ -56,6 +58,8 @@
   - CLI 入口层：捕获 CordError，用 chalk 格式化输出错误信息和修复建议
   - Commander CLI 若包含 async action，真实入口必须暴露 async `runCli()` 并 `await program.parseAsync(process.argv)`；entrypoint 守卫负责 Promise rejection 兜底
   - 参数解析错误、业务 `ConfigError` 和 runtime error 的退出码映射必须在真实 CLI 入口层统一处理，并由入口级测试覆盖
+  - 任何会触发默认 Service / Repository 初始化的 CLI 命令，必须先完成输入校验与路径归一化，再创建 Service；纯输入错误不得先产生目录、数据库或连接副作用
+  - 若默认 Service 持有可关闭的 Repository / 连接资源，Service 必须转发 `close()` 等生命周期方法，确保入口层 `finally` 能真正释放资源
   - MCP 入口层：捕获 CordError，转换为 MCP 标准错误响应格式
   - 错误码命名规范：`CORD_SCAN_001`、`CORD_QUERY_001` 等
 

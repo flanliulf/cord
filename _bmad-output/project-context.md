@@ -192,6 +192,12 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - **CLI helper 函数**（如 `applyVerboseFlag`）必须抽到独立的无副作用模块（如 `src/cli/verbose.ts`），测试直接导入 helper，不导入入口文件（CR-BP-01）
 - **禁止依赖 Commander `preAction` 处理全局选项**（如 `--verbose`），除非已注册至少一个 `.action()`；无 action 时改用 `parse()` 之后 `program.opts()` 同步处理（CR-CLI-03）
 
+**Query / CLI 边界约束（CR-QUERY-01/02/03，来源：Story 3-1 CR 历史）：**
+
+- **所有会触发默认 Service / Repository 初始化或文件系统副作用的 CLI 命令，必须先完成输入校验与路径归一化，再调用 `serviceFactory()` 或创建数据目录**（CR-QUERY-01）
+- **凡是以 project-root 相对路径作为仓储查询契约的命令，CLI 层必须先把 `./...`、绝对路径等输入归一化为 project-relative POSIX path，并显式拒绝 `''`、`'..'`、`'../...'` 这类项目根外路径；拒绝必须发生在 service 初始化之前，并返回稳定 `ConfigError`**（CR-QUERY-02）
+- **若默认 Service 封装了带 `close()` 的 Repository / 连接资源，Service 层必须显式转发生命周期方法；禁止让入口层的 `finally { service?.close?.(); }` 在默认实现上退化为空调用**（CR-QUERY-03）
+
 ### Repository 层开发规则（来源：Story 1-4、2-5 CR 历史）
 
 **CR-REPO-01：update 方法禁止接受不可变字段**
@@ -330,6 +336,8 @@ describe('ScanService', () => {
 - Mock 策略：Service 测试 mock `IGraphRepository` 接口；CLI/MCP 测试 mock Service 层
 - 含 `async` Commander action 或自定义退出码契约的 CLI 命令，必须同时覆盖 command factory 层与真实 `runCli()` 入口层；入口层至少断言成功路径、Commander parse error、业务 `ConfigError` 和 runtime error
 - 事务性批量写入流程必须覆盖“部分输入无效”回归测试，断言返回计数与 documents / relations / sync_states 的最终落库结果一致，防止部分提交被误判为成功
+- **按层测试错误契约与过滤语义**：Service 层负责覆盖业务语义、错误码、suggestion 与异常分支；CLI 层负责覆盖参数转发、退出码、文本/JSON 序列化。若 CLI 已验证参数转发，且 Service 层已覆盖核心过滤语义，可豁免重复的 CLI 端到端输出测试（CR-QUERY-04）
+- **所有新增错误路径都必须至少有一条契约测试**：若实现暴露新的 `CordError.code` / `suggestion` 或 JSON 错误载荷，必须在对应层补齐回归测试，避免 happy-path 通过但对外错误契约无保护（CR-QUERY-04）
 
 ### 代码质量与风格规则
 
