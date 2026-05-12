@@ -196,9 +196,11 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 
 - **所有会触发默认 Service / Repository 初始化或文件系统副作用的 CLI 命令，必须先完成输入校验与路径归一化，再调用 `serviceFactory()` 或创建数据目录**（CR-QUERY-01）
 - **凡是以 project-root 相对路径作为仓储查询契约的命令，CLI 层必须先把 `./...`、绝对路径等输入归一化为 project-relative POSIX path，并显式拒绝 `''`、`'..'`、`'../...'` 这类项目根外路径；拒绝必须发生在 service 初始化之前，并返回稳定 `ConfigError`**（CR-QUERY-02）
+  - 对原始路径文本必须先做 `trim()` 等标准化，再执行 `resolve()` / `relative()`、project-root 边界判断与 schema 校验；禁止先做边界判断、再依赖 schema 或 Service 隐式清理空白
+  - 回归测试至少覆盖：带前后空白的项目外相对路径输入、带前后空白的项目外绝对路径输入，都必须在 `serviceFactory()` 前稳定返回 `ConfigError`
 - **若默认 Service 封装了带 `close()` 的 Repository / 连接资源，Service 层必须显式转发生命周期方法；禁止让入口层的 `finally { service?.close?.(); }` 在默认实现上退化为空调用**（CR-QUERY-03）
 
-**Query / Traversal 语义规则（CR-QUERY-05/06，CR-PERF-01，来源：Story 3-2 CR 历史）：**
+**Query / Traversal 语义规则（CR-QUERY-05/06/07，CR-PERF-01，来源：Story 3-2、3-3 CR 历史）：**
 
 - **CR-QUERY-05：图遍历必须分离“可扩展边”与“可输出边”**
   - 适用范围：所有基于关系图的 BFS / DFS 查询
@@ -210,6 +212,13 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
   - 先计算 `hopDistance`、`shouldOutput`、`shouldExpand` 等派生条件，再决定是否解析 relation 另一端文档
   - 当 `!shouldOutput && !shouldExpand` 时，必须直接跳过；禁止先解析端点再因过滤条件丢弃
   - 回归测试至少覆盖：匹配有效边与非匹配缺失端点边并存时，过滤查询返回匹配结果，而不是被无关坏边阻断
+
+- **CR-QUERY-07：受影响文档集合类分析必须自有定向遍历语义**
+  - 适用范围：impact / affected-doc / downstream propagation 这类输出“文档集合”的分析服务
+  - 若路径资格依赖 `status`、`confidence`、方向等传播语义，必须在扩展前判断；禁止先执行通用双向查询再对结果做后过滤
+  - 结果若按文档计数，必须按 impacted document 聚合去重；`totalCount` 等基数字段必须与去重后的文档集合一致
+  - 源文档不得因自环、回源环或多路径回流出现在自身结果中；若同一文档可经多条路径命中且需保留关系元数据，必须定义稳定候选优先级
+  - 回归测试至少覆盖：反向边不误报、低置信桥接边不继续扩展、自环/回源环不回写源文档、多路径命中同一文档只计一次
 
 - **CR-PERF-01：性能 AC 必须让规模差异进入被测热路径，必要时补真实仓储路径验证**
   - 性能回归/扩展性测试必须证明数据规模变化会改变实际访问的节点、边或底层查询成本；禁止只扩大图总量却仍测量常数大小局部子图

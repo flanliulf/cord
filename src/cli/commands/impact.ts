@@ -3,12 +3,12 @@ import { join, relative, resolve } from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { SqliteGraphRepository } from '../../repositories/index.js';
-import { QueryService, type QueryRelationsOutput } from '../../services/index.js';
-import { validateQueryInput, type QueryInput } from '../../schemas/index.js';
-import { ConfigError, type CordError } from '../../utils/index.js';
+import { type ImpactInput, validateImpactInput } from '../../schemas/index.js';
+import { ImpactService, type ImpactResult } from '../../services/index.js';
+import { ConfigError, loadConfig, type CordError } from '../../utils/index.js';
 
-interface QueryServiceLike {
-  query(input: QueryInput): QueryRelationsOutput;
+interface ImpactServiceLike {
+  analyzeImpact(input: ImpactInput): ImpactResult;
   close?(): void;
 }
 
@@ -16,9 +16,9 @@ interface WriterLike {
   write(chunk: string): boolean;
 }
 
-interface CreateQueryCommandDependencies {
+interface CreateImpactCommandDependencies {
   cwd?: () => string;
-  serviceFactory?: (projectRoot: string) => QueryServiceLike;
+  serviceFactory?: (projectRoot: string) => ImpactServiceLike;
   stdout?: WriterLike;
   stderr?: WriterLike;
 }
@@ -29,34 +29,30 @@ const CONFIG_ERROR_EXIT_CODE = 2;
 const CORD_DATA_DIR = '.cord';
 const CORD_DB_FILE = 'cord.db';
 
-export function createQueryCommand(
-  dependencies: CreateQueryCommandDependencies = {},
+export function createImpactCommand(
+  dependencies: CreateImpactCommandDependencies = {},
 ): Command {
   const cwd = dependencies.cwd ?? (() => process.cwd());
-  const serviceFactory = dependencies.serviceFactory ?? createDefaultQueryService;
+  const serviceFactory = dependencies.serviceFactory ?? createDefaultImpactService;
   const stdout = dependencies.stdout ?? process.stdout;
   const stderr = dependencies.stderr ?? process.stderr;
 
-  return new Command('query')
-    .description('查询指定文档的关联关系（支持 1~3 跳）')
-    .argument('<doc>', '待查询的文档路径')
-    .option('--type <relationType>', '按关系类型过滤')
-    .option('--depth <depth>', '遍历深度（1-3，默认 1）', parseDepthOption)
-    .option('--include-deprecated', '包含 status=deprecated 的关系')
+  return new Command('impact')
+    .description('分析指定文档变更的影响范围')
+    .argument('<doc>', '发生变更的文档路径')
+    .option('--confidence-threshold <value>', '最低置信度阈值（0.0 ~ 1.0）', parseConfidenceThresholdOption)
     .option('--json', 'JSON 格式输出')
-    .action((docPath: string, options: { type?: string; depth?: number; includeDeprecated?: boolean; json?: boolean }) => {
-      let service: QueryServiceLike | undefined;
+    .action((docPath: string, options: { confidenceThreshold?: number; json?: boolean }) => {
+      let service: ImpactServiceLike | undefined;
 
       try {
         const projectRoot = cwd();
-        const validatedInput = validateQueryInput({
-          docPath: normalizeQueryDocPath(projectRoot, docPath),
-          type: options.type,
-          depth: options.depth,
-          includeDeprecated: options.includeDeprecated ?? false,
+        const validatedInput = validateImpactInput({
+          docPath: normalizeImpactDocPath(projectRoot, docPath),
+          confidenceThreshold: options.confidenceThreshold,
         });
         service = serviceFactory(projectRoot);
-        const result = service.query(validatedInput);
+        const result = service.analyzeImpact(validatedInput);
 
         writeSuccess(stdout, result, options.json ?? false);
         process.exitCode = SUCCESS_EXIT_CODE;
@@ -70,18 +66,21 @@ export function createQueryCommand(
     });
 }
 
-function parseDepthOption(rawValue: string): number {
+function parseConfidenceThresholdOption(rawValue: string): number {
   return Number(rawValue);
 }
 
-function createDefaultQueryService(projectRoot: string): QueryService {
+function createDefaultImpactService(projectRoot: string): ImpactService {
+  const config = loadConfig(projectRoot);
   const dataDirectory = join(projectRoot, CORD_DATA_DIR);
   mkdirSync(dataDirectory, { recursive: true });
   const dbPath = join(dataDirectory, CORD_DB_FILE);
-  return new QueryService(new SqliteGraphRepository(dbPath));
+  return new ImpactService(new SqliteGraphRepository(dbPath), {
+    defaultConfidenceThreshold: config.confidenceThreshold,
+  });
 }
 
-function normalizeQueryDocPath(projectRoot: string, docPath: string): string {
+function normalizeImpactDocPath(projectRoot: string, docPath: string): string {
   const trimmedDocPath = docPath.trim();
 
   if (trimmedDocPath.length === 0) {
@@ -92,12 +91,12 @@ function normalizeQueryDocPath(projectRoot: string, docPath: string): string {
   const normalizedRelativePath = relative(projectRoot, absoluteDocPath).replaceAll('\\', '/');
 
   if (
-    normalizedRelativePath === '' ||
-    normalizedRelativePath === '..' ||
-    normalizedRelativePath.startsWith('../')
+    normalizedRelativePath === ''
+    || normalizedRelativePath === '..'
+    || normalizedRelativePath.startsWith('../')
   ) {
     throw new ConfigError({
-      message: `查询路径位于项目根目录外: ${trimmedDocPath}`,
+      message: `影响分析路径位于项目根目录外: ${trimmedDocPath}`,
       suggestion: '请传入项目根目录内的文档路径，例如 docs/a.md',
     });
   }
@@ -105,26 +104,26 @@ function normalizeQueryDocPath(projectRoot: string, docPath: string): string {
   return normalizedRelativePath;
 }
 
-function writeSuccess(stdout: WriterLike, result: QueryRelationsOutput, asJson: boolean): void {
+function writeSuccess(stdout: WriterLike, result: ImpactResult, asJson: boolean): void {
   if (asJson) {
     stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
 
-  const lines = formatRelationTable(result);
+  const lines = formatImpactTable(result);
   stdout.write(`${lines.join('\n')}\n`);
 }
 
-function formatRelationTable(result: QueryRelationsOutput): string[] {
-  const headers = ['relationId', 'targetPath', 'relationType', 'confidence', 'source', 'status', 'hopDistance'];
-  const rows = result.relations.map((relation) => [
-    relation.relationId,
-    relation.targetPath,
-    relation.relationType,
-    relation.confidence.toFixed(2),
-    relation.source,
-    relation.status,
-    relation.hopDistance.toString(),
+function formatImpactTable(result: ImpactResult): string[] {
+  const headers = ['docPath', 'relationType', 'propagationType', 'suggestedAction', 'severity', 'confidence', 'hopDistance'];
+  const rows = result.impactedDocs.map((doc) => [
+    doc.docPath,
+    doc.relationType,
+    doc.propagationType,
+    doc.suggestedAction,
+    doc.severity,
+    doc.confidence.toFixed(2),
+    doc.hopDistance.toString(),
   ]);
   const widths = headers.map((header, index) => {
     const values = rows.map((row) => row[index] ?? '');
@@ -134,7 +133,7 @@ function formatRelationTable(result: QueryRelationsOutput): string[] {
   const dividerLine = widths.map((width) => '-'.repeat(width)).join('-+-');
 
   if (rows.length === 0) {
-    return [headerLine, dividerLine, '(no relations)', `总数: ${result.totalCount}`];
+    return [headerLine, dividerLine, '(no impacted docs)', `总数: ${result.totalCount}`];
   }
 
   return [

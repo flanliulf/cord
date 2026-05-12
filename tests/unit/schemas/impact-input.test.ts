@@ -4,77 +4,52 @@ import { ConfigError } from '../../../src/utils/errors.js';
 
 describe('impactInputSchema', () => {
   describe('valid inputs', () => {
-    it('accepts minimal required fields with defaults', () => {
-      const result = impactInputSchema.parse({ sourceDocId: 'doc-001' });
-      expect(result.sourceDocId).toBe('doc-001');
-      expect(result.depth).toBe(3); // default
+    it('accepts docPath as the only required field', () => {
+      const result = impactInputSchema.parse({ docPath: 'docs/story.md' });
+      expect(result.docPath).toBe('docs/story.md');
+      expect(result.confidenceThreshold).toBeUndefined();
     });
 
-    it('accepts full input', () => {
+    it('accepts confidenceThreshold when provided', () => {
       const result = impactInputSchema.parse({
-        sourceDocId: 'doc-001',
-        depth: 5,
+        docPath: 'docs/story.md',
         confidenceThreshold: 0.75,
       });
-      expect(result.depth).toBe(5);
+      expect(result.docPath).toBe('docs/story.md');
       expect(result.confidenceThreshold).toBe(0.75);
-    });
-
-    it('accepts depth = 1', () => {
-      expect(() =>
-        impactInputSchema.parse({ sourceDocId: 'doc-001', depth: 1 }),
-      ).not.toThrow();
-    });
-
-    it('accepts depth = 10', () => {
-      expect(() =>
-        impactInputSchema.parse({ sourceDocId: 'doc-001', depth: 10 }),
-      ).not.toThrow();
     });
   });
 
   describe('invalid inputs', () => {
-    it('rejects empty sourceDocId', () => {
-      expect(() => impactInputSchema.parse({ sourceDocId: '' })).toThrow();
+    it('rejects empty docPath', () => {
+      expect(() => impactInputSchema.parse({ docPath: '   ' })).toThrow();
     });
 
-    it('rejects missing sourceDocId', () => {
+    it('rejects missing docPath', () => {
       expect(() => impactInputSchema.parse({})).toThrow();
-    });
-
-    it('rejects depth > 10', () => {
-      expect(() =>
-        impactInputSchema.parse({ sourceDocId: 'doc-001', depth: 11 }),
-      ).toThrow();
-    });
-
-    it('rejects depth < 1', () => {
-      expect(() =>
-        impactInputSchema.parse({ sourceDocId: 'doc-001', depth: 0 }),
-      ).toThrow();
-    });
-
-    it('rejects non-integer depth', () => {
-      expect(() =>
-        impactInputSchema.parse({ sourceDocId: 'doc-001', depth: 1.5 }),
-      ).toThrow();
     });
 
     it('rejects confidenceThreshold > 1', () => {
       expect(() =>
-        impactInputSchema.parse({ sourceDocId: 'doc-001', confidenceThreshold: 2 }),
+        impactInputSchema.parse({ docPath: 'docs/story.md', confidenceThreshold: 2 }),
+      ).toThrow();
+    });
+
+    it('rejects confidenceThreshold < 0', () => {
+      expect(() =>
+        impactInputSchema.parse({ docPath: 'docs/story.md', confidenceThreshold: -0.1 }),
       ).toThrow();
     });
   });
 
-  describe('validateImpactInput — ConfigError 断言（AC6）', () => {
+  describe('validateImpactInput', () => {
     it('throws ConfigError on invalid data', () => {
-      expect(() => validateImpactInput({ sourceDocId: '' })).toThrow(ConfigError);
+      expect(() => validateImpactInput({ docPath: '' })).toThrow(ConfigError);
     });
 
     it('ConfigError carries CORD_SCHEMA_006 error code', () => {
       try {
-        validateImpactInput({ sourceDocId: 'doc-001', depth: 100 });
+        validateImpactInput({});
         expect.fail('should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(ConfigError);

@@ -343,4 +343,38 @@ describe('createQueryCommand', () => {
     expect(process.exitCode).toBe(2);
     expect(stderr.read()).toContain('项目根目录外');
   });
+
+  it('rejects whitespace-padded project-external relative paths before initializing the service', async () => {
+    const serviceFactory = vi.fn<() => QueryServiceLike>();
+    const stderr = createWriter();
+    const command = createQueryCommand({
+      cwd: () => '/repo',
+      serviceFactory,
+      stdout: createWriter(),
+      stderr,
+    });
+
+    await parseQueryCommand(command, ['query', ' ../outside.md ']);
+
+    expect(serviceFactory).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(2);
+    expect(stderr.read()).toContain('项目根目录外');
+  });
+
+  it('rejects whitespace-padded project-external absolute paths before initializing the service', async () => {
+    const serviceFactory = vi.fn<() => QueryServiceLike>();
+    const stderr = createWriter();
+    const command = createQueryCommand({
+      cwd: () => '/repo',
+      serviceFactory,
+      stdout: createWriter(),
+      stderr,
+    });
+
+    await parseQueryCommand(command, ['query', ' /outside.md ']);
+
+    expect(serviceFactory).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(2);
+    expect(stderr.read()).toContain('项目根目录外');
+  });
 });

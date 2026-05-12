@@ -5,13 +5,12 @@
 import { z } from 'zod';
 import { validateWithCordError } from './helpers.js';
 
+const nonEmptyString = z.string().trim().min(1, 'docPath 不能为空');
+
 /** 影响分析输入 Zod schema。 */
 export const impactInputSchema = z.object({
-  /** 发生变更的源文档 ID。 */
-  sourceDocId: z.string().min(1, 'sourceDocId 不能为空'),
-
-  /** 图遍历深度（默认 3 层）。 */
-  depth: z.number().int().min(1).max(10).optional().default(3),
+  /** 发生变更的源文档路径，相对于项目根目录。 */
+  docPath: nonEmptyString,
 
   /**
    * 最低置信度阈值过滤（0.0 ~ 1.0）。
@@ -24,7 +23,7 @@ export const impactInputSchema = z.object({
 export type ImpactInput = z.infer<typeof impactInputSchema>;
 
 /**
- * 验证影响分析输入数据，失败时抛出 `ConfigError`（AC6）。
+ * 验证影响分析输入数据，失败时抛出 `ConfigError`。
  *
  * @param data - 待验证的原始数据
  * @returns 验证通过的类型安全 `ImpactInput`

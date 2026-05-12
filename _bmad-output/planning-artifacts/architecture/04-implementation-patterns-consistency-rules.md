@@ -505,9 +505,10 @@ return service.query({ docPath, type: options.type });
 **P33. project-root 相对路径契约必须同时定义归一化与拒绝规则（CR-QUERY-02）：**
 
 - 当 Repository / Service 的查询契约以 project-relative path 为准时，CLI 层必须先把 `./docs/a.md`、绝对路径等输入归一化为 project-relative POSIX path
+- 对原始路径文本必须先做 `trim()` 等标准化，再执行 `resolve()` / `relative()`；禁止先做 project-root 边界判断，再依赖 schema 或 Service 隐式清理空白
 - 若归一化结果为 `''`、`'..'` 或以 `'../'` 开头，必须在入口层抛出 `ConfigError`，并且发生在 `serviceFactory()` 调用前
 - **禁止**把项目根外路径以 `'../...'` 形式继续传给 Service，再退化为普通“文档不存在”错误
-- 回归测试至少覆盖：`./` 命中同一文档、项目外相对路径被拒绝、项目外绝对路径被拒绝
+- 回归测试至少覆盖：`./` 命中同一文档、项目外相对路径被拒绝、项目外绝对路径被拒绝、带前后空白的项目外相对/绝对路径被拒绝
 
 **P34. 默认 Service 必须转发生命周期方法到持久化资源（CR-QUERY-03）：**
 
@@ -543,6 +544,15 @@ return service.query({ docPath, type: options.type });
 - 仅扩大图总量、但仍从固定起点测量常数大小局部子图，不足以证明真实扩展性
 - 内存索引或 mock 性能用例可以保留为补充，但不能作为唯一证据；必要时必须增加真实 repository 路径验证
 - 若 benchmark 仅存在环境敏感性而不影响运行时正确性，可降级为 CR TODO 跟踪，但前提是热路径验证已经存在
+
+**P39. 受影响文档集合类分析必须自有定向遍历语义（CR-QUERY-07）：**
+
+- 适用范围：impact / affected-doc / downstream propagation 这类输出“文档集合”的分析服务
+- 若路径资格依赖 `status`、`confidence`、方向等传播语义，必须在扩展前判断；**禁止**先执行通用双向查询再对结果做后过滤
+- 结果若按文档计数，必须按 impacted document 聚合去重；`totalCount` 等基数字段必须与去重后的文档集合一致
+- 源文档不得因自环、回源环或多路径回流出现在自身结果中
+- 若同一文档可经多条路径命中且结果仍需保留关系元数据，必须定义稳定候选优先级，禁止依赖遍历偶然顺序
+- 测试必须覆盖：反向边不误报、低置信桥接边不继续扩展、自环/回源环不回写源文档、多路径命中同一文档只计一次
 
 ## 覆盖率配置规则（来源：Story 1-2 CR 历史）
 

@@ -1,6 +1,6 @@
 # Story 3.3: ImpactService 变更影响分析
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -23,11 +23,11 @@ So that 我可以在修改文档前了解哪些关联文档会受到影响，以
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 ImpactService (AC: #1, #2, #3, #4, #8)
-  - [ ] 1.1 遍历时过滤 `status='deprecated'` 的关系（不计入影响路径）
-- [ ] Task 2: 建议动作映射表
-- [ ] Task 3: 实现 CLI 命令 (AC: #5, #6, #7)
-- [ ] Task 4: 编写测试 (AC: #9, #10)，必须包含三跳边界验证：1-3 跳结果应保留（正例），4 跳及以上应排除（负例）；测试夹具须区分"恰好 3 跳"与"恰好 4 跳"两类样例，不得把合法的 3 跳结果计为负例
+- [x] Task 1: 实现 ImpactService (AC: #1, #2, #3, #4, #8)
+  - [x] 1.1 遍历时过滤 `status='deprecated'` 的关系（不计入影响路径）
+- [x] Task 2: 建议动作映射表
+- [x] Task 3: 实现 CLI 命令 (AC: #5, #6, #7)
+- [x] Task 4: 编写测试 (AC: #9, #10)，必须包含三跳边界验证：1-3 跳结果应保留（正例），4 跳及以上应排除（负例）；测试夹具须区分"恰好 3 跳"与"恰好 4 跳"两类样例，不得把合法的 3 跳结果计为负例
 
 ## Dev Notes
 
@@ -117,6 +117,46 @@ export interface ImpactInput {
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5.4
+
+### Implementation Plan
+- 先将 impact 输入契约收敛为 `docPath + confidenceThreshold`，并固定服务内部三跳遍历，不对外暴露 `depth`。
+- 复用现有 `QueryService.query()` 的 BFS 遍历结果，叠加置信度过滤、deprecated 关系过滤、建议动作映射与严重程度排序，生成影响分析输出。
+- 以单元测试锁定服务语义，再补 CLI 薄壳与输出测试，最后运行 story 所需的窄测试与回归验证。
+
 ### Debug Log References
+- `npx vitest run tests/unit/schemas/impact-input.test.ts tests/unit/schemas/json-schema.test.ts tests/unit/services/impact-service.test.ts tests/unit/cli/commands/impact.test.ts tests/unit/cli/index.test.ts tests/integration/cli/impact.test.ts`
+- `npx vitest run tests/unit/cli/commands/query.test.ts tests/unit/cli/commands/impact.test.ts && npm run lint && npm run type-check`
+- `npm test`
+- `npm run lint`
+- `npm run type-check`
+
 ### Completion Notes List
+- 新增 `ImpactService`，复用现有三跳 BFS 查询结果，叠加置信度阈值、deprecated 状态过滤、建议动作映射与严重程度排序，输出结构化影响分析结果。
+- 新增 `cord impact <doc>` CLI 薄壳命令，支持 `--confidence-threshold`、默认表格输出与 `--json` 序列化，并在 service 初始化前完成路径归一化与输入校验。
+- 将 impact 输入 schema 收敛到 `docPath + confidenceThreshold` 契约，保持 v0.1 固定三跳且不对外暴露 `depth` 参数。
+- 补齐 impact 相关单元测试与真实 SQLite CLI 集成测试，覆盖正常分析、阈值优先级、空影响、传播行为建议映射、deprecated 状态过滤和三跳边界。
+- 后续基于 rules-extractor 的跨命令复查，补修 `query` CLI 在 project-root 边界检查前缺少 `trim()` 的残留问题，并新增 whitespace-padded 项目外相对/绝对路径回归测试，确保 `query` 与 `impact` 的入口契约保持一致。
+
 ### File List
+- src/schemas/impact-input.ts
+- src/services/impact-service.ts
+- src/services/index.ts
+- src/cli/commands/query.ts
+- src/cli/commands/impact.ts
+- src/cli/commands/index.ts
+- src/cli/index.ts
+- tests/unit/cli/commands/query.test.ts
+- tests/unit/schemas/impact-input.test.ts
+- tests/unit/schemas/json-schema.test.ts
+- tests/unit/services/impact-service.test.ts
+- tests/unit/cli/commands/impact.test.ts
+- tests/unit/cli/index.test.ts
+- tests/integration/cli/impact.test.ts
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/stories/3-3-impactservice-change-impact-analysis.md
+
+## Change Log
+
+- 2026-05-11: 实现 ImpactService、`cord impact` CLI、impact 输入契约收敛，以及对应单元/集成测试。
+- 2026-05-12: 追加修复 `query` CLI 的路径归一化顺序，确保带前后空白的项目外路径在 `serviceFactory()` 前稳定返回 `ConfigError`，并补齐对应回归测试。

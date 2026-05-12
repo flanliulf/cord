@@ -122,6 +122,11 @@ describe('createProgram', () => {
     expect(prog.commands.some((command) => command.name() === 'query')).toBe(true);
   });
 
+  it('registers the impact command', () => {
+    const prog = createProgram();
+    expect(prog.commands.some((command) => command.name() === 'impact')).toBe(true);
+  });
+
   it('has --verbose / -v option', () => {
     const prog = createProgram();
     const hasVerbose = prog.options.some((o) => o.long === '--verbose');

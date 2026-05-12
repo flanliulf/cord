@@ -32,7 +32,7 @@
   - CLI 参数验证、MCP Tool inputSchema、Service 层输入验证共享同一套 schema
   - Zod schema 可通过 `zod-to-json-schema` 转换为 MCP Tools 所需的 JSON Schema
   - 由字面量常量构造枚举 schema 时，必须保留字面量联合类型，禁止通过 `[string, ...string[]]` 等宽化写法喂给 `z.enum(...)`；同时至少补一条类型层断言测试，防止编译期契约退化
-  - 对路径型 CLI 输入，验证责任包含两步：先归一化到 project-relative POSIX path，再做 schema 校验；若归一化结果落到 projectRoot 外，必须在入口层直接返回 `ConfigError`
+  - 对路径型 CLI 输入，验证责任包含两步：先对原始路径文本做 `trim()` 等标准化，再归一化到 project-relative POSIX path，最后做 schema 校验；若归一化结果落到 projectRoot 外，必须在入口层直接返回 `ConfigError`
 
 **D2. 数据迁移策略：版本号 + 增量 SQL 脚本**
 
@@ -59,6 +59,7 @@
   - Commander CLI 若包含 async action，真实入口必须暴露 async `runCli()` 并 `await program.parseAsync(process.argv)`；entrypoint 守卫负责 Promise rejection 兜底
   - 参数解析错误、业务 `ConfigError` 和 runtime error 的退出码映射必须在真实 CLI 入口层统一处理，并由入口级测试覆盖
   - 任何会触发默认 Service / Repository 初始化的 CLI 命令，必须先完成输入校验与路径归一化，再创建 Service；纯输入错误不得先产生目录、数据库或连接副作用
+  - project-root 路径契约的回归测试必须覆盖带前后空白的项目外相对/绝对路径输入，确保 `serviceFactory()` 前稳定返回 `ConfigError`
   - 若默认 Service 持有可关闭的 Repository / 连接资源，Service 必须转发 `close()` 等生命周期方法，确保入口层 `finally` 能真正释放资源
   - MCP 入口层：捕获 CordError，转换为 MCP 标准错误响应格式
   - 错误码命名规范：`CORD_SCAN_001`、`CORD_QUERY_001` 等
@@ -236,13 +237,16 @@ src/
 
   ## D11. 多跳查询遍历语义与性能验收必须分离输出过滤、避免无关坏边解析，并命中真实热路径
 
-  - **决策：** 所有基于关系图的多跳查询必须把“可扩展边”与“可输出边”分离建模；当一条边既不输出也不继续扩展时，必须在解析端点前跳过。涉及扩展性 AC 的性能测试必须证明规模差异进入被测热路径；若内存索引、fixture 或 mock 无法代表真实查询成本，必须补真实 repository 路径验证。
-  - **理由：** 把输出过滤直接用于 BFS / DFS 裁剪，会漏报经非匹配中间边可达的深层结果；对无关边过早解析端点，会让坏数据阻断本应成功的过滤查询；只扩大图总量却不改变实际访问局部子图，会对性能 AC 产生假阳性。
-  - **影响范围：** `QueryService`、后续关系图遍历服务、查询与性能回归测试策略
+  - **决策：** 所有基于关系图的多跳查询必须把“可扩展边”与“可输出边”分离建模；当一条边既不输出也不继续扩展时，必须在解析端点前跳过。若结果契约是“受影响文档集合”而非通用关系列表，必须直接建模定向传播语义，在扩展前应用状态/置信度/方向约束，并按文档去重且排除 source self。涉及扩展性 AC 的性能测试必须证明规模差异进入被测热路径；若内存索引、fixture 或 mock 无法代表真实查询成本，必须补真实 repository 路径验证。
+  - **理由：** 把输出过滤直接用于 BFS / DFS 裁剪，会漏报经非匹配中间边可达的深层结果；对无关边过早解析端点，会让坏数据阻断本应成功的过滤查询；若把受影响文档分析实现为“通用双向查询 + 后过滤”，会误报上游文档、放大低置信路径、副作用性地把 source self 回写进结果，并让文档计数失真；只扩大图总量却不改变实际访问局部子图，会对性能 AC 产生假阳性。
+  - **影响范围：** `QueryService`、`ImpactService`、后续关系图遍历服务、查询与性能回归测试策略
   - **实现要点：**
     - `type`、标签等过滤只控制输出；可扩展边由 `includeDeprecated`、方向、深度、状态等路径语义决定
     - 在遍历循环中先计算 `hopDistance`、`shouldOutput`、`shouldExpand`；当 `!shouldOutput && !shouldExpand` 时直接跳过，不解析 relation 端点
+    - 对 impact / affected-doc 类分析，禁止先执行通用双向查询再后过滤；路径级资格（如 `status`、`confidence`、方向）必须在扩展前判断
+    - 若结果基数按文档而非关系命中统计，必须按 impacted document 聚合去重；source self 不得回流进结果；多路径命中同一文档时如需保留关系元数据，必须定义稳定候选优先级
     - 测试必须成对覆盖“经非匹配中间边仍可命中深层匹配关系”与“非匹配缺失端点边不阻断过滤查询”
+    - impact / affected-doc 回归测试还必须覆盖：反向边不误报、低置信桥接边不继续扩展、自环/回源环不回写源文档、多路径命中同一文档只计一次
     - 性能验收必须至少有一条用例让规模差异进入实际热路径；必要时增加真实 repository 路径验证，而不只依赖内存索引 benchmark
     - 环境敏感但不影响运行时正确性的 benchmark 抖动可记录为 CR TODO，不得替代热路径验证
-  - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-QUERY-05`、`CR-QUERY-06`、`CR-PERF-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P36`、`P37`、`P38` 互为镜像（Rule Document Registry 同步已完成）
+  - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-QUERY-05`、`CR-QUERY-06`、`CR-QUERY-07`、`CR-PERF-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P36`、`P37`、`P38`、`P39` 互为镜像（Rule Document Registry 同步已完成）

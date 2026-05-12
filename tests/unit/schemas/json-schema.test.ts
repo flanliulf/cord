@@ -54,7 +54,7 @@ describe('toJsonSchema', () => {
     const jsonSchema = toJsonSchema(impactInputSchema) as {
       properties?: Record<string, unknown>;
     };
-    expect(jsonSchema.properties).toHaveProperty('sourceDocId');
+    expect(jsonSchema.properties).toHaveProperty('docPath');
   });
 
   it('uses provided name in output', () => {

@@ -6,7 +6,7 @@
 
 | 状态 | 数量 |
 |------|------|
-| Open | 25 |
+| Open | 28 |
 | In Progress | 0 |
 | Resolved | 0 |
 | **合计** | **25** |
@@ -335,6 +335,56 @@
   - `tests/unit/services/query-service.test.ts`
 - **问题描述**：`tests/unit/services/query-service.test.ts` 中基于 SQLite repository 的 200→2000 文档 p95 比例断言当前仍受环境抖动影响，CI 机器性能、IO 波动或 SQLite query planner 差异都可能导致偶发不稳定。该问题当前不影响 Story 3.2 的 AC5 / NFR7 验收，但会削弱长期性能回归测试的稳定性；后续宜补 `EXPLAIN QUERY PLAN` / 索引命中断言，或迁移到独立 benchmark 流程。
 - **建议时机**：下次触及 QueryService / SQLite repository 性能验证，或处理 CI benchmark 稳定性治理时一并处理。
+- **解决记录**：—
+
+---
+
+### TODO-026
+
+- **标题**：relationType 级传播方向矩阵显式建模
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：other
+- **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-1；R3 维持非阻塞）
+- **涉及文件**：
+  - `src/services/impact-service.ts`
+  - `src/types/relations.ts`
+  - `tests/unit/services/impact-service.test.ts`
+- **问题描述**：Story 3-3 当前已按 CR 裁定采用统一的 `source -> target` 有向传播语义，足以满足本轮交付；但 `must_consistent`、`context_for` 等 relationType 是否应与 `sync_required` 共享同一传播方向，仍未被显式建模。若后续继续扩展 `ImpactService` 能力而不先定义 relationType 级传播矩阵，容易再次出现“实现先行、语义后补”的歧义，导致新 Story 对影响范围的理解不一致。
+- **建议时机**：下次触及 ImpactService 传播语义、扩展 relationType 规则或实现更细粒度 analyze-impact 行为时一并处理。
+- **解决记录**：—
+
+---
+
+### TODO-027
+
+- **标题**：Impact 多跳结果补完整路径解释
+- **状态**：open
+- **优先级**：P3（择机处理）
+- **类别**：other
+- **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-2；R3 维持非阻塞）
+- **涉及文件**：
+  - `src/services/impact-service.ts`
+  - `src/cli/commands/impact.ts`
+  - `tests/unit/cli/commands/impact.test.ts`
+- **问题描述**：当前 impact 输出只暴露受影响文档、关系类型、传播行为类型、建议动作、严重度和 hopDistance，不包含完整传播路径或中间节点链路。该实现满足 Story 3-3 AC，但当结果来自二跳/三跳传播时，用户和后续消费者仍难以判断“为什么命中该文档”，不利于人工复核、问题排查和后续输出能力扩展。
+- **建议时机**：下次触及 impact 输出 DTO、CLI 表格或 MCP analyze-impact 输出增强时一并处理。
+- **解决记录**：—
+
+---
+
+### TODO-028
+
+- **标题**：只读命令默认 service 创建 `.cord` 副作用
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-3；R3 维持非阻塞）
+- **涉及文件**：
+  - `src/cli/commands/impact.ts`
+  - `src/cli/commands/query.ts`
+- **问题描述**：`impact` 这类读取/分析命令在默认 serviceFactory 路径下会 `mkdirSync('.cord')` 并打开/创建数据库；后续复查也确认 `query` 存在同类初始化模式。虽然该行为不阻塞当前 Story 验收，但会让只读命令产生本地状态副作用，并掩盖“数据库未初始化 / 尚未扫描”的真实诊断语义，后续若继续新增只读命令，体验和错误契约会持续漂移。
+- **建议时机**：下次统一治理只读命令默认 service 初始化、副作用控制或诊断体验时一并处理。
 - **解决记录**：—
 
 ---
