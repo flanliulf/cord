@@ -1,6 +1,6 @@
 # Story 3.5: StatusService 健康检查
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,9 +21,9 @@ So that 我可以了解图谱的整体状况。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 StatusService (AC: #1, #2, #3, #4, #5)，必须覆盖图谱健康指标和 CORD 配置状态两大能力块
-- [ ] Task 2: 实现 CLI 命令 (AC: #6, #7)
-- [ ] Task 3: 编写测试 (AC: #8)
+- [x] Task 1: 实现 StatusService (AC: #1, #2, #3, #4, #5)，必须覆盖图谱健康指标和 CORD 配置状态两大能力块
+- [x] Task 2: 实现 CLI 命令 (AC: #6, #7)
+- [x] Task 3: 编写测试 (AC: #8)
 
 ## Dev Notes
 
@@ -80,6 +80,40 @@ interface StatusResult {
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5.4
+
 ### Debug Log References
+- `./node_modules/.bin/vitest run tests/unit/services/status-service.test.ts`
+- `./node_modules/.bin/vitest run tests/unit/cli/commands/status.test.ts tests/unit/cli/index.test.ts`
+- `./node_modules/.bin/vitest run tests/unit/services/status-service.test.ts tests/unit/cli/commands/status.test.ts tests/integration/cli/status.test.ts tests/unit/cli/index.test.ts`
+- `npm test`
+- `npm run type-check`
+- `npm run lint`
+
+### Implementation Plan
+- 基于仓储快照计算图谱健康指标、按类型分布、最近扫描时间、过时关系、孤立节点与悬空关系边。
+- 通过 `schema_migrations` 计数补充 `migrationVersion`，并在 Service 层统一返回配置文件路径、framework、scanPaths、excludePaths 与 `confidenceThreshold`。
+- 为 `cord status` 增加仪表盘式摘要与 `--json` 输出，并注册到 CLI 入口。
+
 ### Completion Notes List
+- 已实现 `StatusService`，覆盖图谱健康指标、配置状态、`Date.parse(relation.createdAt)` 的过时关系判定，以及迁移版本统计。
+- 已实现 `cord status` 命令，支持人类可读摘要与 `--json` 输出。
+- 已补充单元测试和 CLI 集成测试，覆盖正常检查、过时关系、空图谱与命令注册。
+
 ### File List
+- src/cli/commands/index.ts
+- src/cli/commands/status.ts
+- src/cli/index.ts
+- src/repositories/sqlite-graph-repository.ts
+- src/schemas/index.ts
+- src/schemas/status-input.ts
+- src/services/index.ts
+- src/services/status-service.ts
+- tests/integration/cli/status.test.ts
+- tests/unit/cli/commands/status.test.ts
+- tests/unit/cli/index.test.ts
+- tests/unit/services/status-service.test.ts
+
+## Change Log
+
+- 2026-05-14: 实现 Story 3.5 的状态服务、`cord status` CLI 命令，以及对应的单元/集成测试。

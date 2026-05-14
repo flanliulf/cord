@@ -132,6 +132,11 @@ describe('createProgram', () => {
     expect(prog.commands.some((command) => command.name() === 'export')).toBe(true);
   });
 
+  it('registers the status command', () => {
+    const prog = createProgram();
+    expect(prog.commands.some((command) => command.name() === 'status')).toBe(true);
+  });
+
   it('has --verbose / -v option', () => {
     const prog = createProgram();
     const hasVerbose = prog.options.some((o) => o.long === '--verbose');

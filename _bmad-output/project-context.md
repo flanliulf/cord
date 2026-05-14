@@ -201,6 +201,26 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
   - 跨平台回归必须覆盖 win32 语义：至少验证跨盘符路径（如 `D:\outside.json`）与 UNC 路径（如 `\\server\share\outside.json`）会在入口层被拒绝；若 `relative(projectRoot, input)` 结果仍为绝对路径，必须判定为 project-root 外路径并在 `serviceFactory()` 前返回 `ConfigError`
 - **若默认 Service 封装了带 `close()` 的 Repository / 连接资源，Service 层必须显式转发生命周期方法；禁止让入口层的 `finally { service?.close?.(); }` 在默认实现上退化为空调用**（CR-QUERY-03）
 
+**Status / 健康检查规则（CR-STATUS-01/02/03，来源：Story 3-5 CR 历史）：**
+
+- **CR-STATUS-01：声明为观测型的 status / health 命令不得因读取而初始化存储**
+  - 适用范围：`status`、health check、diagnostic summary 等承诺“查看当前状态”的命令
+  - 若持久化存储不存在，必须返回“未初始化”或空状态；禁止为读取创建 `.cord`、数据库文件或隐式执行迁移
+  - 若命令语义需要区分“未初始化”和“已初始化但空图谱”，必须在结果字段或文本输出中显式保留该边界
+  - 回归测试至少覆盖：未初始化项目执行只读命令后不创建 `.cord/cord.db`，且返回稳定状态载荷
+  - 豁免说明：`query` / `impact` 的历史初始化副作用仍由 TODO-028 跟踪；在统一治理完成前，本规则先强制适用于 `status` / 健康检查类命令，禁止新命令继续复制旧模式
+
+- **CR-STATUS-02：健康检查统计必须来自同一持久化快照**
+  - 文档数、关系数、按类型分布、过时关系、孤立节点、悬空边、迁移版本等对外展示字段，必须由单次 repository transaction 或等价 snapshot 一致派生
+  - 禁止用前序数组读取计算派生指标，再用后续独立 count 查询回填总数，形成混合口径
+  - 图健康判断中，只有双端都存在的关系才能证明节点 connected；dangling relation 只能计入异常指标，不能降低 `orphanedNodes`
+  - 回归测试至少覆盖：fake repository 在二次 count 查询时返回不同口径时，status 输出仍来自同一快照；文档唯一关系为 dangling 时仍计入 `orphanedNodes`
+
+- **CR-STATUS-03：资源清理失败不得覆盖 status 主结果**
+  - 任何 `finally` 中的 `close()` / `dispose()` / `release()` 都属于 best-effort cleanup；清理失败不得覆盖已经写出的成功输出、原始错误 payload 或 exit code
+  - 若需要上报 cleanup failure，只能作为附加诊断信息，不能替换主流程错误
+  - 回归测试至少覆盖：成功路径 cleanup 抛错仍保持 exitCode 0 和原输出；失败路径 cleanup 抛错仍保留原始业务错误
+
 **Query / Traversal 语义规则（CR-QUERY-05/06/07，CR-PERF-01，来源：Story 3-2、3-3 CR 历史）：**
 
 - **CR-QUERY-05：图遍历必须分离“可扩展边”与“可输出边”**

@@ -285,6 +285,13 @@ export class SqliteGraphRepository implements IGraphRepository {
     return result?.count ?? 0;
   }
 
+  getMigrationVersion(): number {
+    const result = this.db
+      .prepare<[], { count: number }>('SELECT COUNT(*) as count FROM schema_migrations')
+      .get();
+    return result?.count ?? 0;
+  }
+
   // ── 生命周期 ───────────────────────────────────────────────────────────────
 
   close(): void {

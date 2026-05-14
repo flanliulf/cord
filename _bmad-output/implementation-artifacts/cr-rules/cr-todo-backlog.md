@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 32 |
+| Open | 33 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **32** |
+| **合计** | **33** |
 
 ---
 
@@ -451,6 +451,24 @@
   - `tests/unit/cli/commands/export.test.ts`
 - **问题描述**：当 `cord.config` 中的 `projectName` 非法时，`ExportService` 目前会先读取 repository 中的 documents/relations，再在 `loadConfig(projectRoot)` 处抛出 `ConfigError`；CLI 默认路径下也可能先创建 `.cord` 并初始化 repository，之后才以退出码 2 失败。该行为被 CR 正确降级为“配置错误路径”的非阻塞观察，但当前仍缺少对退出码、错误输出、是否创建 `.cord`、是否提前读取 repository 等副作用的明确测试保护。
 - **建议时机**：下次触及 `projectName` 配置验证、导出错误契约或配置错误诊断体验时一并处理，优先补齐 CLI / Service 的错误路径回归测试；若团队希望进一步收紧副作用，再评估把配置解析前置到 repository 读取之前。
+- **解决记录**：—
+
+---
+
+### TODO-033
+
+- **标题**：status 健康统计是否排除 deprecated 关系需独立冻结
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：other
+- **来源**：Story 3-5 / Round 2 / 2026-05-14（已知非阻塞观察项）
+- **涉及文件**：
+  - `src/services/status-service.ts`
+  - `src/types/graph.ts`
+  - `tests/unit/services/status-service.test.ts`
+  - `_bmad-output/implementation-artifacts/stories/3-5-statusservice-health-check.md`
+- **问题描述**：`src/services/status-service.ts` 当前按全部关系数组计算 `relationCount` 与 `relationsByType`，而 `src/types/graph.ts` 中 `RelationEdge.status` 已定义 `active | deprecated`。Story 3.5 的 AC 只要求输出“关系总数、按类型分布”，尚未冻结 status 健康统计是否应排除 deprecated 关系；如果后续在无产品/Story 裁决的情况下直接调整实现，容易让 status 输出、测试断言和 Epic 4 的关系管理语义再次漂移。
+- **建议时机**：下次触及 Epic 4 关系管理口径、status 健康指标定义或修订 Story/AC/测试时一并处理，先明确“健康统计是否只计 active 关系”，再同步实现与回归测试。
 - **解决记录**：—
 
 ---

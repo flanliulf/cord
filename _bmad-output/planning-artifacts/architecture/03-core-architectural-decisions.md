@@ -45,6 +45,9 @@
   - 应用启动时 Repository 层自动检测并执行待执行的迁移
   - 迁移在事务中执行，失败可回滚
   - 图谱批量写入（documents / relations / sync_states）必须先在事务外收敛可持久化 workset；事务内仅执行完整写入计划，若发现端点映射或计划失配必须抛错回滚，禁止用普通 `return` 提前结束 transaction callback
+  - 对明确承诺“查看当前状态”的 `status` / 健康检查命令，持久化存储不存在时必须返回未初始化或空状态；禁止为读取创建数据库、目录或隐式执行迁移
+  - 状态/健康检查对外展示的统计字段必须来自单次 transaction snapshot 或等价一致快照；禁止混用数组读取和后续独立 count 查询形成混合口径
+  - `query` / `impact` 的历史只读副作用统一治理仍由 TODO-028 跟踪；在统一治理完成前，至少不得让新的 status / 健康检查命令继续复制初始化副作用模式
   - `cord status` 展示当前已执行迁移版本数及最新版本号
 
 ## Error Handling & Logging
@@ -62,6 +65,7 @@
   - 任何会触发默认 Service / Repository 初始化的 CLI 命令，必须先完成输入校验与路径归一化，再创建 Service；纯输入错误不得先产生目录、数据库或连接副作用
   - project-root 路径契约的回归测试必须覆盖带前后空白的项目外相对/绝对路径输入，确保 `serviceFactory()` 前稳定返回 `ConfigError`
   - 若默认 Service 持有可关闭的 Repository / 连接资源，Service 必须转发 `close()` 等生命周期方法，确保入口层 `finally` 能真正释放资源
+  - `finally` / cleanup 中的 `close()`、`dispose()`、`release()` 属于 best-effort；清理失败不得覆盖成功输出、原始错误 payload 或 exit code，若需暴露只能作为附加诊断信息
   - MCP 入口层：捕获 CordError，转换为 MCP 标准错误响应格式
   - 错误码命名规范：`CORD_SCAN_001`、`CORD_QUERY_001` 等
 

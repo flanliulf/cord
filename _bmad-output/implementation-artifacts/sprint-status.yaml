@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-09
-last_updated: 2026-05-14 09:33
+last_updated: 2026-05-14 18:29
 project: CORD
 project_key: NOKEY
 tracking_system: file-system
@@ -62,13 +62,13 @@ development_status:
   epic-2-retrospective: done
 
   # Epic 3: 关系查询、影响分析与数据导出
-  epic-3: in-progress
+  epic-3: done
   3-1-queryservice-relation-query-one-hop-and-type-filter: done
   3-2-multi-hop-relation-traversal: done
   3-3-impactservice-change-impact-analysis: done
   3-4-json-snapshot-export: done
-  3-5-statusservice-health-check: ready-for-dev
-  epic-3-retrospective: optional
+  3-5-statusservice-health-check: done
+  epic-3-retrospective: done
 
   # Epic 4: 关系管理与图谱修正
   epic-4: in-progress
