@@ -1,5 +1,5 @@
 /**
- * Zod schema — cord.config 配置验证（初始 7 项，第 8 项由 Story 4.3 扩展）。
+ * Zod schema — cord.config 配置验证（初始 8 项，第 9 项由 Story 4.3 扩展）。
  */
 
 import { z } from 'zod';
@@ -16,6 +16,9 @@ const relationTypeConfigSchema = z.object({
 
 /** cord.config 配置 Zod schema，对应 `CordConfig` 接口。 */
 export const configSchema = z.object({
+  /** 项目显示名，用于导出快照等面向用户的输出。 */
+  projectName: z.string().trim().min(1).optional(),
+
   /** 检测到的开发框架。 */
   framework: z.string().optional(),
 

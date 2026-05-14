@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
-import { createImpactCommand, createQueryCommand, createScanCommand } from './commands/index.js';
+import { createExportCommand, createImpactCommand, createQueryCommand, createScanCommand } from './commands/index.js';
 import { applyVerboseFlag } from './verbose.js';
 
 const CLI_CONFIG_ERROR_EXIT_CODE = 2;
@@ -21,6 +21,7 @@ export function createProgram(): Command {
   program.addCommand(createScanCommand());
   program.addCommand(createQueryCommand());
   program.addCommand(createImpactCommand());
+  program.addCommand(createExportCommand());
   return program;
 }
 

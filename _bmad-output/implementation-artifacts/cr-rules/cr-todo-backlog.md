@@ -5,11 +5,11 @@
 ## 统计摘要
 
 | 状态 | 数量 |
-|------|------|
-| Open | 28 |
+| ------ | ------ |
+| Open | 32 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **25** |
+| **合计** | **32** |
 
 ---
 
@@ -385,6 +385,72 @@
   - `src/cli/commands/query.ts`
 - **问题描述**：`impact` 这类读取/分析命令在默认 serviceFactory 路径下会 `mkdirSync('.cord')` 并打开/创建数据库；后续复查也确认 `query` 存在同类初始化模式。虽然该行为不阻塞当前 Story 验收，但会让只读命令产生本地状态副作用，并掩盖“数据库未初始化 / 尚未扫描”的真实诊断语义，后续若继续新增只读命令，体验和错误契约会持续漂移。
 - **建议时机**：下次统一治理只读命令默认 service 初始化、副作用控制或诊断体验时一并处理。
+- **解决记录**：—
+
+---
+
+### TODO-029
+
+- **标题**：导出快照排序稳定性加固
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 3-4 / Round 1-4 / 2026-05-12~2026-05-13（R1 发现 #3；R2-R4 维持非阻塞）
+- **涉及文件**：
+  - `src/services/export-service.ts`
+  - `tests/unit/services/export-service.test.ts`
+- **问题描述**：`src/services/export-service.ts` 当前仍使用未固定 locale/options 的 `localeCompare()` 对 `documents` 和 `relations` 排序；`tests/unit/services/export-service.test.ts` 也只覆盖简单 ASCII 路径和 ID，尚未锁定大小写、数字段与非 ASCII 输入。该问题不会改变导出内容本身，但会让同一图谱在不同 Node/ICU/locale 环境下生成无意义 diff，削弱 git 审阅快照的稳定性。
+- **建议时机**：下次触及 `ExportService` 排序逻辑、导出快照稳定性或 git 审阅体验增强时一并处理，优先改为显式二进制字符串比较或固定 `localeCompare` 配置，并补对应回归测试。
+- **解决记录**：—
+
+---
+
+### TODO-030
+
+- **标题**：快照写入原子性与覆盖语义加固
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 3-4 / Round 1-4 / 2026-05-12~2026-05-13（R1 defer；R2-R4 维持非阻塞）
+- **涉及文件**：
+  - `src/services/export-service.ts`
+  - `tests/unit/services/export-service.test.ts`
+- **问题描述**：`src/services/export-service.ts` 当前直接覆盖写入目标文件，缺少原子写入保护，也没有把“已有目标文件时是否允许覆盖、如何覆盖”的行为固化为明确测试契约。当前实现满足 Story 3-4 主路径，但在异常中断或后续扩展输出策略时，容易出现半写入文件、覆盖语义漂移或回归测试盲区。
+- **建议时机**：下次触及导出文件写入、覆盖策略或文件系统可靠性增强时一并处理，可结合临时文件 + rename 的原子写入方案，并补“覆盖允许 / 覆盖冲突 / 写入中断”语义测试。
+- **解决记录**：—
+
+---
+
+### TODO-031
+
+- **标题**：导出路径边界剩余硬化
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 3-4 / Round 2-4 / 2026-05-13（R2 defer；R3-R4 维持非阻塞）
+- **涉及文件**：
+  - `src/cli/commands/export.ts`
+  - `tests/unit/cli/commands/export.test.ts`
+- **问题描述**：Story 3-4 已补齐 POSIX 项目外路径与 win32 跨盘符/UNC 的词法边界校验，但 CR 仍保留三类非阻塞硬化点：symlink 物理逃逸场景、UNC `projectRoot` 组合场景，以及 `--output snapshots/` 这类目录形态输入的明确语义与回归测试。当前入口层已覆盖主要交付门禁，但这些剩余边界若长期不固化，后续继续演进导出路径逻辑时容易再次引入文件系统边界漂移。
+- **建议时机**：下次触及 `cord export --output` 路径归一化、文件系统安全边界或输出 UX 语义时一并处理，结合 realpath/symlink 场景与 UNC projectRoot 测试统一补齐。
+- **解决记录**：—
+
+---
+
+### TODO-032
+
+- **标题**：非法 projectName 配置错误路径副作用测试
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：test-gap
+- **来源**：Story 3-4 / Round 4 / 2026-05-13（R4 defer）
+- **涉及文件**：
+  - `src/services/export-service.ts`
+  - `src/cli/commands/export.ts`
+  - `tests/unit/services/export-service.test.ts`
+  - `tests/unit/cli/commands/export.test.ts`
+- **问题描述**：当 `cord.config` 中的 `projectName` 非法时，`ExportService` 目前会先读取 repository 中的 documents/relations，再在 `loadConfig(projectRoot)` 处抛出 `ConfigError`；CLI 默认路径下也可能先创建 `.cord` 并初始化 repository，之后才以退出码 2 失败。该行为被 CR 正确降级为“配置错误路径”的非阻塞观察，但当前仍缺少对退出码、错误输出、是否创建 `.cord`、是否提前读取 repository 等副作用的明确测试保护。
+- **建议时机**：下次触及 `projectName` 配置验证、导出错误契约或配置错误诊断体验时一并处理，优先补齐 CLI / Service 的错误路径回归测试；若团队希望进一步收紧副作用，再评估把配置解析前置到 repository 读取之前。
 - **解决记录**：—
 
 ---

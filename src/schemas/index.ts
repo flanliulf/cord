@@ -5,5 +5,6 @@ export * from './config.js';
 export * from './scan-input.js';
 export * from './query-input.js';
 export * from './impact-input.js';
+export * from './export-input.js';
 export * from './helpers.js';
 export { toJsonSchema } from './json-schema.js';

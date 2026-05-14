@@ -5,11 +5,14 @@
 import type { RelationType } from './relations.js';
 
 /**
- * CordConfig 表示 `cord.config` 文件的结构（初始 7 项配置）。
+ * CordConfig 表示 `cord.config` 文件的结构（初始 8 项配置）。
  *
- * 第 8 项 `updateStrategies` 由 Story 4.3 Task 1 扩展。
+ * 第 9 项 `updateStrategies` 由 Story 4.3 Task 1 扩展。
  */
 export interface CordConfig {
+  /** 项目显示名，用于导出快照等面向用户的输出。 */
+  projectName?: string;
+
   /** 检测到的开发框架（如 `'bmad'`、`'generic'`）。 */
   framework?: string;
 

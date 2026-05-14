@@ -256,10 +256,11 @@ describe('ScanService', () => {
 
 **P17. CordConfig 配置字段重要规则：**
 
-cord.config.yaml / cord.config.json 共 8 个项（均可选）：
+cord.config.yaml / cord.config.json 共 9 个项（均可选）：
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
+| projectName | string | 无 | 项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名 |
 | framework | string | 自动检测 | 框架类型 |
 | ide | string | 自动检测 | IDE 类型 |
 | scanPaths | string[] | adapter 预设 | 扫描路径 |
@@ -268,6 +269,8 @@ cord.config.yaml / cord.config.json 共 8 个项（均可选）：
 | relationTypes | Record<RelationType, {enabled: boolean}> | 全部启用 | 9 个内置类型启用/禁用 |
 | adapters | string[] | [] | 启用的框架适配模块 |
 | updateStrategies | Record<docType, UpdateStrategy> | {} | Story 4.3 引入，未配置的 docType 回退到 `suggest` |
+
+- 若用户可见输出字段需要引入新的配置来源（例如快照 `project` 字段依赖 `projectName`），必须先完成产品/架构裁决并将字段纳入 schema，再进入实现和测试；禁止使用临时 fallback 逻辑绕过未裁决契约
 
 ```typescript
 type UpdateStrategy = 'auto' | 'suggest' | 'log_only';
@@ -507,6 +510,7 @@ return service.query({ docPath, type: options.type });
 - 当 Repository / Service 的查询契约以 project-relative path 为准时，CLI 层必须先把 `./docs/a.md`、绝对路径等输入归一化为 project-relative POSIX path
 - 对原始路径文本必须先做 `trim()` 等标准化，再执行 `resolve()` / `relative()`；禁止先做 project-root 边界判断，再依赖 schema 或 Service 隐式清理空白
 - 若归一化结果为 `''`、`'..'` 或以 `'../'` 开头，必须在入口层抛出 `ConfigError`，并且发生在 `serviceFactory()` 调用前
+- 跨平台回归必须覆盖 win32 语义：至少包含跨盘符路径（如 `D:\outside.json`）与 UNC 路径（如 `\\server\share\outside.json`）；若 `relative(projectRoot, input)` 结果仍为绝对路径，必须视为 project-root 外路径并在 `serviceFactory()` 前拒绝
 - **禁止**把项目根外路径以 `'../...'` 形式继续传给 Service，再退化为普通“文档不存在”错误
 - 回归测试至少覆盖：`./` 命中同一文档、项目外相对路径被拒绝、项目外绝对路径被拒绝、带前后空白的项目外相对/绝对路径被拒绝
 

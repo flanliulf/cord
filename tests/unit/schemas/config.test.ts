@@ -11,6 +11,7 @@ describe('configSchema', () => {
 
     it('accepts full config', () => {
       const result = configSchema.parse({
+        projectName: 'CORD',
         framework: 'bmad',
         ide: 'vscode',
         scanPaths: ['docs/', '_bmad-output/'],
@@ -22,6 +23,7 @@ describe('configSchema', () => {
         },
         adapters: ['bmad-adapter'],
       });
+      expect(result.projectName).toBe('CORD');
       expect(result.framework).toBe('bmad');
       expect(result.confidenceThreshold).toBe(0.7);
     });
@@ -54,6 +56,10 @@ describe('configSchema', () => {
 
     it('rejects scanPaths with non-string element', () => {
       expect(() => configSchema.parse({ scanPaths: [123] })).toThrow();
+    });
+
+    it('rejects blank projectName', () => {
+      expect(() => configSchema.parse({ projectName: '   ' })).toThrow();
     });
   });
 

@@ -35,16 +35,17 @@ describe('loadConfig', () => {
 
     writeFileSync(
       join(projectRoot, 'cord.config.json'),
-      JSON.stringify({ framework: 'generic', confidenceThreshold: 0.2 }),
+      JSON.stringify({ projectName: 'json-name', framework: 'generic', confidenceThreshold: 0.2 }),
       'utf-8',
     );
     writeFileSync(
       join(projectRoot, 'cord.config.yaml'),
-      ['framework: bmad', 'scanPaths:', '  - docs', 'relationTypes:', '  deprecated:', '    enabled: false'].join('\n'),
+      ['projectName: yaml-name', 'framework: bmad', 'scanPaths:', '  - docs', 'relationTypes:', '  deprecated:', '    enabled: false'].join('\n'),
       'utf-8',
     );
 
     expect(loadConfig(projectRoot)).toEqual({
+      projectName: 'yaml-name',
       framework: 'bmad',
       scanPaths: ['docs'],
       excludePaths: ['src/', 'node_modules/', '.git/', 'dist/'],
@@ -64,6 +65,7 @@ describe('loadConfig', () => {
     writeFileSync(
       join(projectRoot, 'cord.config.json'),
       JSON.stringify({
+        projectName: 'json-only-name',
         scanPaths: ['docs', 'knowledge'],
         excludePaths: ['notes/private/'],
         confidenceThreshold: 0.8,
@@ -73,6 +75,7 @@ describe('loadConfig', () => {
     );
 
     expect(loadConfig(projectRoot)).toEqual({
+      projectName: 'json-only-name',
       scanPaths: ['docs', 'knowledge'],
       excludePaths: ['notes/private/'],
       confidenceThreshold: 0.8,
@@ -108,6 +111,24 @@ describe('loadConfig', () => {
       ide: 'cursor',
       scanPaths: ['.'],
       excludePaths: ['docs/private/'],
+      confidenceThreshold: 0.5,
+    });
+  });
+
+  it('trims projectName loaded from yaml config', () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+
+    writeFileSync(
+      join(projectRoot, 'cord.config.yaml'),
+      'projectName: "  CORD Workspace  "',
+      'utf-8',
+    );
+
+    expect(loadConfig(projectRoot)).toEqual({
+      projectName: 'CORD Workspace',
+      scanPaths: ['.'],
+      excludePaths: ['src/', 'node_modules/', '.git/', 'dist/'],
       confidenceThreshold: 0.5,
     });
   });

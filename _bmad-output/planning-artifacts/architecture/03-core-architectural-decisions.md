@@ -33,6 +33,7 @@
   - Zod schema 可通过 `zod-to-json-schema` 转换为 MCP Tools 所需的 JSON Schema
   - 由字面量常量构造枚举 schema 时，必须保留字面量联合类型，禁止通过 `[string, ...string[]]` 等宽化写法喂给 `z.enum(...)`；同时至少补一条类型层断言测试，防止编译期契约退化
   - 对路径型 CLI 输入，验证责任包含两步：先对原始路径文本做 `trim()` 等标准化，再归一化到 project-relative POSIX path，最后做 schema 校验；若归一化结果落到 projectRoot 外，必须在入口层直接返回 `ConfigError`
+  - project-root 路径契约的跨平台回归必须覆盖 win32 语义：至少包含跨盘符路径（如 `D:\outside.json`）与 UNC 路径（如 `\\server\share\outside.json`）；若 `relative(projectRoot, input)` 结果仍为绝对路径，必须视为 projectRoot 外路径并在 `serviceFactory()` 前拒绝
 
 **D2. 数据迁移策略：版本号 + 增量 SQL 脚本**
 
@@ -153,7 +154,8 @@ src/
   - `cord init` 默认生成 `cord.config.yaml` + `.cord/` 数据目录（可通过 `--format json` 生成 `cord.config.json`）
   - 配置加载策略：按 `cord.config.yaml` → `cord.config.json` 顺序检测，找到第一个即停止
   - JSON Schema 发布到 schemastore.org（后期），本地通过 YAML 文件头 `# yaml-language-server: $schema=...` 或 JSON `"$schema"` 字段引用
-  - 配置项（8 项，对齐 PRD cord.config schema）：`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（关系类型启用/禁用配置，9 个内置类型默认全部启用）、`adapters`（启用的框架适配模块）、`updateStrategies`（Story 4.3 引入：按文档类别配置更新策略，键为 docType，值为 `'auto' | 'suggest' | 'log_only'`，缺省 suggest）；所有配置项均可选，`cord init` 自动生成合理默认值
+  - 配置项（9 项，对齐 PRD cord.config schema）：`projectName`（项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名）、`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（关系类型启用/禁用配置，9 个内置类型默认全部启用）、`adapters`（启用的框架适配模块）、`updateStrategies`（Story 4.3 引入：按文档类别配置更新策略，键为 docType，值为 `'auto' | 'suggest' | 'log_only'`，缺省 suggest）；所有配置项均可选，`cord init` 自动生成合理默认值
+  - 对用户可见输出字段（例如快照中的 `project`）如需引入新的配置来源，必须先完成产品/架构裁决并将字段纳入 schema，再进入代码实现与测试；禁止以临时 fallback 逻辑替代未裁决契约
 
 ## CI/CD & Quality Gates
 

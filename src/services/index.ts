@@ -5,3 +5,5 @@ export { QueryService } from './query-service.js';
 export type { QueryRelationsOutput, QueryResultItem } from './query-service.js';
 export { ImpactService } from './impact-service.js';
 export type { ImpactResult, ImpactedDoc, ImpactSeverity, PropagationType } from './impact-service.js';
+export { ExportService } from './export-service.js';
+export type { ExportResult, ExportedDocument, ExportedRelation, GraphSnapshot } from './export-service.js';

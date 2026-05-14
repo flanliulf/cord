@@ -1,6 +1,6 @@
 # Story 3.4: JSON 快照导出
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -20,10 +20,10 @@ So that 我可以将图谱快照提交到 git 供团队审阅。
 
 ## Tasks / Subtasks
 
-- [ ] Task 0: 前置骨架 — 依赖 Story 1.4 `IGraphRepository` 接口中的 `getAllRelations(): RelationEdge[]` 方法（已在 Story 1.4 Task 1.5 中定义），确认 Story 1.4 的 `SqliteGraphRepository` 实现类已覆盖该方法（`SELECT * FROM relations` 等价逻辑）
-- [ ] Task 1: 实现 ExportService (AC: #1, #2, #3, #4)
-- [ ] Task 2: 实现 CLI 命令 (AC: #5, #6)
-- [ ] Task 3: 编写测试 (AC: #7)
+- [x] Task 0: 前置骨架 — 依赖 Story 1.4 `IGraphRepository` 接口中的 `getAllRelations(): RelationEdge[]` 方法（已在 Story 1.4 Task 1.5 中定义），确认 Story 1.4 的 `SqliteGraphRepository` 实现类已覆盖该方法（`SELECT * FROM relations` 等价逻辑）
+- [x] Task 1: 实现 ExportService (AC: #1, #2, #3, #4)
+- [x] Task 2: 实现 CLI 命令 (AC: #5, #6)
+- [x] Task 3: 编写测试 (AC: #7)
 
 ## Dev Notes
 
@@ -62,6 +62,39 @@ So that 我可以将图谱快照提交到 git 供团队审阅。
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5.4
+
+### Implementation Plan
+- 先用单元测试锁定导出快照结构，包括 `schemaVersion`、`exportedAt`、`project`、`documents`、`relations` 以及 null 值保留行为。
+- 服务层只消费 `IGraphRepository.getAllDocuments()` 与 `getAllRelations()`，并在序列化前做稳定排序，保证快照适合 git 审阅。
+- CLI 保持薄壳，负责参数校验、默认输出路径、结果展示与错误映射，再通过聚焦测试、lint、type-check 和全量测试回归验证。
+
 ### Debug Log References
+- `npx vitest run tests/unit/services/export-service.test.ts tests/unit/cli/commands/export.test.ts tests/unit/cli/index.test.ts`
+- `npm run type-check`
+- `npm run lint`
+- `npm test`
+
 ### Completion Notes List
+- 确认 Story 1.4 已提供 `IGraphRepository.getAllRelations()` 与 `SqliteGraphRepository` 中的 `SELECT * FROM relations` 实现，导出服务直接复用共享仓储接口。
+- 新增 `ExportService` 与导出输入 schema，生成 `schemaVersion: "1.0"` 的 JSON 快照，包含 ISO 8601 `exportedAt`、项目名、全量文档与关系，并保留 null 值和 camelCase 字段。
+- 新增 `cord export` CLI 薄壳命令，支持默认输出到项目根目录 `cord-snapshot.json`、`--output <path>` 自定义导出路径以及 `--json` 输出模式。
+- 补齐导出服务与 CLI 单元测试，覆盖格式验证、schemaVersion、空图谱导出、默认输出路径、参数转发与错误路径，并通过 lint、type-check 与全量测试回归验证。
+
 ### File List
+- src/schemas/export-input.ts
+- src/schemas/index.ts
+- src/services/export-service.ts
+- src/services/index.ts
+- src/cli/commands/export.ts
+- src/cli/commands/index.ts
+- src/cli/index.ts
+- tests/unit/services/export-service.test.ts
+- tests/unit/cli/commands/export.test.ts
+- tests/unit/cli/index.test.ts
+- _bmad-output/implementation-artifacts/stories/3-4-json-snapshot-export.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+
+## Change Log
+
+- 2026-05-12: 实现 `ExportService`、`cord export` CLI、导出输入校验与对应单元测试，并完成 lint、type-check、全量测试验证。

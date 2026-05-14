@@ -198,6 +198,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - **凡是以 project-root 相对路径作为仓储查询契约的命令，CLI 层必须先把 `./...`、绝对路径等输入归一化为 project-relative POSIX path，并显式拒绝 `''`、`'..'`、`'../...'` 这类项目根外路径；拒绝必须发生在 service 初始化之前，并返回稳定 `ConfigError`**（CR-QUERY-02）
   - 对原始路径文本必须先做 `trim()` 等标准化，再执行 `resolve()` / `relative()`、project-root 边界判断与 schema 校验；禁止先做边界判断、再依赖 schema 或 Service 隐式清理空白
   - 回归测试至少覆盖：带前后空白的项目外相对路径输入、带前后空白的项目外绝对路径输入，都必须在 `serviceFactory()` 前稳定返回 `ConfigError`
+  - 跨平台回归必须覆盖 win32 语义：至少验证跨盘符路径（如 `D:\outside.json`）与 UNC 路径（如 `\\server\share\outside.json`）会在入口层被拒绝；若 `relative(projectRoot, input)` 结果仍为绝对路径，必须判定为 project-root 外路径并在 `serviceFactory()` 前返回 `ConfigError`
 - **若默认 Service 封装了带 `close()` 的 Repository / 连接资源，Service 层必须显式转发生命周期方法；禁止让入口层的 `finally { service?.close?.(); }` 在默认实现上退化为空调用**（CR-QUERY-03）
 
 **Query / Traversal 语义规则（CR-QUERY-05/06/07，CR-PERF-01，来源：Story 3-2、3-3 CR 历史）：**
@@ -466,7 +467,8 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 - 加载优先级：YAML > JSON（同时存在时 YAML 优先）
 - 配置加载后通过 Zod schema 验证
 - `cord init` 默认生成 YAML 格式
-- 配置字段基线（8 项）：初始 7 项（framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters）+ updateStrategies（Story 4.3 引入，按文档类别配置更新策略，键为 docType，值为 'auto' | 'suggest' | 'log_only'，缺省 suggest，未知 key 宽容处理）
+- 配置字段基线（9 项）：`projectName`（项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名）+ 初始 7 项（framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters）+ updateStrategies（Story 4.3 引入，按文档类别配置更新策略，键为 docType，值为 'auto' | 'suggest' | 'log_only'，缺省 suggest，未知 key 宽容处理）
+- 若用户可见输出字段依赖新的配置来源（例如 `projectName`）且当前 schema/契约尚未定义，必须先完成产品/架构裁决并更新 schema，再进入实现与测试；禁止用临时 fallback 逻辑替代未裁决契约
 
 **CI/CD（D7）：**
 - GitHub Actions 作为唯一 CI/CD 平台

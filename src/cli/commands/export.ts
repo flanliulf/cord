@@ -1,0 +1,179 @@
+import { mkdirSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve } from 'node:path';
+import { Command } from 'commander';
+import { SqliteGraphRepository } from '../../repositories/index.js';
+import { type ExportInput, validateExportInput } from '../../schemas/index.js';
+import { ExportService, type ExportResult } from '../../services/index.js';
+import { ConfigError, type CordError } from '../../utils/index.js';
+
+interface ExportServiceLike {
+  exportSnapshot(input: ExportInput): Promise<ExportResult>;
+  close?(): void;
+}
+
+interface WriterLike {
+  write(chunk: string): boolean;
+}
+
+interface CreateExportCommandDependencies {
+  cwd?: () => string;
+  serviceFactory?: (projectRoot: string) => ExportServiceLike;
+  stdout?: WriterLike;
+  stderr?: WriterLike;
+  pathApi?: PathApi;
+}
+
+interface PathApi {
+  resolve(from: string, to: string): string;
+  relative(from: string, to: string): string;
+  isAbsolute(path: string): boolean;
+}
+
+const SUCCESS_EXIT_CODE = 0;
+const RUNTIME_ERROR_EXIT_CODE = 1;
+const CONFIG_ERROR_EXIT_CODE = 2;
+const CORD_DATA_DIR = '.cord';
+const CORD_DB_FILE = 'cord.db';
+
+export function createExportCommand(
+  dependencies: CreateExportCommandDependencies = {},
+): Command {
+  const cwd = dependencies.cwd ?? (() => process.cwd());
+  const serviceFactory = dependencies.serviceFactory ?? createDefaultExportService;
+  const stdout = dependencies.stdout ?? process.stdout;
+  const stderr = dependencies.stderr ?? process.stderr;
+  const pathApi = dependencies.pathApi ?? { resolve, relative, isAbsolute };
+
+  return new Command('export')
+    .description('导出完整关系图谱为 JSON 快照文件')
+    .option('--output <path>', '导出文件路径，默认为项目根目录下的 cord-snapshot.json')
+    .option('--json', 'JSON 格式输出')
+    .action(async (options: { output?: string; json?: boolean }) => {
+      let service: ExportServiceLike | undefined;
+
+      try {
+        const projectRoot = cwd();
+        const validatedInput = validateExportInput({
+          projectRoot,
+          outputPath: normalizeOutputPath(projectRoot, options.output, pathApi),
+        });
+        service = serviceFactory(projectRoot);
+        const result = await service.exportSnapshot(validatedInput);
+
+        writeSuccess(stdout, result, options.json ?? false);
+        process.exitCode = SUCCESS_EXIT_CODE;
+      } catch (error) {
+        const exitCode = error instanceof ConfigError ? CONFIG_ERROR_EXIT_CODE : RUNTIME_ERROR_EXIT_CODE;
+        writeFailure(stderr, error, options.json ?? false);
+        process.exitCode = exitCode;
+      } finally {
+        service?.close?.();
+      }
+    });
+}
+
+function createDefaultExportService(projectRoot: string): ExportService {
+  const dataDirectory = join(projectRoot, CORD_DATA_DIR);
+  mkdirSync(dataDirectory, { recursive: true });
+  const dbPath = join(dataDirectory, CORD_DB_FILE);
+  return new ExportService(new SqliteGraphRepository(dbPath));
+}
+
+function normalizeOutputPath(
+  projectRoot: string,
+  outputPath: string | undefined,
+  pathApi: PathApi,
+): string | undefined {
+  if (outputPath === undefined) {
+    return undefined;
+  }
+
+  const trimmedOutputPath = outputPath.trim();
+
+  if (trimmedOutputPath.length === 0) {
+    return trimmedOutputPath;
+  }
+
+  const absoluteOutputPath = pathApi.resolve(projectRoot, trimmedOutputPath);
+  const relativeOutputPath = pathApi.relative(projectRoot, absoluteOutputPath);
+  const normalizedRelativePath = relativeOutputPath.replaceAll('\\', '/');
+
+  if (
+    relativeOutputPath === ''
+    || pathApi.isAbsolute(relativeOutputPath)
+    || normalizedRelativePath === '..'
+    || normalizedRelativePath.startsWith('../')
+  ) {
+    throw new ConfigError({
+      message: `导出路径位于项目根目录外: ${trimmedOutputPath}`,
+      suggestion: '请传入项目根目录内的输出路径，例如 snapshots/graph.json',
+    });
+  }
+
+  return normalizedRelativePath;
+}
+
+function writeSuccess(stdout: WriterLike, result: ExportResult, asJson: boolean): void {
+  if (asJson) {
+    stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+
+  stdout.write(
+    [
+      '导出成功',
+      `文件: ${result.outputPath}`,
+      `schemaVersion: ${result.snapshot.schemaVersion}`,
+      `文档: ${result.snapshot.documents.length}`,
+      `关系: ${result.snapshot.relations.length}`,
+    ].join('\n') + '\n',
+  );
+}
+
+function writeFailure(stderr: WriterLike, error: unknown, asJson: boolean): void {
+  if (asJson) {
+    stderr.write(`${JSON.stringify(toErrorPayload(error))}\n`);
+    return;
+  }
+
+  const payload = toErrorPayload(error);
+  const lines = [payload.message];
+
+  if (payload.suggestion) {
+    lines.push(`建议: ${payload.suggestion}`);
+  }
+
+  stderr.write(`${lines.join('\n')}\n`);
+}
+
+function toErrorPayload(error: unknown): {
+  message: string;
+  code?: string;
+  suggestion?: string;
+} {
+  if (error instanceof ConfigError) {
+    return {
+      message: error.message,
+      code: error.code,
+      suggestion: error.suggestion,
+    };
+  }
+
+  if (isCordError(error)) {
+    return {
+      message: error.message,
+      code: error.code,
+      suggestion: error.suggestion,
+    };
+  }
+
+  if (error instanceof Error) {
+    return { message: error.message };
+  }
+
+  return { message: '未知错误' };
+}
+
+function isCordError(error: unknown): error is CordError {
+  return error instanceof Error && 'code' in error && 'suggestion' in error;
+}
