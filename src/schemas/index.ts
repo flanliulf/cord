@@ -7,5 +7,6 @@ export * from './query-input.js';
 export * from './impact-input.js';
 export * from './export-input.js';
 export * from './status-input.js';
+export * from './relation-management-input.js';
 export * from './helpers.js';
 export { toJsonSchema } from './json-schema.js';

@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SqliteGraphRepository } from '../../../src/repositories/sqlite-graph-repository.js';
 import { RELATION_TYPES } from '../../../src/types/index.js';
@@ -41,6 +45,168 @@ describe('SqliteGraphRepository — 迁移机制', () => {
     const repo = createRepo();
     expect(() => repo.getDocumentCount()).not.toThrow();
     repo.close();
+  });
+
+  it('升级旧版数据库时会为 relations 表补 status 列并将存量关系回填为 active', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cord-legacy-repo-'));
+    const dbPath = join(root, 'cord.db');
+    const legacyDb = new Database(dbPath);
+
+    try {
+      legacyDb.exec(`
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE schema_migrations (
+          version     INTEGER PRIMARY KEY,
+          applied_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE documents (
+          id           TEXT PRIMARY KEY,
+          path         TEXT NOT NULL UNIQUE,
+          title        TEXT,
+          doc_type     TEXT,
+          framework    TEXT,
+          content_hash TEXT,
+          metadata     TEXT,
+          created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE relations (
+          id              TEXT    PRIMARY KEY,
+          source_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          target_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          relation_type   TEXT    NOT NULL
+                                  CHECK (relation_type IN ('sync_required', 'context_for', 'lifecycle_bound', 'contains', 'must_consistent', 'sync_suggested', 'derived_from', 'deprecated', 'references')),
+          confidence      REAL    NOT NULL DEFAULT 0.5,
+          source          TEXT    NOT NULL DEFAULT 'auto_scan'
+                                  CHECK (source IN ('auto_scan', 'manual', 'framework_preset')),
+          metadata        TEXT,
+          created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE sync_states (
+          doc_id                  TEXT    PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+          last_scanned_at         TEXT    NOT NULL,
+          last_observed_mtime_ms  INTEGER,
+          content_hash            TEXT    NOT NULL,
+          status                  TEXT    NOT NULL DEFAULT 'synced'
+                                  CHECK (status IN ('synced', 'modified')),
+          updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+      `);
+
+      legacyDb.prepare(
+        `INSERT INTO documents (id, path, title, doc_type, metadata, created_at, updated_at)
+         VALUES ('doc-src', 'docs/source.md', 'source', 'story', '{}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z')`,
+      ).run();
+      legacyDb.prepare(
+        `INSERT INTO documents (id, path, title, doc_type, metadata, created_at, updated_at)
+         VALUES ('doc-tgt', 'docs/target.md', 'target', 'story', '{}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z')`,
+      ).run();
+      legacyDb.prepare(
+        `INSERT INTO relations (id, source_doc_id, target_doc_id, relation_type, confidence, source, metadata, created_at, updated_at)
+         VALUES ('rel-legacy', 'doc-src', 'doc-tgt', 'references', 0.7, 'auto_scan', '{"legacy":true}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z')`,
+      ).run();
+      legacyDb.prepare('INSERT INTO schema_migrations (version) VALUES (1)').run();
+    } finally {
+      legacyDb.close();
+    }
+
+    const repo = new SqliteGraphRepository(dbPath);
+
+    try {
+      const relations = repo.getAllRelations();
+      expect(relations).toHaveLength(1);
+      expect(relations[0].status).toBe('active');
+      expect(relations[0].relationType).toBe(RELATION_TYPES.REFERENCES);
+      expect(repo.getMigrationVersion()).toBe(2);
+    } finally {
+      repo.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('部分迁移数据库已存在 status 列但缺失索引时会补建 idx_relations_status', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cord-partial-migration-'));
+    const dbPath = join(root, 'cord.db');
+    const partialDb = new Database(dbPath);
+
+    try {
+      partialDb.exec(`
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE schema_migrations (
+          version     INTEGER PRIMARY KEY,
+          applied_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE documents (
+          id           TEXT PRIMARY KEY,
+          path         TEXT NOT NULL UNIQUE,
+          title        TEXT,
+          doc_type     TEXT,
+          framework    TEXT,
+          content_hash TEXT,
+          metadata     TEXT,
+          created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE relations (
+          id              TEXT    PRIMARY KEY,
+          source_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          target_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          relation_type   TEXT    NOT NULL
+                                  CHECK (relation_type IN ('sync_required', 'context_for', 'lifecycle_bound', 'contains', 'must_consistent', 'sync_suggested', 'derived_from', 'deprecated', 'references')),
+          confidence      REAL    NOT NULL DEFAULT 0.5,
+          source          TEXT    NOT NULL DEFAULT 'auto_scan'
+                                  CHECK (source IN ('auto_scan', 'manual', 'framework_preset')),
+          status          TEXT    NOT NULL DEFAULT 'active'
+                                  CHECK (status IN ('active', 'deprecated')),
+          metadata        TEXT,
+          created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE sync_states (
+          doc_id                  TEXT    PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+          last_scanned_at         TEXT    NOT NULL,
+          last_observed_mtime_ms  INTEGER,
+          content_hash            TEXT    NOT NULL,
+          status                  TEXT    NOT NULL DEFAULT 'synced'
+                                  CHECK (status IN ('synced', 'modified')),
+          updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+      `);
+
+      partialDb.prepare('INSERT INTO schema_migrations (version) VALUES (1)').run();
+    } finally {
+      partialDb.close();
+    }
+
+    const repo = new SqliteGraphRepository(dbPath);
+
+    try {
+      expect(repo.getMigrationVersion()).toBe(2);
+      repo.close();
+
+      const verificationDb = new Database(dbPath, { readonly: true });
+
+      try {
+        const indexes = verificationDb
+          .prepare<[], { name: string }>("PRAGMA index_list('relations')")
+          .all();
+
+        expect(indexes.some((index) => index.name === 'idx_relations_status')).toBe(true);
+      } finally {
+        verificationDb.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

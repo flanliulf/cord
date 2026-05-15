@@ -141,7 +141,7 @@ describe('status integration', () => {
         sync_required: 1,
       },
       lastScanTime: '2026-05-12T10:00:00.000Z',
-      migrationVersion: 1,
+      migrationVersion: 2,
       staleRelations: 1,
       orphanedNodes: 1,
       danglingEdges: 0,

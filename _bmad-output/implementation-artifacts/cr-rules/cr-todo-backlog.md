@@ -129,6 +129,8 @@
 - **问题描述**：v0.1 pre-release 阶段多次对 `001-initial-schema` 直接重写（Round 1：唯一索引加 source 维度 + relations.source/status CHECK 约束；Round 3：relations.relation_type CHECK 约束），均未新增 `002` 增量迁移。`runMigrations` 的幂等跳过机制意味着「已跑过旧版 v1」的本地开发库无法自动升级到含完整约束的新 schema。当前 v0.1 pre-release 无任何在野老库，场景不成立。
   - **002 需覆盖的完整修复范围**：`DROP INDEX idx_relations_unique_pair / CREATE UNIQUE INDEX`（加 source 维度）+ `relations.source` CHECK + `relations.status` CHECK + `sync_states.status` CHECK + `relations.relation_type` CHECK（共 5 项约束 + 1 个索引重建）。
 - **建议时机**：首个稳定 release（或确认有用户已用 0.x schema）前，新增 `002-fix-v1-baseline.sql` 增量迁移，覆盖上述全部范围，并在 Tech Notes 中记录「pre-release 直接重写 schema，首个稳定 release 后切换为只增不改的增量模式」约定。
+- **关联规则**：`CR-REPO-06`（迁移子步骤必须独立幂等，并覆盖部分迁移数据库场景）
+- **风险备注**：Story 4-1 已将“迁移子步骤独立幂等”和“部分迁移数据库回归”升格为全局规则，可降低同类缺口再次引入概率；但本条针对的是旧版 v1 基线整体升级债务，仍需在首个稳定 release 前单独解决。
 - **解决记录**：—
 
 ---
@@ -177,6 +179,8 @@
   - AC#6：事务测试是业务事务，未模拟「迁移 SQL 故意抛错 → schema_migrations 与 schema 一并回滚」场景。
   - AC#7：WAL 测试只验证读写正常，未直接 `db.pragma('journal_mode', { simple: true })` 断言返回 `'wal'`。
 - **建议时机**：Story 1-4 收尾，补 3 个专项测试用例：(1) 临时文件 DB 二次 reopen 断言 `schema_migrations` 一行；(2) 注入失败 SQL 验证回滚；(3) `repo['db'].pragma('journal_mode', { simple: true }) === 'wal'` 直接断言。
+- **关联规则**：`CR-REPO-06`（迁移子步骤必须独立幂等，并覆盖部分迁移数据库场景）
+- **风险备注**：Story 4-1 已补入“部分迁移数据库”回归，覆盖了迁移测试谱系中的一类残缺 schema 场景；但本条要求的迁移版本记录、失败回滚与 WAL 证据仍未被现有回归取代，状态保持 open。
 - **解决记录**：—
 
 ---

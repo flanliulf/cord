@@ -9,3 +9,4 @@ export { ExportService } from './export-service.js';
 export type { ExportResult, ExportedDocument, ExportedRelation, GraphSnapshot } from './export-service.js';
 export { StatusService, createEmptyStatusResult } from './status-service.js';
 export type { StatusResult } from './status-service.js';
+export { RelationService } from './relation-service.js';

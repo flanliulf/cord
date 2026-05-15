@@ -4,7 +4,7 @@ user_name: 'Fancyliu'
 date: '2026-04-09'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
 status: 'complete'
-rule_count: 54
+rule_count: 56
 optimized_for_llm: true
 ---
 
@@ -382,6 +382,8 @@ describe('ScanService', () => {
 - Scanner 引擎测试使用 `tests/fixtures/documents/` 下的真实 Markdown 文件
 - 集成测试验证跨层调用流程（如 scan → query → impact 完整链路）
 - Mock 策略：Service 测试 mock `IGraphRepository` 接口；CLI/MCP 测试 mock Service 层
+- **测试 helper 边界生成规则（CR-TEST-01）**：测试 helper、fixture、in-memory repository 在生成时间戳、递增序列或其他单调数据时，必须使用“固定基准值 + 数值偏移”模式，禁止依赖字符串拼接日期、编号或其他随位数变化的文本格式
+- **跨位数边界回归规则（CR-TEST-01）**：只要 helper 逻辑依赖计数器增长，回归测试至少覆盖一条跨位数边界（如 9→10、99→100），避免 fixture 在位数变化时先于业务断言失效
 - 含 `async` Commander action 或自定义退出码契约的 CLI 命令，必须同时覆盖 command factory 层与真实 `runCli()` 入口层；入口层至少断言成功路径、Commander parse error、业务 `ConfigError` 和 runtime error
 - 事务性批量写入流程必须覆盖“部分输入无效”回归测试，断言返回计数与 documents / relations / sync_states 的最终落库结果一致，防止部分提交被误判为成功
 - **按层测试错误契约与过滤语义**：Service 层负责覆盖业务语义、错误码、suggestion 与异常分支；CLI 层负责覆盖参数转发、退出码、文本/JSON 序列化。若 CLI 已验证参数转发，且 Service 层已覆盖核心过滤语义，可豁免重复的 CLI 端到端输出测试（CR-QUERY-04）
@@ -480,6 +482,8 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 - 应用启动时查询 `schema_migrations` 表已执行版本后，按序执行未执行的迁移脚本
 - 迁移在事务中执行，失败可回滚
 - **迁移 SQL 内联规则（CR-REPO-03）**：迁移 SQL 以 TS 模块字符串常量内联（`export const MIGRATION_XXX_SQL = \`...\``），禁止运行时 `readFileSync`；tsup 仅打包 TS/JS 文件，`.sql` 资源不会出现在 `dist/` 中
+- **迁移子步骤独立幂等规则（CR-REPO-06）**：列新增、索引创建、数据回填等子步骤必须分别保持幂等；禁止因为某个工件已存在就提前返回，导致其他仍可能缺失的工件无法补建
+- **部分迁移数据库回归规则（CR-REPO-06）**：迁移测试除标准旧库升级外，还必须覆盖“部分迁移数据库”场景（如列已存在但索引缺失），确保应用启动后可自愈到完整目标 schema
 - **pre-release schema 重写约定**：v0.1 发布前可直接重写已有 migration；首个稳定 release 后切换为只增不改的增量迁移模式（参见 TODO-007）
 
 **配置管理（D6）：**

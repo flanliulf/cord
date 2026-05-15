@@ -1,6 +1,6 @@
 # Story 4.1: RelationService 手动添加与移除关系
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -23,18 +23,18 @@ So that 我可以修正自动扫描的误判，让图谱更准确。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 扩展 RelationEdge 类型与持久化契约 (AC: #2, #4)
-  - [ ] 1.1 在 `RelationEdge` 中添加 `status: 'active' | 'deprecated'` 状态位字段（保留原 `relationType` 不变）
-  - [ ] 1.2 更新 Story 1.3 的 Zod schema 和 `IGraphRepository` 接口以支持 status 字段
-  - [ ] 1.3 新增数据库 migration：为 `relations` 表添加 `status TEXT NOT NULL DEFAULT 'active'` 列（兼容已有数据库，存量记录默认 'active'）
-  - [ ] 1.4 更新 SQLite row ↔ RelationEdge mapper，确保 status 字段读写正确映射
-- [ ] Task 2: 实现 RelationService (AC: #1-#7)
-  - [ ] 2.1 addRelation(input: AddRelationInput) — 手动添加，source='manual'，status='active'
-  - [ ] 2.2 removeRelation(input: RemoveRelationInput) — 硬删除，不保留历史
-  - [ ] 2.3 deprecateRelation(input: DeprecateRelationInput) — 设置 status='deprecated'，保留原 relationType
-  - [ ] 2.4 修改历史记录（仅对 status='active' 关系有效，存储在 metadata.history）
-- [ ] Task 3: 更新 index.ts 门面
-- [ ] Task 4: 编写测试 (AC: #8)
+- [x] Task 1: 扩展 RelationEdge 类型与持久化契约 (AC: #2, #4)
+  - [x] 1.1 在 `RelationEdge` 中添加 `status: 'active' | 'deprecated'` 状态位字段（保留原 `relationType` 不变）
+  - [x] 1.2 更新 Story 1.3 的 Zod schema 和 `IGraphRepository` 接口以支持 status 字段
+  - [x] 1.3 新增数据库 migration：为 `relations` 表添加 `status TEXT NOT NULL DEFAULT 'active'` 列（兼容已有数据库，存量记录默认 'active'）
+  - [x] 1.4 更新 SQLite row ↔ RelationEdge mapper，确保 status 字段读写正确映射
+- [x] Task 2: 实现 RelationService (AC: #1-#7)
+  - [x] 2.1 addRelation(input: AddRelationInput) — 手动添加，source='manual'，status='active'
+  - [x] 2.2 removeRelation(input: RemoveRelationInput) — 硬删除，不保留历史
+  - [x] 2.3 deprecateRelation(input: DeprecateRelationInput) — 设置 status='deprecated'，保留原 relationType
+  - [x] 2.4 修改历史记录（仅对 status='active' 关系有效，存储在 metadata.history）
+- [x] Task 3: 更新 index.ts 门面
+- [x] Task 4: 编写测试 (AC: #8)
 
 ## Dev Notes
 
@@ -94,6 +94,39 @@ export class RelationService {
 ## Dev Agent Record
 
 ### Agent Model Used
+
 ### Debug Log References
+
+- `npm test -- --run tests/unit/repositories/sqlite-graph-repository.test.ts tests/unit/services/relation-service.test.ts tests/integration/relation-service.test.ts`
+- `npm test`
+- `npm run type-check`
+- `npm run lint`
+
 ### Completion Notes List
+
+- 已补充 `relations.status` 兼容旧库升级的增量迁移，并保持新库初始化与旧库升级后都落到同一 schema 版本。
+- 已实现 `RelationService` 的 `addRelation`、`removeRelation`、`deprecateRelation`，统一使用对象入参和结构化错误码；手动添加关系固定写入 `source='manual'`、`status='active'`。
+- 已实现重复关系检测、文档存在性校验，以及 `metadata.history` 的 deprecated 修改历史追加逻辑，并保留原始 `relationType`。
+- 已更新服务门面与共享输入 schema，补充单元测试、SQLite 集成测试，以及旧库迁移回归测试；最终验证为 `npm test`、`npm run type-check`、`npm run lint` 全部通过。
+
 ### File List
+
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/stories/4-1-relationservice-manual-add-and-remove-relations.md
+- src/repositories/migrations/002-add-relation-status.ts
+- src/repositories/migrations/runner.ts
+- src/schemas/index.ts
+- src/schemas/relation-management-input.ts
+- src/services/index.ts
+- src/services/relation-service.ts
+- src/utils/errors.ts
+- src/utils/index.ts
+- tests/integration/cli/status.test.ts
+- tests/integration/relation-service.test.ts
+- tests/unit/repositories/sqlite-graph-repository.test.ts
+- tests/unit/services/relation-service.test.ts
+- tests/unit/services/status-service.test.ts
+
+### Change Log
+
+- 2026-05-14: 完成 Story 4.1 的关系管理服务、旧库 status 迁移与对应测试，状态更新为 review。

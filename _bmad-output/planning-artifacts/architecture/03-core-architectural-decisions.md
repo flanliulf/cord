@@ -44,6 +44,8 @@
   - `src/repositories/migrations/` 目录存放有序编号的 SQL 脚本（`001-initial-schema.sql`、`002-add-index.sql`...，kebab-case 命名）
   - 应用启动时 Repository 层自动检测并执行待执行的迁移
   - 迁移在事务中执行，失败可回滚
+  - 迁移中的列新增、索引创建、数据回填等子步骤必须分别保持独立幂等；禁止因某个工件已存在而提前结束迁移，导致其他仍可能缺失的工件无法补建
+  - 迁移回归测试除标准旧库升级外，还必须覆盖“部分迁移数据库”场景（如列已存在但索引缺失），确保启动后可自愈到完整目标 schema
   - 图谱批量写入（documents / relations / sync_states）必须先在事务外收敛可持久化 workset；事务内仅执行完整写入计划，若发现端点映射或计划失配必须抛错回滚，禁止用普通 `return` 提前结束 transaction callback
   - 对明确承诺“查看当前状态”的 `status` / 健康检查命令，持久化存储不存在时必须返回未初始化或空状态；禁止为读取创建数据库、目录或隐式执行迁移
   - 状态/健康检查对外展示的统计字段必须来自单次 transaction snapshot 或等价一致快照；禁止混用数组读取和后续独立 count 查询形成混合口径
@@ -191,6 +193,7 @@ src/
   - Repository 层：≥ 85%（数据访问关键路径）
   - CLI / MCP 入口层：≥ 70%（薄壳，主要是参数转发）
   - Adapters 层：≥ 80%（适配逻辑需可靠）
+  - 测试 helper、fixture、in-memory repository 若生成时间戳、递增序列或其他单调数据，必须使用“固定基准值 + 数值偏移”而非字符串拼接；相关回归至少覆盖一条跨位数边界（如 9→10），避免测试基础设施先于业务断言失效
 
 ## Decision Impact Analysis
 

@@ -289,7 +289,7 @@ describe('StatusService', () => {
         sync_required: 1,
       },
       lastScanTime: '2026-05-12T10:00:00.000Z',
-      migrationVersion: 1,
+      migrationVersion: 2,
       staleRelations: 0,
       orphanedNodes: 0,
       danglingEdges: 0,

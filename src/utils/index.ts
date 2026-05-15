@@ -6,6 +6,7 @@ export {
   ConfigError,
   StorageError,
   AdapterError,
+  RelationError,
 } from './errors.js';
 export { DEFAULT_CONFIG, loadConfig } from './config-loader.js';
 export { Logger, logger } from './logger.js';

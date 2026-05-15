@@ -1,12 +1,13 @@
 import type { Database } from 'better-sqlite3';
 import { INITIAL_SCHEMA_SQL } from './001-initial-schema.js';
+import { applyAddRelationStatusMigration } from './002-add-relation-status.js';
 
 /**
  * 迁移描述符，包含版本号和 SQL 内容。
  */
 interface Migration {
   version: number;
-  sql: string;
+  apply: (db: Database) => void;
 }
 
 /**
@@ -16,7 +17,8 @@ interface Migration {
  */
 function loadMigrations(): Migration[] {
   return [
-    { version: 1, sql: INITIAL_SCHEMA_SQL },
+    { version: 1, apply: (db) => { db.exec(INITIAL_SCHEMA_SQL); } },
+    { version: 2, apply: applyAddRelationStatusMigration },
   ];
 }
 
@@ -51,7 +53,7 @@ function getAppliedVersions(db: Database): Set<number> {
  */
 function applyMigration(db: Database, migration: Migration): void {
   const runInTransaction = db.transaction(() => {
-    db.exec(migration.sql);
+    migration.apply(db);
     db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(migration.version);
   });
   runInTransaction();

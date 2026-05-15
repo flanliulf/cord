@@ -96,3 +96,13 @@ export class AdapterError extends CordError {
     super({ ...params, code: params.code ?? 'CORD_ADAPTER_000' });
   }
 }
+
+/**
+ * RelationError — raised by relation management service flows.
+ * Default code: `CORD_RELATION_000`
+ */
+export class RelationError extends CordError {
+  constructor(params: SubclassParams) {
+    super({ ...params, code: params.code ?? 'CORD_RELATION_000' });
+  }
+}
