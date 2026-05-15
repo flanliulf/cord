@@ -1,6 +1,6 @@
 # Story 4.3: 文档类别更新策略配置
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -18,13 +18,13 @@ So that 影响分析结果能体现对应文档的更新策略元数据，支持
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 扩展 configSchema 添加 updateStrategies 配置 (AC: #1, #2, #3)
-  - [ ] 1.1 在 `src/schemas/config.ts` 中新增 `updateStrategies` 字段（键域、默认值、未知 key 处理）
-  - [ ] 1.2 同步更新 `CordConfig` TypeScript 类型定义（若使用 Zod z.infer 则自动推导，否则手动同步）
-  - [ ] 1.3 更新 `cord init` 模板，加入 `updateStrategies` 示例配置块
-  - [ ] 1.4 同步更新规则文档（Rule Document Registry 强制同步三份：`project-context.md`、`04-implementation-patterns-consistency-rules.md` **及** `03-core-architectural-decisions.md` 中的配置字段清单）
-- [ ] Task 2: 扩展 ImpactService 输出策略信息 (AC: #4)
-- [ ] Task 3: 编写测试 (AC: #5)
+- [x] Task 1: 扩展 configSchema 添加 updateStrategies 配置 (AC: #1, #2, #3)
+  - [x] 1.1 在 `src/schemas/config.ts` 中新增 `updateStrategies` 字段（键域、默认值、未知 key 处理）
+  - [x] 1.2 同步更新 `CordConfig` TypeScript 类型定义（若使用 Zod z.infer 则自动推导，否则手动同步）
+  - [x] 1.3 更新 `cord init` 模板，加入 `updateStrategies` 示例配置块
+  - [x] 1.4 同步更新规则文档（Rule Document Registry 强制同步三份：`project-context.md`、`04-implementation-patterns-consistency-rules.md` **及** `03-core-architectural-decisions.md` 中的配置字段清单）
+- [x] Task 2: 扩展 ImpactService 输出策略信息 (AC: #4)
+- [x] Task 3: 编写测试 (AC: #5)
 
 ## Dev Notes
 
@@ -76,6 +76,39 @@ Story 2.6 v0.1 约束：rename/move 仅更新 `documents.path`，不重算 `docT
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5 Codex
+
 ### Debug Log References
+- `npm test -- tests/unit/schemas/config.test.ts tests/unit/utils/config-loader.test.ts tests/unit/services/impact-service.test.ts tests/unit/cli/commands/impact.test.ts tests/integration/cli/impact.test.ts`（红灯确认：缺少 `updateStrategies` schema / loader / impact output）
+- `npm test -- tests/unit/schemas/config.test.ts tests/unit/utils/config-loader.test.ts tests/unit/services/impact-service.test.ts tests/unit/cli/commands/impact.test.ts tests/integration/cli/impact.test.ts`（绿灯：43/43）
+- `npm test`（首次执行命中现有性能回归抖动：`tests/unit/services/query-service.test.ts` 单测失败）
+- `npm test -- tests/unit/services/query-service.test.ts -t "keeps three-hop traversal performance within 10% on indexed in-memory adjacency lookup"`（复跑通过，确认抖动）
+- `npm test`（全量回归通过：380/380）
+- `npm run lint`
+- `npm run type-check`
+
 ### Completion Notes List
+- 新增 `UpdateStrategy` 类型、默认策略常量与 `CordConfig.updateStrategies`，并在 `configSchema` 中允许任意 `docType` 键映射到 `auto | suggest | log_only`。
+- `ImpactService` 现在会按目标文档 `docType` 解析 `updateStrategy`，未配置或无 `docType` 时回退到默认 `suggest`；`impact` CLI 的 JSON 与表格输出都包含该字段。
+- 补齐 schema / config loader / impact service / impact CLI 的单元与集成测试，覆盖三种策略、生效回退、配置覆盖与 CLI 序列化。
+- Rule Document Registry 三份文档已同步补充 `updateStrategies` 的默认回退语义，以及 `cord init` 生成配置示例块约束。
+- 当前仓库尚未实现 `cord init` 命令（Story 5.4 仍为 `ready-for-dev`），因此本次以规则文档中的“生成模板契约”承接 Task 1.3，而未新增未被消费的运行时代码模板文件。
+- 按当前用户约束，未修改 `sprint-status.yaml`。
+
 ### File List
+- `src/types/config.ts`
+- `src/schemas/config.ts`
+- `src/services/impact-service.ts`
+- `src/cli/commands/impact.ts`
+- `tests/unit/schemas/config.test.ts`
+- `tests/unit/utils/config-loader.test.ts`
+- `tests/unit/services/impact-service.test.ts`
+- `tests/unit/cli/commands/impact.test.ts`
+- `tests/integration/cli/impact.test.ts`
+- `_bmad-output/project-context.md`
+- `_bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md`
+- `_bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md`
+
+## Change Log
+
+- 2026-05-15: 完成 Story 4.3，实现按文档类别配置 `updateStrategies`、在 ImpactService/impact CLI 输出 `updateStrategy`，并同步 Rule Document Registry 三份文档与回归测试。

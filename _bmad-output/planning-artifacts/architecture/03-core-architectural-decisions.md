@@ -160,7 +160,8 @@ src/
   - `cord init` 默认生成 `cord.config.yaml` + `.cord/` 数据目录（可通过 `--format json` 生成 `cord.config.json`）
   - 配置加载策略：按 `cord.config.yaml` → `cord.config.json` 顺序检测，找到第一个即停止
   - JSON Schema 发布到 schemastore.org（后期），本地通过 YAML 文件头 `# yaml-language-server: $schema=...` 或 JSON `"$schema"` 字段引用
-  - 配置项（9 项，对齐 PRD cord.config schema）：`projectName`（项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名）、`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（关系类型启用/禁用配置，9 个内置类型默认全部启用）、`adapters`（启用的框架适配模块）、`updateStrategies`（Story 4.3 引入：按文档类别配置更新策略，键为 docType，值为 `'auto' | 'suggest' | 'log_only'`，缺省 suggest）；所有配置项均可选，`cord init` 自动生成合理默认值
+  - 配置项（9 项，对齐 PRD cord.config schema）：`projectName`（项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名）、`framework`（框架类型）、`ide`（IDE 类型）、`scanPaths`（扫描路径）、`excludePaths`（排除路径）、`confidenceThreshold`（影响分析最低置信度阈值，默认 0.50）、`relationTypes`（关系类型启用/禁用配置，9 个内置类型默认全部启用）、`adapters`（启用的框架适配模块）、`updateStrategies`（Story 4.3 引入：按文档类别配置更新策略，键为 docType，值为 `'auto' | 'suggest' | 'log_only'`，字段可整体省略，未命中类别统一回退到 `suggest`，允许自定义 docType 键）；所有配置项均可选，`cord init` 自动生成合理默认值
+  - `cord init` 生成配置模板时，必须包含 `updateStrategies` 注释示例块，至少覆盖 `prd: auto`、`story: suggest`、`technical-research: log_only`
   - 对用户可见输出字段（例如快照中的 `project`）如需引入新的配置来源，必须先完成产品/架构裁决并将字段纳入 schema，再进入代码实现与测试；禁止以临时 fallback 逻辑替代未裁决契约
 
 ## CI/CD & Quality Gates

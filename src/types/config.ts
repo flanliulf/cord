@@ -4,6 +4,15 @@
 
 import type { RelationType } from './relations.js';
 
+/** 文档更新策略值集合。 */
+export const UPDATE_STRATEGY_VALUES = ['auto', 'suggest', 'log_only'] as const;
+
+/** 未命中类别配置时的默认更新策略。 */
+export const DEFAULT_UPDATE_STRATEGY: UpdateStrategy = 'suggest';
+
+/** 文档类别更新策略。 */
+export type UpdateStrategy = (typeof UPDATE_STRATEGY_VALUES)[number];
+
 /**
  * CordConfig 表示 `cord.config` 文件的结构（初始 8 项配置）。
  *
@@ -42,4 +51,10 @@ export interface CordConfig {
 
   /** 启用的框架适配模块名称列表。 */
   adapters?: string[];
+
+  /**
+   * 按文档类别配置更新策略。
+   * 键允许任意 docType 字符串；未配置类别回退到默认策略 `suggest`。
+   */
+  updateStrategies?: Record<string, UpdateStrategy>;
 }

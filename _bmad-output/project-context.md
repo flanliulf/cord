@@ -502,8 +502,8 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 - 支持 `cord.config.yaml`（推荐）和 `cord.config.json`
 - 加载优先级：YAML > JSON（同时存在时 YAML 优先）
 - 配置加载后通过 Zod schema 验证
-- `cord init` 默认生成 YAML 格式
-- 配置字段基线（9 项）：`projectName`（项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名）+ 初始 7 项（framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters）+ updateStrategies（Story 4.3 引入，按文档类别配置更新策略，键为 docType，值为 'auto' | 'suggest' | 'log_only'，缺省 suggest，未知 key 宽容处理）
+- `cord init` 默认生成 YAML 格式；生成的配置示例块必须包含 `updateStrategies` 注释示例（如 `prd: auto`、`story: suggest`、`technical-research: log_only`）
+- 配置字段基线（9 项）：`projectName`（项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名）+ 初始 7 项（framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters）+ updateStrategies（Story 4.3 引入，按文档类别配置更新策略，键为 docType，值为 'auto' | 'suggest' | 'log_only'，缺省为“字段可省略 + 未命中类别回退 suggest”，允许自定义 docType 键，不因未知类别报错）
 - 若用户可见输出字段依赖新的配置来源（例如 `projectName`）且当前 schema/契约尚未定义，必须先完成产品/架构裁决并更新 schema，再进入实现与测试；禁止用临时 fallback 逻辑替代未裁决契约
 
 **CI/CD（D7）：**

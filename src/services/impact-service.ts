@@ -1,6 +1,12 @@
 import type { IGraphRepository } from '../repositories/index.js';
 import { type ImpactInput, validateImpactInput } from '../schemas/index.js';
-import type { DocumentNode, RelationEdge, RelationType } from '../types/index.js';
+import {
+  DEFAULT_UPDATE_STRATEGY,
+  type DocumentNode,
+  type RelationEdge,
+  type RelationType,
+  type UpdateStrategy,
+} from '../types/index.js';
 import { QueryError } from '../utils/index.js';
 
 const DEFAULT_IMPACT_DEPTH = 3;
@@ -15,6 +21,7 @@ export interface ImpactedDoc {
   relationType: RelationType;
   propagationType: PropagationType;
   suggestedAction: string;
+  updateStrategy: UpdateStrategy;
   severity: ImpactSeverity;
   confidence: number;
   hopDistance: number;
@@ -27,6 +34,8 @@ export interface ImpactResult {
 
 interface ImpactServiceOptions {
   defaultConfidenceThreshold?: number;
+  defaultUpdateStrategy?: UpdateStrategy;
+  updateStrategies?: Record<string, UpdateStrategy>;
 }
 
 const IMPACT_ACTIONS: Record<RelationType, { suggestedAction: string; severity: ImpactSeverity }> = {
@@ -53,11 +62,17 @@ const SEVERITY_PRIORITY: Record<ImpactSeverity, number> = {
 export class ImpactService {
   private readonly defaultConfidenceThreshold: number;
 
+  private readonly defaultUpdateStrategy: UpdateStrategy;
+
+  private readonly updateStrategies: Record<string, UpdateStrategy>;
+
   constructor(
     private readonly repository: IGraphRepository,
     options: ImpactServiceOptions = {},
   ) {
     this.defaultConfidenceThreshold = options.defaultConfidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
+    this.defaultUpdateStrategy = options.defaultUpdateStrategy ?? DEFAULT_UPDATE_STRATEGY;
+    this.updateStrategies = { ...options.updateStrategies };
   }
 
   /**
@@ -95,7 +110,12 @@ export class ImpactService {
           continue;
         }
 
-        const candidate = toImpactedDoc(targetDocument.path, relation, hopDistance);
+        const candidate = toImpactedDoc(
+          targetDocument,
+          relation,
+          hopDistance,
+          resolveUpdateStrategy(targetDocument.docType, this.updateStrategies, this.defaultUpdateStrategy),
+        );
         const existing = impactedDocsByPath.get(targetDocument.path);
 
         if (existing === undefined || isBetterImpactCandidate(candidate, existing)) {
@@ -165,19 +185,37 @@ function isTraversableRelation(relation: RelationEdge, sourceDocId: string, conf
     && relation.confidence >= confidenceThreshold;
 }
 
-function toImpactedDoc(docPath: string, relation: RelationEdge, hopDistance: number): ImpactedDoc {
+function toImpactedDoc(
+  targetDocument: DocumentNode,
+  relation: RelationEdge,
+  hopDistance: number,
+  updateStrategy: UpdateStrategy,
+): ImpactedDoc {
   const propagationType = relation.relationType;
   const action = IMPACT_ACTIONS[propagationType];
 
   return {
-    docPath,
+    docPath: targetDocument.path,
     relationType: relation.relationType,
     propagationType,
     suggestedAction: action.suggestedAction,
+    updateStrategy,
     severity: action.severity,
     confidence: relation.confidence,
     hopDistance,
   };
+}
+
+function resolveUpdateStrategy(
+  docType: string | undefined,
+  updateStrategies: Record<string, UpdateStrategy>,
+  defaultUpdateStrategy: UpdateStrategy,
+): UpdateStrategy {
+  if (docType === undefined) {
+    return defaultUpdateStrategy;
+  }
+
+  return updateStrategies[docType] ?? defaultUpdateStrategy;
 }
 
 function isBetterImpactCandidate(candidate: ImpactedDoc, existing: ImpactedDoc): boolean {

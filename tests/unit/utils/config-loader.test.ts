@@ -40,7 +40,18 @@ describe('loadConfig', () => {
     );
     writeFileSync(
       join(projectRoot, 'cord.config.yaml'),
-      ['projectName: yaml-name', 'framework: bmad', 'scanPaths:', '  - docs', 'relationTypes:', '  deprecated:', '    enabled: false'].join('\n'),
+      [
+        'projectName: yaml-name',
+        'framework: bmad',
+        'scanPaths:',
+        '  - docs',
+        'relationTypes:',
+        '  deprecated:',
+        '    enabled: false',
+        'updateStrategies:',
+        '  prd: auto',
+        '  architecture: log_only',
+      ].join('\n'),
       'utf-8',
     );
 
@@ -54,6 +65,10 @@ describe('loadConfig', () => {
         deprecated: {
           enabled: false,
         },
+      },
+      updateStrategies: {
+        prd: 'auto',
+        architecture: 'log_only',
       },
     });
   });
@@ -70,6 +85,9 @@ describe('loadConfig', () => {
         excludePaths: ['notes/private/'],
         confidenceThreshold: 0.8,
         adapters: ['bmad'],
+        updateStrategies: {
+          story: 'suggest',
+        },
       }),
       'utf-8',
     );
@@ -80,6 +98,9 @@ describe('loadConfig', () => {
       excludePaths: ['notes/private/'],
       confidenceThreshold: 0.8,
       adapters: ['bmad'],
+      updateStrategies: {
+        story: 'suggest',
+      },
     });
   });
 

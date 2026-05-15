@@ -77,6 +77,7 @@ function createDefaultImpactService(projectRoot: string): ImpactService {
   const dbPath = join(dataDirectory, CORD_DB_FILE);
   return new ImpactService(new SqliteGraphRepository(dbPath), {
     defaultConfidenceThreshold: config.confidenceThreshold,
+    updateStrategies: config.updateStrategies,
   });
 }
 
@@ -115,12 +116,13 @@ function writeSuccess(stdout: WriterLike, result: ImpactResult, asJson: boolean)
 }
 
 function formatImpactTable(result: ImpactResult): string[] {
-  const headers = ['docPath', 'relationType', 'propagationType', 'suggestedAction', 'severity', 'confidence', 'hopDistance'];
+  const headers = ['docPath', 'relationType', 'propagationType', 'suggestedAction', 'updateStrategy', 'severity', 'confidence', 'hopDistance'];
   const rows = result.impactedDocs.map((doc) => [
     doc.docPath,
     doc.relationType,
     doc.propagationType,
     doc.suggestedAction,
+    doc.updateStrategy,
     doc.severity,
     doc.confidence.toFixed(2),
     doc.hopDistance.toString(),

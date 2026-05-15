@@ -133,12 +133,12 @@ class InMemoryImpactRepository implements IGraphRepository {
   }
 }
 
-function createDocument(id: string, path: string): DocumentNode {
+function createDocument(id: string, path: string, docType = 'story'): DocumentNode {
   return {
     id,
     path,
     title: path,
-    docType: 'story',
+    docType,
     metadata: {},
     createdAt: '2026-05-11T00:00:00.000Z',
     updatedAt: '2026-05-11T00:00:00.000Z',
@@ -164,10 +164,14 @@ function createService(options: {
   documents: DocumentNode[];
   relations: RelationEdge[];
   defaultConfidenceThreshold?: number;
+  updateStrategies?: Record<string, 'auto' | 'suggest' | 'log_only'>;
 }): ImpactService {
   return new ImpactService(
     new InMemoryImpactRepository(options.documents, options.relations),
-    { defaultConfidenceThreshold: options.defaultConfidenceThreshold },
+    {
+      defaultConfidenceThreshold: options.defaultConfidenceThreshold,
+      updateStrategies: options.updateStrategies,
+    },
   );
 }
 
@@ -485,6 +489,61 @@ describe('ImpactService', () => {
     expect(result.impactedDocs[0]?.docPath).toBe('docs/default-threshold.md');
   });
 
+  it('resolves updateStrategy from configured docType and falls back to suggest', () => {
+    const documents = [
+      createDocument('doc-source', 'docs/source.md', 'story'),
+      createDocument('doc-prd', 'docs/prd.md', 'prd'),
+      createDocument('doc-architecture', 'docs/architecture.md', 'architecture'),
+      createDocument('doc-research', 'docs/research.md', 'technical-research'),
+      {
+        ...createDocument('doc-untyped', 'docs/untyped.md'),
+        docType: undefined,
+      },
+    ];
+    const relations = [
+      createRelation({
+        id: 'rel-prd',
+        sourceDocId: 'doc-source',
+        targetDocId: 'doc-prd',
+        relationType: RELATION_TYPES.REFERENCES,
+      }),
+      createRelation({
+        id: 'rel-architecture',
+        sourceDocId: 'doc-source',
+        targetDocId: 'doc-architecture',
+        relationType: RELATION_TYPES.REFERENCES,
+      }),
+      createRelation({
+        id: 'rel-research',
+        sourceDocId: 'doc-source',
+        targetDocId: 'doc-research',
+        relationType: RELATION_TYPES.REFERENCES,
+      }),
+      createRelation({
+        id: 'rel-untyped',
+        sourceDocId: 'doc-source',
+        targetDocId: 'doc-untyped',
+        relationType: RELATION_TYPES.REFERENCES,
+      }),
+    ];
+    const service = createService({
+      documents,
+      relations,
+      updateStrategies: {
+        prd: 'auto',
+        architecture: 'log_only',
+      },
+    });
+
+    const result = service.analyzeImpact({ docPath: 'docs/source.md' });
+    const strategiesByPath = new Map(result.impactedDocs.map((item) => [item.docPath, item.updateStrategy]));
+
+    expect(strategiesByPath.get('docs/prd.md')).toBe('auto');
+    expect(strategiesByPath.get('docs/architecture.md')).toBe('log_only');
+    expect(strategiesByPath.get('docs/research.md')).toBe('suggest');
+    expect(strategiesByPath.get('docs/untyped.md')).toBe('suggest');
+  });
+
   it('maps each propagation type to the expected suggestion and severity', () => {
     const relationTypes = [
       RELATION_TYPES.SYNC_REQUIRED,
@@ -517,38 +576,47 @@ describe('ImpactService', () => {
     expect(byPropagationType.get(RELATION_TYPES.SYNC_REQUIRED)).toMatchObject({
       suggestedAction: '需要同步更新',
       severity: 'critical',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.MUST_CONSISTENT)).toMatchObject({
       suggestedAction: '必须保持一致',
       severity: 'critical',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.LIFECYCLE_BOUND)).toMatchObject({
       suggestedAction: '检查生命周期影响',
       severity: 'high',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.CONTAINS)).toMatchObject({
       suggestedAction: '检查包含内容',
       severity: 'medium',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.SYNC_SUGGESTED)).toMatchObject({
       suggestedAction: '建议同步更新',
       severity: 'medium',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.DERIVED_FROM)).toMatchObject({
       suggestedAction: '检查源文档变更',
       severity: 'low',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.CONTEXT_FOR)).toMatchObject({
       suggestedAction: '仅供参考',
       severity: 'info',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.REFERENCES)).toMatchObject({
       suggestedAction: '仅供参考',
       severity: 'info',
+      updateStrategy: 'suggest',
     });
     expect(byPropagationType.get(RELATION_TYPES.DEPRECATED)).toMatchObject({
       suggestedAction: '已废弃，忽略',
       severity: 'none',
+      updateStrategy: 'suggest',
     });
   });
 

@@ -110,7 +110,7 @@ describe('impact integration', () => {
     const projectRoot = createTempProject();
     createdRoots.push(projectRoot);
     seedImpactGraph(projectRoot);
-    writeFileSync(join(projectRoot, 'cord.config.yaml'), 'confidenceThreshold: 0.8\n');
+    writeFileSync(join(projectRoot, 'cord.config.yaml'), ['confidenceThreshold: 0.8', 'updateStrategies:', '  story: log_only'].join('\n'));
     const stdout = createWriter();
     const stderr = createWriter();
     const command = createImpactCommand({
@@ -130,6 +130,7 @@ describe('impact integration', () => {
           relationType: 'references',
           propagationType: 'references',
           suggestedAction: '仅供参考',
+          updateStrategy: 'log_only',
           severity: 'info',
           confidence: 0.85,
           hopDistance: 1,
@@ -143,7 +144,7 @@ describe('impact integration', () => {
     const projectRoot = createTempProject();
     createdRoots.push(projectRoot);
     seedImpactGraph(projectRoot);
-    writeFileSync(join(projectRoot, 'cord.config.yaml'), 'confidenceThreshold: 0.8\n');
+    writeFileSync(join(projectRoot, 'cord.config.yaml'), ['confidenceThreshold: 0.8', 'updateStrategies:', '  story: auto'].join('\n'));
     const stdout = createWriter();
     const stderr = createWriter();
     const command = createImpactCommand({
@@ -163,6 +164,7 @@ describe('impact integration', () => {
           relationType: 'lifecycle_bound',
           propagationType: 'lifecycle_bound',
           suggestedAction: '检查生命周期影响',
+          updateStrategy: 'auto',
           severity: 'high',
           confidence: 0.75,
           hopDistance: 1,
@@ -172,6 +174,7 @@ describe('impact integration', () => {
           relationType: 'references',
           propagationType: 'references',
           suggestedAction: '仅供参考',
+          updateStrategy: 'auto',
           severity: 'info',
           confidence: 0.85,
           hopDistance: 1,

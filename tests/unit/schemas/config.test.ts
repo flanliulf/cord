@@ -22,10 +22,20 @@ describe('configSchema', () => {
           references: { enabled: false },
         },
         adapters: ['bmad-adapter'],
+        updateStrategies: {
+          prd: 'auto',
+          architecture: 'log_only',
+          story: 'suggest',
+        },
       });
       expect(result.projectName).toBe('CORD');
       expect(result.framework).toBe('bmad');
       expect(result.confidenceThreshold).toBe(0.7);
+      expect(result.updateStrategies).toEqual({
+        prd: 'auto',
+        architecture: 'log_only',
+        story: 'suggest',
+      });
     });
 
     it('accepts confidenceThreshold = 0', () => {
@@ -60,6 +70,16 @@ describe('configSchema', () => {
 
     it('rejects blank projectName', () => {
       expect(() => configSchema.parse({ projectName: '   ' })).toThrow();
+    });
+
+    it('rejects unsupported updateStrategy values', () => {
+      expect(() =>
+        configSchema.parse({
+          updateStrategies: {
+            prd: 'manual',
+          },
+        }),
+      ).toThrow();
     });
   });
 

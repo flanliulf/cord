@@ -15,6 +15,7 @@ interface ImpactCommandResult {
     relationType: string;
     propagationType: string;
     suggestedAction: string;
+    updateStrategy: string;
     severity: string;
     confidence: number;
     hopDistance: number;
@@ -72,6 +73,7 @@ describe('createImpactCommand', () => {
           relationType: 'sync_required',
           propagationType: 'sync_required',
           suggestedAction: '需要同步更新',
+          updateStrategy: 'auto',
           severity: 'critical',
           confidence: 0.92,
           hopDistance: 1,
@@ -94,6 +96,7 @@ describe('createImpactCommand', () => {
     expect(stdout.read()).toContain('docPath');
     expect(stdout.read()).toContain('docs/target.md');
     expect(stdout.read()).toContain('需要同步更新');
+    expect(stdout.read()).toContain('auto');
     expect(stdout.read()).toContain('总数: 1');
     expect(stderr.read()).toBe('');
     expect(process.exitCode ?? 0).toBe(0);
@@ -110,6 +113,7 @@ describe('createImpactCommand', () => {
               relationType: 'references',
               propagationType: 'references',
               suggestedAction: '仅供参考',
+              updateStrategy: 'suggest',
               severity: 'info',
               confidence: 0.75,
               hopDistance: 2,
@@ -131,6 +135,7 @@ describe('createImpactCommand', () => {
           relationType: 'references',
           propagationType: 'references',
           suggestedAction: '仅供参考',
+          updateStrategy: 'suggest',
           severity: 'info',
           confidence: 0.75,
           hopDistance: 2,

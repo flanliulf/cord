@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod';
+import { UPDATE_STRATEGY_VALUES } from '../types/config.js';
 import { RELATION_TYPES } from '../types/relations.js';
 import { validateWithCordError } from './helpers.js';
 
@@ -13,6 +14,9 @@ const relationTypeValues = Object.values(RELATION_TYPES) as [string, ...string[]
 const relationTypeConfigSchema = z.object({
   enabled: z.boolean(),
 });
+
+/** 单个文档类别的更新策略 schema。 */
+const updateStrategySchema = z.enum(UPDATE_STRATEGY_VALUES);
 
 /** cord.config 配置 Zod schema，对应 `CordConfig` 接口。 */
 export const configSchema = z.object({
@@ -41,6 +45,9 @@ export const configSchema = z.object({
 
   /** 启用的框架适配模块名称列表。 */
   adapters: z.array(z.string()).optional(),
+
+  /** 按文档类别配置更新策略；键允许任意 docType 字符串。 */
+  updateStrategies: z.record(z.string(), updateStrategySchema).optional(),
 });
 
 /** 由 schema 推导的类型（与 `CordConfig` 接口兼容）。 */

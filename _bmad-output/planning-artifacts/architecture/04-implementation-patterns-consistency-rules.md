@@ -276,14 +276,23 @@ cord.config.yaml / cord.config.json 共 9 个项（均可选）：
 | confidenceThreshold | number | 0.50 | 影响分析最低置信度阈值 |
 | relationTypes | Record<RelationType, {enabled: boolean}> | 全部启用 | 9 个内置类型启用/禁用 |
 | adapters | string[] | [] | 启用的框架适配模块 |
-| updateStrategies | Record<docType, UpdateStrategy> | {} | Story 4.3 引入，未配置的 docType 回退到 `suggest` |
+| updateStrategies | Record<docType, UpdateStrategy> | `{}` | Story 4.3 引入，键允许任意 docType 字符串；字段可省略，未配置的 docType 回退到 `suggest` |
 
 - 若用户可见输出字段需要引入新的配置来源（例如快照 `project` 字段依赖 `projectName`），必须先完成产品/架构裁决并将字段纳入 schema，再进入实现和测试；禁止使用临时 fallback 逻辑绕过未裁决契约
 
 ```typescript
 type UpdateStrategy = 'auto' | 'suggest' | 'log_only';
 // 'auto': 自动更新  'suggest': 生成建议后人工确认  'log_only': 仅记录不触发
-// 未知 key 宽容处理：回退到 suggest，记录 debug 日志但不报错
+// 允许自定义 docType key；目标 docType 未配置或未命中时回退到 suggest
+```
+
+`cord init` 生成的配置模板必须包含如下示例块：
+
+```yaml
+updateStrategies:
+  prd: auto
+  story: suggest
+  technical-research: log_only
 ```
 
 ## Repository 层开发规则（来源：Story 1-4、2-5 CR 历史）
