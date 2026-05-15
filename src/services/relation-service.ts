@@ -13,6 +13,8 @@ import { RelationError, StorageError } from '../utils/index.js';
 interface RelationHistoryEntry {
   action: 'deprecated';
   timestamp: string;
+  previousSource: RelationEdge['source'];
+  nextSource: 'manual';
   previousStatus: 'active';
   nextStatus: 'deprecated';
 }
@@ -76,6 +78,7 @@ export class RelationService {
 
       try {
         return this.repository.updateRelation(validatedInput.relationId, {
+          source: 'manual',
           status: 'deprecated',
           metadata: this.appendDeprecatedHistory(relation),
         });
@@ -149,6 +152,8 @@ export class RelationService {
     const historyEntry: RelationHistoryEntry = {
       action: 'deprecated',
       timestamp: new Date().toISOString(),
+      previousSource: relation.source,
+      nextSource: 'manual',
       previousStatus: 'active',
       nextStatus: 'deprecated',
     };

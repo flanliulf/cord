@@ -310,6 +310,18 @@ const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 
   - 存在稳定路径信号时可正确消歧
   - 真正歧义时降级为 delete + add，而不是错误更新 `docId`
 
+**CR-SCAN-02：人工修正必须落成扫描保护可识别的持久化信号**
+- 适用范围：`RelationService`、`ScanService`、增量扫描/重建的数据保护逻辑、人工修正相关 API
+- 当业务要求“人工修正优先于自动扫描”时，必须把人工语义写成跨流程可复用的持久化信号（如 `source='manual'` 或等价标记），禁止只在调用约定、临时内存态或局部 metadata 分支里隐含表达
+- 删边保护、写回冲突处理、rebuild 警告等路径必须消费同一套人工修正判定标准，禁止一处按 `source`、另一处按临时状态，导致收敛保护语义漂移
+- 回归测试必须覆盖真实 service mutation 路径：先由扫描生成自动关系，再调用手动修正 API，再执行增量扫描/重建，断言人工修正仍被保留
+
+**CR-SCAN-03：批内候选裁剪必须先比较来源优先级，再比较置信度**
+- 适用范围：所有进入持久化前的关系 dedupe / merge / 候选裁剪逻辑
+- 对同一业务键的候选关系，必须先比较业务来源优先级（如 `manual > framework_preset > auto_scan`），仅在同来源内再比较 `confidence` 或其他次级启发式
+- 禁止让前置裁剪与最终持久化使用两套不同的优先级规则；若最终写入依赖 `getRelationSourcePriority()`，前置 dedupe 必须复用同一函数或等价实现
+- 同批次冲突测试必须覆盖“低优先级候选 confidence 更高”的逆向场景，确保业务优先级不会在进入最终写入逻辑前被提前截断
+
 ### 测试规则
 
 **测试框架与组织（P5）：**

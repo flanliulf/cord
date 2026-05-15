@@ -54,7 +54,10 @@ describe('createScanCommand', () => {
     });
     const command = createScanCommand({
       cwd: () => '/tmp/project',
-      serviceFactory: () => ({ scan }),
+      serviceFactory: () => ({
+        scan,
+        getManualRelationsCount: () => 0,
+      }),
       stdout,
       stderr,
     });
@@ -84,6 +87,7 @@ describe('createScanCommand', () => {
           warnings: [],
           durationMs: 25,
         }),
+        getManualRelationsCount: () => 0,
       }),
       stdout,
       stderr: createWriter(),
@@ -129,6 +133,7 @@ describe('createScanCommand', () => {
             suggestion: '请检查 cord.config.yaml',
           }),
         ),
+        getManualRelationsCount: () => 0,
       }),
       stdout: createWriter(),
       stderr,
@@ -147,6 +152,7 @@ describe('createScanCommand', () => {
       cwd: () => '/tmp/project',
       serviceFactory: () => ({
         scan: vi.fn().mockRejectedValue(new Error('boom')),
+        getManualRelationsCount: () => 0,
       }),
       stdout: createWriter(),
       stderr,
@@ -156,5 +162,102 @@ describe('createScanCommand', () => {
 
     expect(process.exitCode).toBe(1);
     expect(stderr.read()).toContain('boom');
+  });
+
+  it('warns and waits for confirmation before rebuild when manual relations exist', async () => {
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const scan = vi.fn().mockResolvedValue({
+      documentsFound: 2,
+      relationsDiscovered: 3,
+      warnings: [],
+      durationMs: 50,
+    });
+    const confirmPrompt = vi.fn().mockResolvedValue(true);
+    const command = createScanCommand({
+      cwd: () => '/tmp/project',
+      serviceFactory: () => ({
+        scan,
+        getManualRelationsCount: () => 2,
+      }),
+      confirmPrompt,
+      stdout,
+      stderr,
+    });
+
+    await parseScanCommand(command, ['scan', '--rebuild']);
+
+    expect(confirmPrompt).toHaveBeenCalledWith({
+      message: '是否继续执行 rebuild？',
+    });
+    expect(scan).toHaveBeenCalledWith({
+      projectRoot: '/tmp/project',
+      rebuild: true,
+      force: false,
+    });
+    expect(stdout.read()).toContain('检测到 2 条手动关系');
+    expect(stdout.read()).toContain('已删除 2 条 manual 关系');
+    expect(stderr.read()).toBe('');
+    expect(process.exitCode ?? 0).toBe(0);
+  });
+
+  it('aborts rebuild when manual relations exist and confirmation is declined', async () => {
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const scan = vi.fn();
+    const confirmPrompt = vi.fn().mockResolvedValue(false);
+    const command = createScanCommand({
+      cwd: () => '/tmp/project',
+      serviceFactory: () => ({
+        scan,
+        getManualRelationsCount: () => 1,
+      }),
+      confirmPrompt,
+      stdout,
+      stderr,
+    });
+
+    await parseScanCommand(command, ['scan', '--rebuild']);
+
+    expect(confirmPrompt).toHaveBeenCalledOnce();
+    expect(scan).not.toHaveBeenCalled();
+    expect(stdout.read()).toContain('检测到 1 条手动关系');
+    expect(stderr.read()).toContain('已取消 rebuild');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('skips confirmation and reports deleted manual relations when --force is used', async () => {
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const scan = vi.fn().mockResolvedValue({
+      documentsFound: 2,
+      relationsDiscovered: 3,
+      warnings: [],
+      durationMs: 50,
+    });
+    const confirmPrompt = vi.fn();
+    const command = createScanCommand({
+      cwd: () => '/tmp/project',
+      serviceFactory: () => ({
+        scan,
+        getManualRelationsCount: () => 3,
+      }),
+      confirmPrompt,
+      stdout,
+      stderr,
+    });
+
+    await parseScanCommand(command, ['scan', '--rebuild', '--force']);
+
+    expect(confirmPrompt).not.toHaveBeenCalled();
+    expect(scan).toHaveBeenCalledWith({
+      projectRoot: '/tmp/project',
+      rebuild: true,
+      force: true,
+    });
+    expect(stdout.read()).toContain('检测到 3 条手动关系');
+    expect(stdout.read()).toContain('已删除 3 条 manual 关系');
+    expect(stderr.read()).toBe('');
+    expect(process.exitCode ?? 0).toBe(0);
   });
 });

@@ -46,6 +46,7 @@ describe('RelationService integration', () => {
 
       const deprecated = service.deprecateRelation({ relationId: created.id });
       expect(repository.getRelationById(created.id)).toMatchObject({
+        source: 'manual',
         status: 'deprecated',
         relationType: RELATION_TYPES.REFERENCES,
       });
@@ -53,6 +54,8 @@ describe('RelationService integration', () => {
         history: [
           expect.objectContaining({
             action: 'deprecated',
+            previousSource: 'manual',
+            nextSource: 'manual',
             previousStatus: 'active',
             nextStatus: 'deprecated',
           }),

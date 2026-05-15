@@ -1,3 +1,4 @@
+import { confirm, isCancel } from '@clack/prompts';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
@@ -7,6 +8,7 @@ import { ConfigError, type CordError } from '../../utils/index.js';
 
 interface ScanServiceLike {
   scan(input: { projectRoot: string; rebuild?: boolean; force?: boolean }): Promise<ScanResult>;
+  getManualRelationsCount(): number;
   close?(): void;
 }
 
@@ -14,9 +16,14 @@ interface WriterLike {
   write(chunk: string): boolean;
 }
 
+interface ConfirmPromptLike {
+  (options: { message: string }): Promise<boolean | symbol>;
+}
+
 interface CreateScanCommandDependencies {
   cwd?: () => string;
   serviceFactory?: (projectRoot: string) => ScanServiceLike;
+  confirmPrompt?: ConfirmPromptLike;
   stdout?: WriterLike;
   stderr?: WriterLike;
 }
@@ -26,19 +33,21 @@ const RUNTIME_ERROR_EXIT_CODE = 1;
 const CONFIG_ERROR_EXIT_CODE = 2;
 const CORD_DATA_DIR = '.cord';
 const CORD_DB_FILE = 'cord.db';
+const REBUILD_CONFIRM_MESSAGE = '是否继续执行 rebuild？';
 
 export function createScanCommand(
   dependencies: CreateScanCommandDependencies = {},
 ): Command {
   const cwd = dependencies.cwd ?? (() => process.cwd());
   const serviceFactory = dependencies.serviceFactory ?? createDefaultScanService;
+  const confirmPrompt = dependencies.confirmPrompt ?? confirm;
   const stdout = dependencies.stdout ?? process.stdout;
   const stderr = dependencies.stderr ?? process.stderr;
 
   return new Command('scan')
     .description('扫描项目文档并构建关系图谱')
     .option('--rebuild', '完全重建图谱')
-    .option('--force', '跳过 manual 关系确认，直接执行 rebuild（预留给后续 Story 的检测逻辑）')
+    .option('--force', '跳过 manual 关系确认，直接执行 rebuild')
     .option('--json', 'JSON 格式输出')
     .action(async (options: { rebuild?: boolean; force?: boolean; json?: boolean }) => {
       let service: ScanServiceLike | undefined;
@@ -53,6 +62,21 @@ export function createScanCommand(
 
         const projectRoot = cwd();
         service = serviceFactory(projectRoot);
+        const deletedManualRelationsCount = await prepareRebuildGuard({
+          service,
+          stdout,
+          stderr,
+          confirmPrompt,
+          rebuild: options.rebuild ?? false,
+          force: options.force ?? false,
+          asJson: options.json ?? false,
+        });
+
+        if (deletedManualRelationsCount === null) {
+          process.exitCode = RUNTIME_ERROR_EXIT_CODE;
+          return;
+        }
+
         const result = await service.scan({
           projectRoot,
           rebuild: options.rebuild ?? false,
@@ -60,6 +84,10 @@ export function createScanCommand(
         });
 
         writeSuccess(stdout, result, options.json ?? false);
+        writeManualDeletionNotice(
+          options.json ?? false ? stderr : stdout,
+          deletedManualRelationsCount,
+        );
         process.exitCode = SUCCESS_EXIT_CODE;
       } catch (error) {
         const exitCode = error instanceof ConfigError ? CONFIG_ERROR_EXIT_CODE : RUNTIME_ERROR_EXIT_CODE;
@@ -91,6 +119,52 @@ function writeSuccess(stdout: WriterLike, result: ScanResult, asJson: boolean): 
   stdout.write(
     ['扫描完成', `文档数: ${result.documentsFound}`, `关系数: ${result.relationsDiscovered}`, `耗时: ${result.durationMs}ms`, warningLines].join('\n') + '\n',
   );
+}
+
+async function prepareRebuildGuard(input: {
+  service: ScanServiceLike;
+  stdout: WriterLike;
+  stderr: WriterLike;
+  confirmPrompt: ConfirmPromptLike;
+  rebuild: boolean;
+  force: boolean;
+  asJson: boolean;
+}): Promise<number | null> {
+  if (!input.rebuild) {
+    return 0;
+  }
+
+  const manualRelationsCount = input.service.getManualRelationsCount();
+
+  if (manualRelationsCount === 0) {
+    return 0;
+  }
+
+  const warningWriter = input.asJson ? input.stderr : input.stdout;
+  warningWriter.write(
+    `注意：检测到 ${manualRelationsCount} 条手动关系，--rebuild 将删除这些关系。如需保留，请先导出备份。\n`,
+  );
+
+  if (input.force) {
+    return manualRelationsCount;
+  }
+
+  const confirmed = await input.confirmPrompt({ message: REBUILD_CONFIRM_MESSAGE });
+
+  if (isCancel(confirmed) || confirmed !== true) {
+    input.stderr.write('已取消 rebuild。\n');
+    return null;
+  }
+
+  return manualRelationsCount;
+}
+
+function writeManualDeletionNotice(writer: WriterLike, deletedManualRelationsCount: number): void {
+  if (deletedManualRelationsCount <= 0) {
+    return;
+  }
+
+  writer.write(`已删除 ${deletedManualRelationsCount} 条 manual 关系。\n`);
 }
 
 function writeFailure(stderr: WriterLike, error: unknown, asJson: boolean): void {

@@ -1,6 +1,6 @@
 # Story 4.2: 收敛保护机制与来源优先级
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -22,24 +22,24 @@ So that 自动扫描不会覆盖我的手动修正，图谱准确度随使用自
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 扩展 ScanService 收敛保护逻辑 (AC: #1, #2, #3, #6)
-  - [ ] 1.1 增量扫描开始前快照 manual 边（取出所有 source='manual' 的关系）
-  - [ ] 1.2 **覆盖 Story 2.6 删边契约**：将 2.6 步骤 9a 的 `deleteRelationsByDocId(docId, 'source')` 改为排除式删除，跳过 source='manual' 的关系；修改地点在 scan-service.ts 的删边调用处
-  - [ ] 1.3 优先级冲突解决（写入时跳过）
-  - [ ] 1.4 **升级 IGraphRepository 接口**：为 `deleteRelationsByDocId` 新增可选参数 `options?: { excludeSources?: RelationSource[] }`，同步更新 Story 1.4 的 repository 实现和接口签名（此为正式接口变更，不仅是 Dev Notes 提及）
-- [ ] Task 2: 来源类型标记 (AC: #4)
-- [ ] Task 3: 实现 rebuild 前 manual 关系警告与确认 (AC: #7, #8)
-  - [ ] 3.1 `cord scan --rebuild` 执行前，检测库中是否存在 `source='manual'` 的关系
-  - [ ] 3.2 若存在，输出警告并通过交互式提示要求用户确认（`@clack/prompts` confirm）
-  - [ ] 3.3 `cord scan --rebuild --force` flag：跳过确认直接执行，提示已删除 manual 关系数量
-  - [ ] 3.4 CLI owner 在 `src/cli/commands/scan.ts`，新增 `--force` option 并处理上述逻辑
-- [ ] Task 4: 编写测试 (AC: #5, #6, #9)
-  - [ ] 4.1 手动关系在增量扫描后保持不变
-  - [ ] 4.2 manual deprecated 关系不被恢复
-  - [ ] 4.3 优先级冲突场景
-  - [ ] 4.4 **source 文档被修改时，manual outgoing 边不被删除**（最常见场景）
-  - [ ] 4.5 rebuild 有 manual 关系时抛出警告并等待确认（mock @clack/prompts confirm）
-  - [ ] 4.6 `--force` 跳过确认并输出已删数量提示
+- [x] Task 1: 扩展 ScanService 收敛保护逻辑 (AC: #1, #2, #3, #6)
+  - [x] 1.1 增量扫描开始前快照 manual 边（取出所有 source='manual' 的关系）
+  - [x] 1.2 **覆盖 Story 2.6 删边契约**：将 2.6 步骤 9a 的 `deleteRelationsByDocId(docId, 'source')` 改为排除式删除，跳过 source='manual' 的关系；修改地点在 scan-service.ts 的删边调用处
+  - [x] 1.3 优先级冲突解决（写入时跳过）
+  - [x] 1.4 **升级 IGraphRepository 接口**：为 `deleteRelationsByDocId` 新增可选参数 `options?: { excludeSources?: RelationSource[] }`，同步更新 Story 1.4 的 repository 实现和接口签名（此为正式接口变更，不仅是 Dev Notes 提及）
+- [x] Task 2: 来源类型标记 (AC: #4)
+- [x] Task 3: 实现 rebuild 前 manual 关系警告与确认 (AC: #7, #8)
+  - [x] 3.1 `cord scan --rebuild` 执行前，检测库中是否存在 `source='manual'` 的关系
+  - [x] 3.2 若存在，输出警告并通过交互式提示要求用户确认（`@clack/prompts` confirm）
+  - [x] 3.3 `cord scan --rebuild --force` flag：跳过确认直接执行，提示已删除 manual 关系数量
+  - [x] 3.4 CLI owner 在 `src/cli/commands/scan.ts`，新增 `--force` option 并处理上述逻辑
+- [x] Task 4: 编写测试 (AC: #5, #6, #9)
+  - [x] 4.1 手动关系在增量扫描后保持不变
+  - [x] 4.2 manual deprecated 关系不被恢复
+  - [x] 4.3 优先级冲突场景
+  - [x] 4.4 **source 文档被修改时，manual outgoing 边不被删除**（最常见场景）
+  - [x] 4.5 rebuild 有 manual 关系时抛出警告并等待确认（mock @clack/prompts confirm）
+  - [x] 4.6 `--force` 跳过确认并输出已删数量提示
 
 ## Dev Notes
 
@@ -96,6 +96,30 @@ IGraphRepository 的 `deleteRelationsByDocId` 操作需要支持 `excludeSources
 ## Dev Agent Record
 
 ### Agent Model Used
+
+- GPT-5 Codex
 ### Debug Log References
+
+- `npm test -- --run tests/unit/services/scan-service.test.ts`
+- `npm test -- --run tests/unit/cli/commands/scan.test.ts`
+- `npm test`
+- `npm run type-check`
+- `npm run lint`
 ### Completion Notes List
+
+- 已在 `ScanService` 写入路径补充来源优先级保护：增量扫描开始前快照 manual 关系键，写入时按 `manual > framework_preset > auto_scan` 处理冲突，避免自动扫描恢复或覆盖手动修正。
+- 已沿用并验证 Story 2.6 的排除式删边契约，使 source 文档变更时 manual outgoing 边继续保留，`manual + deprecated` 关系也不会被自动恢复。
+- 已在 `src/cli/commands/scan.ts` 实现 rebuild 前 manual 关系探测、交互确认与 `--force` 跳过确认逻辑，并在执行后输出已删除 manual 关系数量提示。
+- 已补充 `ScanService` 与 `scan` CLI 的单元测试，并完成全量测试、类型检查、lint 验证。
 ### File List
+
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/stories/4-2-convergence-protection-and-source-priority.md
+- src/cli/commands/scan.ts
+- src/services/scan-service.ts
+- tests/unit/cli/commands/scan.test.ts
+- tests/unit/services/scan-service.test.ts
+
+### Change Log
+
+- 2026-05-15: 完成 Story 4.2 的收敛保护、来源优先级与 rebuild manual 关系确认逻辑，状态更新为 review。

@@ -282,7 +282,7 @@ describe('RelationService', () => {
     expect(createdRelations[11]?.createdAt).toBe('2026-05-14T00:00:12.000Z');
   });
 
-  it('deprecateRelation 会保留原 relationType 并追加 metadata.history', () => {
+  it('deprecateRelation 会将关系切换为 manual 并追加 metadata.history', () => {
     const repository = createRepository([
       createRelation({
         id: 'rel-active',
@@ -299,12 +299,15 @@ describe('RelationService', () => {
     const result = service.deprecateRelation({ relationId: 'rel-active' });
 
     expect(result.relationType).toBe(RELATION_TYPES.SYNC_REQUIRED);
+    expect(result.source).toBe('manual');
     expect(result.status).toBe('deprecated');
     expect(result.metadata).toMatchObject({ note: 'keep-me' });
     expect(result.metadata).toMatchObject({
       history: [
         expect.objectContaining({
           action: 'deprecated',
+          previousSource: 'auto_scan',
+          nextSource: 'manual',
           previousStatus: 'active',
           nextStatus: 'deprecated',
         }),

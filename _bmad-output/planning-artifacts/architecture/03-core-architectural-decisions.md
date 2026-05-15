@@ -259,3 +259,16 @@ src/
     - 性能验收必须至少有一条用例让规模差异进入实际热路径；必要时增加真实 repository 路径验证，而不只依赖内存索引 benchmark
     - 环境敏感但不影响运行时正确性的 benchmark 抖动可记录为 CR TODO，不得替代热路径验证
   - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-QUERY-05`、`CR-QUERY-06`、`CR-QUERY-07`、`CR-PERF-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P36`、`P37`、`P38`、`P39` 互为镜像（Rule Document Registry 同步已完成）
+
+## D12. 收敛保护与来源优先级必须在“真实人工路径”和“前置裁剪阶段”同时成立
+
+- **决策：** 当关系图存在“人工修正覆盖自动结果”的业务语义时，人工修正必须落成扫描保护可识别的持久化信号；同时，任何进入持久化前的关系去重或候选裁剪，都必须先比较业务来源优先级，再比较 `confidence` 等次级指标。
+- **理由：** 如果人工修正只停留在调用层语义，而没有落成统一持久化信号，增量扫描和 rebuild 保护路径会误删或恢复用户已经修正过的关系；如果前置 dedupe 先按 `confidence` 裁剪，同批次更高优先级的 `framework_preset` / `manual` 候选会在进入最终写入逻辑前被提前淘汰，导致全局来源优先级失效。
+- **影响范围：** `RelationService`、`ScanService`、关系来源优先级函数、增量扫描/重建保护逻辑、相关单元与集成回归测试
+- **实现要点：**
+  - 对外暴露“人工修正”能力的 service 必须把人工语义写成跨流程可复用的持久化信号（如 `source='manual'` 或等价标记），禁止只依赖调用约定或局部临时状态
+  - 删边保护、写回冲突处理、rebuild 警告等路径必须使用同一套人工修正判定标准，避免保护逻辑分叉
+  - 对同一业务键的候选关系，前置 dedupe / merge 必须先比较来源优先级，仅在同来源内再比较 `confidence`
+  - 前置裁剪与最终持久化必须共享同一 priority 函数或等价实现，禁止两套规则漂移
+  - 测试必须覆盖两类真实风险：自动关系经手动修正后再次扫描仍被保留；同批次中低优先级候选 `confidence` 更高时，最终仍保留高优先级候选
+- **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-SCAN-02`、`CR-SCAN-03` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P42`、`P43` 互为镜像（Rule Document Registry 同步已完成）

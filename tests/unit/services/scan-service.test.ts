@@ -8,6 +8,7 @@ import type { IFrameworkAdapter, PresetRule } from '../../../src/adapters/framew
 import type { DocTypeDefinition } from '../../../src/adapters/framework/interfaces.js';
 import type { IGraphRepository, SyncState } from '../../../src/repositories/index.js';
 import type { ScanPipelineResult } from '../../../src/scanner/index.js';
+import { RelationService } from '../../../src/services/relation-service.js';
 import { ScanService } from '../../../src/services/scan-service.js';
 import { RELATION_TYPES, type DocumentNode, type RelationEdge, type RelationType } from '../../../src/types/index.js';
 
@@ -410,6 +411,25 @@ class MissingEndpointPipeline extends StubPipeline {
   }
 }
 
+class HighConfidenceAutoConflictPipeline extends StubPipeline {
+  override async process(filePath: string, allDocPaths: string[]): Promise<ScanPipelineResult | null> {
+    const result = await super.process(filePath, allDocPaths);
+
+    if (result === null || !filePath.endsWith('prd.md')) {
+      return result;
+    }
+
+    return {
+      ...result,
+      relations: result.relations.map((relation) => (
+        relation.relationType === RELATION_TYPES.SYNC_REQUIRED
+          ? { ...relation, confidence: 0.99 }
+          : relation
+      )),
+    };
+  }
+}
+
 function readFileContentHash(filePath: string): string {
   return createHash('sha256').update(readFileSync(filePath)).digest('hex');
 }
@@ -637,5 +657,246 @@ describe('ScanService', () => {
     expect(repo.getAllSyncStates()).toHaveLength(1);
     expect(repo.getDocumentByPath('docs/architecture.md')).toBeNull();
     expect(repo.operations).toContain('deleteDocument:docs/architecture.md');
+  });
+
+  it('keeps manual outgoing relations when the source document is modified during incremental scans', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const service = new ScanService(repo, new StubPipeline(), [new StubFrameworkAdapter()]);
+
+    await service.scan({ projectRoot });
+
+    const prdDocument = repo.getDocumentByPath('docs/prd.md');
+    const architectureDocument = repo.getDocumentByPath('docs/architecture.md');
+
+    expect(prdDocument).not.toBeNull();
+    expect(architectureDocument).not.toBeNull();
+
+    repo.addRelation({
+      sourceDocId: prdDocument!.id,
+      targetDocId: architectureDocument!.id,
+      relationType: RELATION_TYPES.REFERENCES,
+      confidence: 1,
+      source: 'manual',
+      status: 'active',
+      metadata: { note: 'manual correction' },
+    });
+
+    writeFileSync(join(projectRoot, 'docs', 'prd.md'), '# Product Requirements\n\nmanual protected');
+
+    await service.scan({ projectRoot });
+
+    const persistedRelations = repo.getRelationsByDocId(prdDocument!.id, 'source');
+    expect(
+      persistedRelations.filter((relation) => (
+        relation.targetDocId === architectureDocument!.id
+        && relation.relationType === RELATION_TYPES.REFERENCES
+      )),
+    ).toHaveLength(1);
+    expect(
+      persistedRelations.find((relation) => relation.relationType === RELATION_TYPES.REFERENCES),
+    ).toMatchObject({
+      source: 'manual',
+      status: 'active',
+      metadata: { note: 'manual correction' },
+    });
+  });
+
+  it('does not reactivate deprecated manual relations during incremental scans', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const service = new ScanService(repo, new StubPipeline(), [new StubFrameworkAdapter()]);
+
+    await service.scan({ projectRoot });
+
+    const prdDocument = repo.getDocumentByPath('docs/prd.md');
+    const architectureDocument = repo.getDocumentByPath('docs/architecture.md');
+
+    expect(prdDocument).not.toBeNull();
+    expect(architectureDocument).not.toBeNull();
+
+    repo.addRelation({
+      sourceDocId: prdDocument!.id,
+      targetDocId: architectureDocument!.id,
+      relationType: RELATION_TYPES.REFERENCES,
+      confidence: 1,
+      source: 'manual',
+      status: 'deprecated',
+    });
+
+    writeFileSync(join(projectRoot, 'docs', 'prd.md'), '# Product Requirements\n\ndeprecated manual');
+
+    await service.scan({ projectRoot });
+
+    const persistedRelations = repo.getRelationsByDocId(prdDocument!.id, 'source');
+    expect(
+      persistedRelations.filter((relation) => (
+        relation.targetDocId === architectureDocument!.id
+        && relation.relationType === RELATION_TYPES.REFERENCES
+      )),
+    ).toHaveLength(1);
+    expect(
+      persistedRelations.find((relation) => relation.relationType === RELATION_TYPES.REFERENCES),
+    ).toMatchObject({
+      source: 'manual',
+      status: 'deprecated',
+    });
+  });
+
+  it('does not reactivate auto_scan relations deprecated through RelationService during incremental scans', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const scanService = new ScanService(repo, new StubPipeline(), [new StubFrameworkAdapter()]);
+    const relationService = new RelationService(repo);
+
+    await scanService.scan({ projectRoot });
+
+    const prdDocument = repo.getDocumentByPath('docs/prd.md');
+    const architectureDocument = repo.getDocumentByPath('docs/architecture.md');
+
+    expect(prdDocument).not.toBeNull();
+    expect(architectureDocument).not.toBeNull();
+
+    const autoRelation = repo.getRelationsByDocId(prdDocument!.id, 'source').find((relation) => (
+      relation.targetDocId === architectureDocument!.id
+      && relation.relationType === RELATION_TYPES.REFERENCES
+      && relation.source === 'auto_scan'
+    ));
+
+    expect(autoRelation).toBeDefined();
+
+    const deprecatedRelation = relationService.deprecateRelation({ relationId: autoRelation!.id });
+    expect(deprecatedRelation).toMatchObject({
+      source: 'manual',
+      status: 'deprecated',
+    });
+
+    writeFileSync(join(projectRoot, 'docs', 'prd.md'), '# Product Requirements\n\ndeprecated by relation service');
+
+    await scanService.scan({ projectRoot });
+
+    const persistedRelations = repo.getRelationsByDocId(prdDocument!.id, 'source').filter((relation) => (
+      relation.targetDocId === architectureDocument!.id
+      && relation.relationType === RELATION_TYPES.REFERENCES
+    ));
+
+    expect(persistedRelations).toHaveLength(1);
+    expect(persistedRelations[0]).toMatchObject({
+      source: 'manual',
+      status: 'deprecated',
+      metadata: {
+        history: [
+          expect.objectContaining({
+            action: 'deprecated',
+            previousSource: 'auto_scan',
+            nextSource: 'manual',
+          }),
+        ],
+      },
+    });
+  });
+
+  it('prefers framework_preset over existing auto_scan relations for the same endpoints and relationType', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const service = new ScanService(repo, new StubPipeline(), [new StubFrameworkAdapter()]);
+
+    await service.scan({ projectRoot });
+
+    const prdDocument = repo.getDocumentByPath('docs/prd.md');
+    const architectureDocument = repo.getDocumentByPath('docs/architecture.md');
+
+    expect(prdDocument).not.toBeNull();
+    expect(architectureDocument).not.toBeNull();
+
+    const frameworkRelation = repo.getRelationsByDocId(prdDocument!.id, 'source').find((relation) => (
+      relation.targetDocId === architectureDocument!.id
+      && relation.relationType === RELATION_TYPES.SYNC_REQUIRED
+    ));
+
+    expect(frameworkRelation).toBeDefined();
+
+    repo.deleteRelation(frameworkRelation!.id);
+    repo.addRelation({
+      sourceDocId: prdDocument!.id,
+      targetDocId: architectureDocument!.id,
+      relationType: RELATION_TYPES.SYNC_REQUIRED,
+      confidence: 0.4,
+      source: 'auto_scan',
+      status: 'active',
+      metadata: { injected: 'legacy-auto' },
+    });
+
+    writeFileSync(join(projectRoot, 'docs', 'prd.md'), '# Product Requirements\n\nframework wins');
+
+    await service.scan({ projectRoot });
+
+    const persistedRelations = repo.getRelationsByDocId(prdDocument!.id, 'source').filter((relation) => (
+      relation.targetDocId === architectureDocument!.id
+      && relation.relationType === RELATION_TYPES.SYNC_REQUIRED
+    ));
+
+    expect(persistedRelations).toHaveLength(1);
+    expect(persistedRelations[0]).toMatchObject({
+      source: 'framework_preset',
+      status: 'active',
+    });
+  });
+
+  it('prefers framework_preset over higher-confidence auto_scan relations within the same scan batch', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const service = new ScanService(repo, new HighConfidenceAutoConflictPipeline(), [new StubFrameworkAdapter()]);
+
+    await service.scan({ projectRoot });
+
+    const prdDocument = repo.getDocumentByPath('docs/prd.md');
+    const architectureDocument = repo.getDocumentByPath('docs/architecture.md');
+
+    expect(prdDocument).not.toBeNull();
+    expect(architectureDocument).not.toBeNull();
+
+    const persistedRelations = repo.getRelationsByDocId(prdDocument!.id, 'source').filter((relation) => (
+      relation.targetDocId === architectureDocument!.id
+      && relation.relationType === RELATION_TYPES.SYNC_REQUIRED
+    ));
+
+    expect(persistedRelations).toHaveLength(1);
+    expect(persistedRelations[0]).toMatchObject({
+      source: 'framework_preset',
+      status: 'active',
+      confidence: 0.95,
+    });
+  });
+
+  it('reports the current count of manual relations', async () => {
+    const projectRoot = createProjectRoot();
+    createdRoots.push(projectRoot);
+    const repo = new InMemoryGraphRepository();
+    const service = new ScanService(repo, new StubPipeline(), [new StubFrameworkAdapter()]);
+
+    await service.scan({ projectRoot });
+
+    const prdDocument = repo.getDocumentByPath('docs/prd.md');
+    const architectureDocument = repo.getDocumentByPath('docs/architecture.md');
+
+    expect(prdDocument).not.toBeNull();
+    expect(architectureDocument).not.toBeNull();
+
+    repo.addRelation({
+      sourceDocId: prdDocument!.id,
+      targetDocId: architectureDocument!.id,
+      relationType: RELATION_TYPES.CONTAINS,
+      confidence: 1,
+      source: 'manual',
+      status: 'active',
+    });
+
+    expect(service.getManualRelationsCount()).toBe(1);
   });
 });

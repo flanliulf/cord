@@ -134,6 +134,7 @@ export class ScanService {
       );
       const storedDocsById = new Map(storedDocs.map((document) => [document.docId, document]));
       const modifiedDocumentPaths = new Set(lifecycle.modified.map((snapshot) => snapshot.path));
+      const manualRelationKeys = snapshotManualRelationKeys(this.repository.getAllRelations());
 
       this.repository.transaction(() => {
         const scannedAt = new Date().toISOString();
@@ -217,7 +218,7 @@ export class ScanService {
             });
           }
 
-          this.repository.addRelation({
+          persistRelationWithPriority(this.repository, {
             sourceDocId,
             targetDocId,
             relationType: relation.relationType,
@@ -225,7 +226,7 @@ export class ScanService {
             source: relation.source,
             status: 'active',
             metadata: relation.metadata,
-          });
+          }, manualRelationKeys);
         }
 
         for (const document of batch.classifiedDocuments) {
@@ -332,7 +333,7 @@ export class ScanService {
           });
         }
 
-        this.repository.addRelation({
+        persistRelationWithPriority(this.repository, {
           sourceDocId: sourceDoc.id,
           targetDocId: targetDoc.id,
           relationType: relation.relationType,
@@ -340,7 +341,7 @@ export class ScanService {
           source: relation.source,
           status: 'active',
           metadata: relation.metadata,
-        });
+        }, new Set());
       }
 
       for (const document of batch.classifiedDocuments) {
@@ -527,7 +528,7 @@ function dedupeRelations(relations: PersistedRelationPlan[]): PersistedRelationP
     const key = `${relation.sourceDocPath}::${relation.targetDocPath}::${relation.relationType}`;
     const existing = relationMap.get(key);
 
-    if (existing === undefined || relation.confidence > existing.confidence) {
+    if (existing === undefined || shouldReplaceDedupeCandidate(existing, relation)) {
       relationMap.set(key, relation);
     }
   }
@@ -536,6 +537,74 @@ function dedupeRelations(relations: PersistedRelationPlan[]): PersistedRelationP
     const leftKey = `${left.sourceDocPath}:${left.targetDocPath}:${left.relationType}`;
     const rightKey = `${right.sourceDocPath}:${right.targetDocPath}:${right.relationType}`;
     return leftKey.localeCompare(rightKey);
+  });
+}
+
+function shouldReplaceDedupeCandidate(
+  existing: PersistedRelationPlan,
+  candidate: PersistedRelationPlan,
+): boolean {
+  const existingPriority = getRelationSourcePriority(existing.source);
+  const candidatePriority = getRelationSourcePriority(candidate.source);
+
+  if (candidatePriority !== existingPriority) {
+    return candidatePriority > existingPriority;
+  }
+
+  return candidate.confidence > existing.confidence;
+}
+
+function snapshotManualRelationKeys(relations: RelationEdge[]): Set<string> {
+  return new Set(
+    relations
+      .filter((relation) => relation.source === 'manual')
+      .map((relation) => buildRelationKey(relation.sourceDocId, relation.targetDocId, relation.relationType)),
+  );
+}
+
+function persistRelationWithPriority(
+  repository: IGraphRepository,
+  relation: Omit<RelationEdge, 'id' | 'createdAt' | 'updatedAt'>,
+  manualRelationKeys: Set<string>,
+): void {
+  const relationKey = buildRelationKey(relation.sourceDocId, relation.targetDocId, relation.relationType);
+  const existingRelations = repository.getRelationsByDocId(relation.sourceDocId, 'source').filter((existing) => (
+    existing.targetDocId === relation.targetDocId
+    && existing.relationType === relation.relationType
+  ));
+  const preferredExistingRelation = selectPreferredRelation(existingRelations);
+
+  if (manualRelationKeys.has(relationKey) && preferredExistingRelation?.source === 'manual') {
+    return;
+  }
+
+  if (preferredExistingRelation === undefined) {
+    repository.addRelation(relation);
+    return;
+  }
+
+  const existingPriority = getRelationSourcePriority(preferredExistingRelation.source);
+  const nextPriority = getRelationSourcePriority(relation.source);
+
+  if (existingPriority > nextPriority) {
+    return;
+  }
+
+  if (existingPriority < nextPriority) {
+    repository.deleteRelation(preferredExistingRelation.id);
+    repository.addRelation(relation);
+    return;
+  }
+
+  if (preferredExistingRelation.source === 'manual') {
+    return;
+  }
+
+  repository.updateRelation(preferredExistingRelation.id, {
+    confidence: relation.confidence,
+    source: relation.source,
+    status: relation.status,
+    metadata: relation.metadata,
   });
 }
 
@@ -718,6 +787,39 @@ function buildIncrementalPresetRelations(
   return buildPresetRelations(knownDocuments, presetRules).filter(
     (relation) => changedDocumentPaths.has(relation.sourceDocPath) || addedDocumentPaths.has(relation.targetDocPath),
   );
+}
+
+function selectPreferredRelation(relations: RelationEdge[]): RelationEdge | undefined {
+  return relations
+    .slice()
+    .sort((left, right) => {
+      const priorityDiff = getRelationSourcePriority(right.source) - getRelationSourcePriority(left.source);
+
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      if (left.status !== right.status) {
+        return left.status === 'active' ? -1 : 1;
+      }
+
+      return right.updatedAt.localeCompare(left.updatedAt);
+    })[0];
+}
+
+function getRelationSourcePriority(source: RelationEdge['source']): number {
+  switch (source) {
+    case 'manual':
+      return 3;
+    case 'framework_preset':
+      return 2;
+    case 'auto_scan':
+      return 1;
+  }
+}
+
+function buildRelationKey(sourceDocId: string, targetDocId: string, relationType: RelationType): string {
+  return `${sourceDocId}::${targetDocId}::${relationType}`;
 }
 
 function dedupePaths(paths: string[]): string[] {
