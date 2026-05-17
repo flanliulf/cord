@@ -1,2 +1,2 @@
-// mcp - Model Context Protocol server facade
-export {};
+export * from './server.js';
+export * from './tools/index.js';

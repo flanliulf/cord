@@ -1,6 +1,6 @@
 # Story 5.2: MCP Tools 关系管理能力
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -20,14 +20,14 @@ So that 用户可以通过自然语言对话让我修正文档关系。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 3 个关系管理 Tools (AC: #1, #2, #3, #6)
-  - [ ] 1.1 `src/mcp/tools/add-relation.ts`
-  - [ ] 1.2 `src/mcp/tools/remove-relation.ts`
-  - [ ] 1.3 `src/mcp/tools/deprecate-relation.ts`
-  - [ ] 1.4 定义并导出 3 个 Tools 的共享 Zod input schema（AC: #6）
-  - [ ] 1.5 在 `src/mcp/tools/schemas.ts` 中导出 3 个 Tools 的命名 output schema（AddRelationResult、RemoveRelationResult、DeprecateRelationResult）（AC: #7）
-- [ ] Task 2: 注册到 MCP Server (AC: #4)
-- [ ] Task 3: 编写测试 (AC: #5, #6, #7)
+- [x] Task 1: 实现 3 个关系管理 Tools (AC: #1, #2, #3, #6)
+  - [x] 1.1 `src/mcp/tools/add-relation.ts`
+  - [x] 1.2 `src/mcp/tools/remove-relation.ts`
+  - [x] 1.3 `src/mcp/tools/deprecate-relation.ts`
+  - [x] 1.4 定义并导出 3 个 Tools 的共享 Zod input schema（AC: #6）
+  - [x] 1.5 在 `src/mcp/tools/schemas.ts` 中导出 3 个 Tools 的命名 output schema（AddRelationResult、RemoveRelationResult、DeprecateRelationResult）（AC: #7）
+- [x] Task 2: 注册到 MCP Server (AC: #4)
+- [x] Task 3: 编写测试 (AC: #5, #6, #7)
 
 ## Dev Notes
 
@@ -113,6 +113,30 @@ export const DeprecateRelationResult = z.object({
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5 Codex
 ### Debug Log References
+- `npm test -- tests/unit/mcp/schemas.test.ts`
+- `npm test -- tests/integration/mcp/server.test.ts`
+- `npm run type-check`
+- `npm test -- tests/unit/mcp/server.test.ts tests/unit/mcp/schemas.test.ts tests/integration/mcp/server.test.ts`
+- `npm run lint`
+- `npm run build`
+- `npm test`
+- `npm test -- tests/unit/services/query-service.test.ts`
 ### Completion Notes List
+- 为 MCP runtime 注入 `RelationService`，并在 server 中注册 `add_relation`、`remove_relation`、`deprecate_relation` 三个写操作 tools，保持现有 4 个只读 tool 的注册与契约不变。
+- 在 `src/mcp/tools/schemas.ts` 统一定义 3 个关系管理 tools 的共享输入 schema 与命名输出 DTO，并同步导出 JSON Schema，满足 Story 5.2 的 MCP I/O 契约要求。
+- 新增 `src/mcp/tools/add-relation.ts`、`remove-relation.ts`、`deprecate-relation.ts`，均保持 MCP 薄壳模式：参数校验/路径归一化后调用 `RelationService`，再返回结构化 DTO。
+- 补充 MCP schema 稳定性测试和集成测试，覆盖 7 个 tools 的注册面、`add_relation`/`remove_relation`/`deprecate_relation` 端到端调用，以及新增关系的结果校验、deprecated 状态校验、删除后的查询校验。
+- Story 范围验证已通过：MCP 相关单测/集成测试、`type-check`、`lint`、`build` 全部通过；全量 `npm test` 仍仅受既有 `tests/unit/services/query-service.test.ts:677` 三跳性能基准抖动影响，单独重跑该文件通过。
 ### File List
+- src/mcp/server.ts
+- src/mcp/tools/add-relation.ts
+- src/mcp/tools/remove-relation.ts
+- src/mcp/tools/deprecate-relation.ts
+- src/mcp/tools/index.ts
+- src/mcp/tools/schemas.ts
+- tests/integration/mcp/server.test.ts
+- tests/unit/mcp/schemas.test.ts
+- _bmad-output/implementation-artifacts/stories/5-2-mcp-tools-relation-management.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml

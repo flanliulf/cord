@@ -460,6 +460,16 @@ repository.transaction(() => {
 - **禁止**让前置裁剪与最终持久化使用两套不同的优先级规则；若最终写入依赖 `getRelationSourcePriority()`，前置 dedupe 必须复用同一函数或等价实现
 - 同批次冲突测试必须覆盖“低优先级候选 `confidence` 更高”的逆向场景，确保业务优先级不会在进入最终写入逻辑前被提前截断
 
+**P44. MCP Tool I/O 契约必须镜像 CLI JSON DTO，不得为 MCP 侧重新裁剪字段（CR-MCP-01）：**
+
+- `src/mcp/tools/schemas.ts` 中的命名 Zod input/output schema 是 CLI `--json`、MCP Tool 与后续新增 Tool 的共享契约源
+- **禁止**为了“更像 Tool”而删减现有 Service / CLI DTO 字段；若 CLI JSON 已对外暴露字段，MCP output schema 必须保持同名同层级
+- `query_relations` 必须保留 `depth` 输入以及 `relationId`、`hopDistance` 输出，保证 FR14 / FR16 与后续关系管理句柄闭环不漂移
+- `analyze_impact` 必须保留 `severity` 与 `hopDistance`，不得退化为只剩建议文本
+- `init_graph` 必须直接镜像 `ScanResult` 字段名，包含 `durationMs`；禁止另起 `duration` 等别名
+- `sync_docs.reason` 直接复用 `AnalyzeImpactResult.suggestedAction`，`action` 仅由 `updateStrategy` 推导，避免平行定义第二套建议语义
+- 相关测试至少覆盖：MCP output 与 CLI JSON 的字段同构检查、schema 冻结检查、以及新增 Tool 时已有 4 个 Tool schema 不变
+
 ## CLI 入口规则（来源：Story 1-2、2-5 CR 历史）
 
 **P19. ESM CLI entrypoint 守卫三步归一化（CR-CLI-01）：**

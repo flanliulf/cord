@@ -163,6 +163,11 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - 所有日志 / 调试信息通过 `console.error()` → stderr
 - MCP Tool 名使用 snake_case：`analyze_impact`、`query_relations`
 - MCP Tool 参数使用 camelCase：`docPath`、`relationType`
+- `src/mcp/tools/schemas.ts` 中的命名 Zod input/output schema 是 CLI `--json` 与 MCP Tool 的共享契约源；**禁止**为 MCP 擅自删减现有 DTO 字段（CR-MCP-01）
+  - `query_relations` 必须保留 `depth` 输入与 `hopDistance` 输出
+  - `analyze_impact` 必须保留 `severity` 与 `hopDistance`
+  - `init_graph` 必须返回 `durationMs`（与 `ScanResult` / CLI JSON 同名）
+  - `sync_docs.reason` 直接复用 `AnalyzeImpactResult.suggestedAction`，`action` 仅由 `updateStrategy` 推导
 - SIGTERM 优雅退出处理
 
 **CLI 关键约束：**

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-09
-last_updated: 2026-05-15 23:58
+last_updated: 2026-05-17 21:12
 project: CORD
 project_key: NOKEY
 tracking_system: file-system
@@ -79,8 +79,8 @@ development_status:
 
   # Epic 5: AI IDE 集成（MCP Server + Hooks + 指令注入）
   epic-5: in-progress
-  5-1-mcp-server-core-and-4-tools: ready-for-dev
-  5-2-mcp-tools-relation-management: ready-for-dev
+  5-1-mcp-server-core-and-4-tools: done
+  5-2-mcp-tools-relation-management: done
   5-3-ide-adapter-and-auto-detection: ready-for-dev
   5-4-initservice-one-click-init-cord-init: ready-for-dev
   5-5-hooks-auto-trigger-and-skills-generation: ready-for-dev

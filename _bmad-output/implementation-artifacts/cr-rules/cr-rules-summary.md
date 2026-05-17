@@ -175,3 +175,28 @@
 - Story 4-2 无新增 backlog TODO；`bmenhance-cr-05-todo-tracker` 无需新增条目。
 - 本次提炼出的两条规则均满足全局升格阈值，并已完成 Rule Document Registry 要求的三份镜像文档同步。
 - 后续凡涉及“人工修正覆盖自动结果”或“前置候选裁剪”类逻辑，应直接引用 `CR-SCAN-02` 与 `CR-SCAN-03`。
+
+---
+
+## Story 5-1 / 2026-05-17
+
+- **Story**: 5-1
+- **分析来源**:
+  - `5-1-code-review-summary-20260517-round-1.md`
+  - `5-1-code-review-evaluation-20260517-round-1.md`
+- **结论概览**:
+  - Round 1 reviewer / evaluator 均通过；无阻塞项。
+  - 唯一非阻塞项是 Story 5.1 历史 DTO 示例与当前 CLI/MCP 共享 DTO 契约漂移，已在 evaluation 中确认为 **P2 / CR TODO / 非阻塞债务**。
+  - 当前实现代码、schema 冻结测试和 Rule Document Registry 三份镜像文档已经对齐，不需要新增全局规则；本轮只记录分析结果，并交由 `bmenhance-cr-05-todo-tracker` 跟踪后续文档整理。
+
+#### 升格判定摘要
+
+| 候选规则 | 硬性门槛 | 总分 | 建议去向 | 用户确认结果 |
+|----------|----------|------|----------|--------------|
+| Story 示例 DTO 需与共享命名 schema/CLI JSON 契约同步维护 | 未通过（与现有全局规则重复，且当前为未修复文档债） | 4/12 | todo-tracker | 已按本轮 finalizer 指令移交 05 TODO Tracker |
+
+### 治理结论
+
+- Story 5-1 本轮**无新增可沉淀的 CR 规则**。
+- 当前问题本质是历史 Story 示例漂移，不是运行时代码或全局规则缺口；全局约束已由 `_bmad-output/project-context.md`、`03-core-architectural-decisions.md`、`04-implementation-patterns-consistency-rules.md` 覆盖。
+- 后续若获得修改 Story 5.1 文档的明确许可，应优先按 `src/mcp/tools/schemas.ts` 与现有镜像规则同步 DTO 示例，再关闭对应 TODO。

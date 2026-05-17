@@ -269,7 +269,20 @@ src/
 - **实现要点：**
   - 对外暴露“人工修正”能力的 service 必须把人工语义写成跨流程可复用的持久化信号（如 `source='manual'` 或等价标记），禁止只依赖调用约定或局部临时状态
   - 删边保护、写回冲突处理、rebuild 警告等路径必须使用同一套人工修正判定标准，避免保护逻辑分叉
-  - 对同一业务键的候选关系，前置 dedupe / merge 必须先比较来源优先级，仅在同来源内再比较 `confidence`
-  - 前置裁剪与最终持久化必须共享同一 priority 函数或等价实现，禁止两套规则漂移
-  - 测试必须覆盖两类真实风险：自动关系经手动修正后再次扫描仍被保留；同批次中低优先级候选 `confidence` 更高时，最终仍保留高优先级候选
+- 对同一业务键的候选关系，前置 dedupe / merge 必须先比较来源优先级，仅在同来源内再比较 `confidence`
+- 前置裁剪与最终持久化必须共享同一 priority 函数或等价实现，禁止两套规则漂移
+- 测试必须覆盖两类真实风险：自动关系经手动修正后再次扫描仍被保留；同批次中低优先级候选 `confidence` 更高时，最终仍保留高优先级候选
 - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-SCAN-02`、`CR-SCAN-03` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P42`、`P43` 互为镜像（Rule Document Registry 同步已完成）
+
+## D13. MCP Tool 的共享 I/O 契约以 CLI JSON DTO 为最终真源
+
+- **决策：** 对同一业务能力同时暴露 CLI `--json` 与 MCP Tool 时，`src/mcp/tools/schemas.ts` 中的命名 Zod input/output schema 必须直接镜像现有 CLI JSON / Service DTO；MCP 层不得自行裁剪字段、改名或额外发明平行 DTO。
+- **理由：** Epic 5 的 NFR13 要求 CLI 与 MCP 对相同输入返回语义一致的输出。如果把 MCP Tool 当作“更轻量的包装”另起字段子集，会让 `query_relations` 的 `depth` / `hopDistance`、`analyze_impact` 的 `severity` / `hopDistance`、`init_graph` 的 `durationMs` 等既有契约再次漂移，并把 `sync_docs` 的建议语义拆成第二套不稳定映射。
+- **影响范围：** `src/mcp/tools/schemas.ts`、4 个核心 MCP Tools、CLI JSON 契约测试、后续 Story 5.2 新增 Tool 的 schema 冻结策略
+- **实现要点：**
+  - `query_relations` 继续复用 `depth` 输入，并保留 `relationId`、`hopDistance` 输出
+  - `analyze_impact` 保留 `severity`、`hopDistance`，不退化为纯文本建议列表
+  - `init_graph` 直接镜像 `ScanResult`，输出字段名固定为 `durationMs`
+  - `sync_docs.reason` 直接取 `AnalyzeImpactResult.suggestedAction`，`action` 仅由 `updateStrategy` 推导
+  - schema 回归测试必须冻结已有 4 个 Tool 的 input/output JSON Schema，避免 Story 5.2 继续扩展时破坏既有合同
+- **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-MCP-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P44` 互为镜像（Rule Document Registry 同步已完成）

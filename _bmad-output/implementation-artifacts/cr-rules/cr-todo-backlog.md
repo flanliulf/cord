@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 33 |
+| Open | 34 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **33** |
+| **合计** | **34** |
 
 ---
 
@@ -473,6 +473,25 @@
   - `_bmad-output/implementation-artifacts/stories/3-5-statusservice-health-check.md`
 - **问题描述**：`src/services/status-service.ts` 当前按全部关系数组计算 `relationCount` 与 `relationsByType`，而 `src/types/graph.ts` 中 `RelationEdge.status` 已定义 `active | deprecated`。Story 3.5 的 AC 只要求输出“关系总数、按类型分布”，尚未冻结 status 健康统计是否应排除 deprecated 关系；如果后续在无产品/Story 裁决的情况下直接调整实现，容易让 status 输出、测试断言和 Epic 4 的关系管理语义再次漂移。
 - **建议时机**：下次触及 Epic 4 关系管理口径、status 健康指标定义或修订 Story/AC/测试时一并处理，先明确“健康统计是否只计 active 关系”，再同步实现与回归测试。
+- **解决记录**：—
+
+---
+
+### TODO-034
+
+- **标题**：Story 5.1 DTO 示例需与 MCP 共享契约同步
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 5-1 / Round 1 / 2026-05-17（reviewer 发现 #1；evaluator accepted as deferred）
+- **涉及文件**：
+  - `_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md`
+  - `src/mcp/tools/schemas.ts`
+  - `_bmad-output/project-context.md`
+  - `_bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md`
+  - `_bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md`
+- **问题描述**：Story 5.1 中的历史 DTO 示例仍与当前共享契约不一致：`_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md:72-79` 的 `QueryRelationsInput` 示例缺少 `depth`；`_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md:137-169` 仍包含旧字段 `AnalyzeImpactResult.reason`、`InitGraphResult.duration`，且缺少 `severity`、`hopDistance`、`durationMs`。当前运行时代码和镜像规则文档已以 `src/mcp/tools/schemas.ts` 为准，因此该问题不会阻塞交付，但若后续 Story/CR 回读旧示例，容易再次引入 DTO 漂移。
+- **建议时机**：下次明确允许修改 Story 5.1 文档，或触及 MCP DTO/Story 5.1 文档整理时，与 `src/mcp/tools/schemas.ts` 和 Rule Document Registry 三份镜像规则一并同步。
 - **解决记录**：—
 
 ---

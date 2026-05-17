@@ -1,6 +1,6 @@
 # Story 5.1: MCP Server 核心与 4 个 Tools
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -24,16 +24,16 @@ So that 我可以在用户的开发流程中自动执行影响分析、关系查
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 实现 MCP Server 入口 (AC: #1, #4, #7, #9)
-  - [ ] 1.1 `src/mcp/server.ts` — Stdio Transport + 优雅退出
-- [ ] Task 2: 实现 4 个 Tools (AC: #2, #3)
-  - [ ] 2.1 `src/mcp/tools/analyze-impact.ts`
-  - [ ] 2.2 `src/mcp/tools/query-relations.ts`
-  - [ ] 2.3 `src/mcp/tools/init-graph.ts`
-  - [ ] 2.4 `src/mcp/tools/sync-docs.ts` — 只读建议 Tool，**单文档输入**（发现#2 裁决），直接调用 ImpactService.analyzeImpact() 现有签名，返回建议动作列表，不执行任何文档写入
-- [ ] Task 3: Zod → JSON Schema 自动导出 (AC: #3)
-- [ ] Task 4: 更新 index.ts
-- [ ] Task 5: 编写测试 (AC: #5, #6, #8, #10, #11)
+- [x] Task 1: 实现 MCP Server 入口 (AC: #1, #4, #7, #9)
+  - [x] 1.1 `src/mcp/server.ts` — Stdio Transport + 优雅退出
+- [x] Task 2: 实现 4 个 Tools (AC: #2, #3)
+  - [x] 2.1 `src/mcp/tools/analyze-impact.ts`
+  - [x] 2.2 `src/mcp/tools/query-relations.ts`
+  - [x] 2.3 `src/mcp/tools/init-graph.ts`
+  - [x] 2.4 `src/mcp/tools/sync-docs.ts` — 只读建议 Tool，**单文档输入**（发现#2 裁决），直接调用 ImpactService.analyzeImpact() 现有签名，返回建议动作列表，不执行任何文档写入
+- [x] Task 3: Zod → JSON Schema 自动导出 (AC: #3)
+- [x] Task 4: 更新 index.ts
+- [x] Task 5: 编写测试 (AC: #5, #6, #8, #10, #11)
 
 ## Dev Notes
 
@@ -198,6 +198,45 @@ export const SyncDocsResult = z.object({
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5.4 High
+
 ### Debug Log References
+- `npm test -- tests/integration/mcp/server.test.ts tests/unit/mcp/server.test.ts tests/unit/mcp/schemas.test.ts`
+- `npm run type-check`
+- `npm run build`
+- `npm run lint`
+- `npm test`（全量回归时仅 `tests/unit/services/query-service.test.ts` 的三跳性能基准在整套并跑下抖动失败）
+- `npm test -- tests/unit/services/query-service.test.ts`
+
 ### Completion Notes List
+- 实现 `src/mcp/server.ts` 长驻 MCP 入口，使用 `@modelcontextprotocol/sdk` + `StdioServerTransport`，并补齐 `SIGTERM` / `SIGINT` 优雅退出与 stderr 日志约束。
+- 新增 4 个核心 tools：`analyze_impact`、`query_relations`、`init_graph`、`sync_docs`，全部保持 MCP 薄壳模式，只做输入归一化、Service 调用和结构化输出包装。
+- 在 `src/mcp/tools/schemas.ts` 统一定义命名 Zod schema，并同步导出对应 JSON Schema，补齐 input/output schema 的稳定性测试。
+- 为满足现有代码库里的 NFR13 真相，`analyze_impact`、`query_relations`、`init_graph` 的 MCP 结构化输出直接镜像当前 CLI/Service JSON 结构；`sync_docs` 继续按 Story 5.1 的单文档只读建议 DTO 输出。
+- 新增 MCP 单元/集成测试，覆盖 4 个 tool 端到端、schema 稳定性、输入校验失败、并发只读调用，以及 p95 < 50ms 的读路径验证。
+- 按 Rule Document Registry 同步回写 MCP 共享 I/O 契约规则：CLI JSON 为 MCP Tool DTO 真源，`query_relations` / `analyze_impact` / `init_graph` / `sync_docs` 的字段边界在三份规则文档中镜像收口。
+
 ### File List
+- src/mcp/index.ts
+- src/mcp/server.ts
+- src/mcp/tools/analyze-impact.ts
+- src/mcp/tools/.gitkeep (deleted)
+- src/mcp/tools/index.ts
+- src/mcp/tools/init-graph.ts
+- src/mcp/tools/query-relations.ts
+- src/mcp/tools/schemas.ts
+- src/mcp/tools/shared.ts
+- src/mcp/tools/sync-docs.ts
+- tests/integration/mcp/server.test.ts
+- tests/unit/mcp/server.test.ts
+- tests/unit/mcp/schemas.test.ts
+- _bmad-output/project-context.md
+- _bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md
+- _bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md
+
+## Change Log
+
+- 2026-05-16: 实现 MCP Server 核心、4 个 tools、命名 schema/JSON Schema 导出，以及对应单元/集成测试；同步 Rule Document Registry 三份文档中的 MCP I/O 契约；Story 状态更新为 review。
+- 2026-05-17: CR round 1 reviewer/evaluator 通过，fixer no-op；finalizer 将 Story 状态更新为 done，并将旧 DTO 示例漂移登记为 `TODO-034` 非阻塞文档债。
