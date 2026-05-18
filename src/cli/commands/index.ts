@@ -3,3 +3,4 @@ export { createQueryCommand } from './query.js';
 export { createImpactCommand } from './impact.js';
 export { createExportCommand } from './export.js';
 export { createStatusCommand } from './status.js';
+export { createInitCommand } from './init.js';

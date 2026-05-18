@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
-import { createQueryCommand, createScanCommand } from '../../../src/cli/commands/index.js';
+import { createInitCommand, createQueryCommand, createScanCommand } from '../../../src/cli/commands/index.js';
 import { applyVerboseFlag } from '../../../src/cli/verbose.js';
 import { createProgram, runCli } from '../../../src/cli/index.js';
 import { ConfigError } from '../../../src/utils/errors.js';
@@ -122,6 +122,10 @@ describe('createProgram', () => {
     expect(prog.commands.some((command) => command.name() === 'query')).toBe(true);
   });
 
+  it('exports the init command factory', () => {
+    expect(typeof createInitCommand).toBe('function');
+  });
+
   it('registers the impact command', () => {
     const prog = createProgram();
     expect(prog.commands.some((command) => command.name() === 'impact')).toBe(true);
@@ -135,6 +139,11 @@ describe('createProgram', () => {
   it('registers the status command', () => {
     const prog = createProgram();
     expect(prog.commands.some((command) => command.name() === 'status')).toBe(true);
+  });
+
+  it('registers the init command', () => {
+    const prog = createProgram();
+    expect(prog.commands.some((command) => command.name() === 'init')).toBe(true);
   });
 
   it('has --verbose / -v option', () => {

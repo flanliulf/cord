@@ -10,3 +10,5 @@ export type { ExportResult, ExportedDocument, ExportedRelation, GraphSnapshot } 
 export { StatusService, createEmptyStatusResult } from './status-service.js';
 export type { StatusResult } from './status-service.js';
 export { RelationService } from './relation-service.js';
+export { InitService } from './init-service.js';
+export type { InitConfigFormat, InitInput, InitResult } from './init-service.js';
