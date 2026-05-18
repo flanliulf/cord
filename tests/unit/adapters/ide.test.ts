@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -106,17 +107,53 @@ describe('IDE adapters', () => {
 
     expect(readText(join(projectRoot, 'CLAUDE.md'))).toBe('# Existing Claude instructions\n');
     expect(readText(join(projectRoot, '.claude', 'rules', 'cord-relations.md'))).toContain('query_relations');
-    expect(readJson<{ mcpServers: { cord: { command: string } }; hooks: Record<string, unknown> }>(join(projectRoot, '.claude', 'settings.json'))).toMatchObject({
+    expect(readJson<{
+      mcpServers: { cord: { command: string; args: string[] } };
+      hooks: { PostToolUse: Array<{ matcher: string; command: string }> };
+    }>(join(projectRoot, '.claude', 'settings.json'))).toEqual({
       mcpServers: {
         cord: {
           command: 'node',
+          args: ['./dist/mcp/server.js'],
         },
       },
       hooks: {
-        PostToolUse: expect.any(Array),
+        PostToolUse: [
+          {
+            matcher: 'Write|Edit',
+            command: './.claude/hooks/cord-post-edit.sh "$TOOL_INPUT_PATH"',
+          },
+        ],
       },
     });
     expect(existsSync(join(projectRoot, '.claude', 'hooks', 'cord-post-edit.sh'))).toBe(true);
+  });
+
+  it('executes the Claude Code post-edit hook and forwards the edited path to cord impact', () => {
+    const projectRoot = createProjectRoot('cord-adapter-claude-hook-');
+    createdRoots.push(projectRoot);
+
+    const adapter = new ClaudeCodeAdapter();
+    adapter.generateHooksConfig?.(projectRoot);
+
+    const binDir = join(projectRoot, 'bin');
+    const hookPath = join(projectRoot, '.claude', 'hooks', 'cord-post-edit.sh');
+    const logPath = join(projectRoot, 'cord-hook.log');
+    const cordStubPath = join(binDir, 'cord');
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(cordStubPath, '#!/usr/bin/env sh\nprintf "%s\\n" "$@" > "$CORD_STUB_LOG"\n');
+    chmodSync(cordStubPath, 0o755);
+
+    execFileSync(hookPath, ['docs/example.md'], {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        PATH: `${binDir}${process.env.PATH ? `:${process.env.PATH}` : ''}`,
+        CORD_STUB_LOG: logPath,
+      },
+    });
+
+    expect(readText(logPath)).toBe('impact\n--json\ndocs/example.md\n');
   });
 
   it('generates Cursor MCP config and rules file', () => {

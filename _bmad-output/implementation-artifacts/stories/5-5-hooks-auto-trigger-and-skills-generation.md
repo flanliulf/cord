@@ -1,6 +1,6 @@
 # Story 5.5: Hooks 文档变更自动触发与 Skills 生成
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -20,12 +20,12 @@ So that 日常开发中无需手动操作，AI Agent 自动完成影响分析和
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 生成 Claude Code Hooks 脚本 (AC: #1)
-- [ ] Task 2: 生成指令文件引导 (AC: #2)
-- [ ] Task 3: 实现 Skills 生成器 (AC: #3, #4, #5)
-  - [ ] 3.1 `src/adapters/ide/skills-generator.ts`
-  - [ ] 3.2 4 个 Skills：影响分析、关系查询、图谱初始化、同步建议
-- [ ] Task 4: 编写测试 (AC: #6, #7)
+- [x] Task 1: 生成 Claude Code Hooks 脚本 (AC: #1)
+- [x] Task 2: 生成指令文件引导 (AC: #2)
+- [x] Task 3: 实现 Skills 生成器 (AC: #3, #4, #5)
+  - [x] 3.1 `src/adapters/ide/skills-generator.ts`
+  - [x] 3.2 4 个 Skills：影响分析、关系查询、图谱初始化、同步建议
+- [x] Task 4: 编写测试 (AC: #6, #7)
 
 ## Dev Notes
 
@@ -68,6 +68,29 @@ Skills 文件须在"预期输出格式"字段中直接引用 `src/mcp/tools/sche
 ## Dev Agent Record
 
 ### Agent Model Used
+GPT-5.4
+
 ### Debug Log References
+- Session log: `/Users/fancyliu/Library/Application Support/Code/User/workspaceStorage/fa83f200fe3afd5b473dceb64af1eed3/GitHub.copilot-chat/debug-logs/b2036abe-bdfb-4bac-abf3-18e8610c803b`
+
+### Implementation Plan
+- 保持 Story 5.4 `InitService` 作为编排 owner，不修改其 `IIdeAdapter.generateSkills?()` 调用点。
+- 将 Claude Code Skills 定义与文档内容从 adapter 内联实现抽离到独立的 `skills-generator.ts`。
+- 复用现有 Claude Hooks 与非 Hooks IDE 指令文件实现，仅补齐 Story 5.5 要求的模块边界和测试覆盖。
+
 ### Completion Notes List
+- 新增 `src/adapters/ide/skills-generator.ts`，集中生成 Claude Code 4 个 Skills 定义文件。
+- `src/adapters/ide/claude-code.ts` 改为通过 `generateClaudeSkills()` 委托生成 Skills，保持 `InitService -> IIdeAdapter.generateSkills?()` 编排链不变。
+- Skills 内容显式包含 Trigger Conditions、MCP Tool Sequence、Expected Output Format，并直接引用 `src/mcp/tools/schemas.ts` 中的命名 schema。
+- 采用保守决策：Hooks 与非 Hooks IDE 指令引导沿用现有 5.4 实现，因为其行为已满足 AC1/AC2，只补齐 AC3 缺口与对应验证。
+- 新增单元测试覆盖独立 Skills 生成器，并完成相关回归、类型检查、lint 与全量测试。
+
 ### File List
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/stories/5-5-hooks-auto-trigger-and-skills-generation.md`
+- `src/adapters/ide/claude-code.ts`
+- `src/adapters/ide/skills-generator.ts`
+- `tests/unit/adapters/skills-generator.test.ts`
+
+### Change Log
+- 2026-05-18: 抽离 Claude Code Skills 生成器到独立模块，保持 InitService 编排链不变，并补充 Story 5.5 所需测试与状态更新。

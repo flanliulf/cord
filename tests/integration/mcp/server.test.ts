@@ -1,10 +1,24 @@
-import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, describe, expect, it } from 'vitest';
+import { ClaudeCodeAdapter, CursorAdapter, VscodeCopilotAdapter } from '../../../src/adapters/ide/index.js';
 import { createCordMcpServer } from '../../../src/mcp/server.js';
+
+const EXPECTED_TOOL_NAMES = [
+  'add_relation',
+  'analyze_impact',
+  'deprecate_relation',
+  'init_graph',
+  'query_relations',
+  'remove_relation',
+  'sync_docs',
+];
+
+const REPOSITORY_ROOT = process.cwd();
 
 function createTempProjectFromFixture(fixtureName: 'generic-project' | 'bmad-project'): string {
   const targetRoot = mkdtempSync(join(tmpdir(), `cord-mcp-${fixtureName}-`));
@@ -39,9 +53,169 @@ async function connectTestServer(projectRoot: string): Promise<{
   };
 }
 
+function linkRuntimeArtifacts(projectRoot: string): void {
+  symlinkSync(join(REPOSITORY_ROOT, 'dist'), join(projectRoot, 'dist'), 'dir');
+  symlinkSync(join(REPOSITORY_ROOT, 'node_modules'), join(projectRoot, 'node_modules'), 'dir');
+}
+
+async function connectConfiguredStdioServer(options: {
+  projectRoot: string;
+  command: string;
+  args: string[];
+}): Promise<{
+  client: Client;
+  close: () => Promise<void>;
+}> {
+  linkRuntimeArtifacts(options.projectRoot);
+
+  const transport = new StdioClientTransport({
+    command: options.command,
+    args: options.args,
+    cwd: options.projectRoot,
+    stderr: 'pipe',
+  });
+  const client = new Client({
+    name: 'cord-mcp-stdio-test-client',
+    version: '1.0.0',
+  });
+
+  let stderrOutput = '';
+  transport.stderr?.on('data', (chunk) => {
+    stderrOutput += chunk.toString();
+  });
+
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    await transport.close().catch(() => undefined);
+
+    if (error instanceof Error && stderrOutput.trim()) {
+        throw new Error(`${error.message}\n[stdio stderr]\n${stderrOutput.trim()}`, { cause: error });
+    }
+
+    throw error;
+  }
+
+  return {
+    client,
+    close: async () => {
+      await client.close();
+      await transport.close();
+    },
+  };
+}
+
 function getStructuredContent<T extends Record<string, unknown>>(result: { structuredContent?: Record<string, unknown> }): T {
   expect(result.structuredContent).toBeDefined();
   return result.structuredContent as T;
+}
+
+function readJson<T extends Record<string, unknown>>(filePath: string): T {
+  return JSON.parse(readFileSync(filePath, 'utf8')) as T;
+}
+
+async function expectCoreToolsWork(connection: { client: Client }, projectRoot: string): Promise<void> {
+  const initResult = await connection.client.callTool({ name: 'init_graph', arguments: {} });
+  const initGraph = getStructuredContent<{
+    documentsFound: number;
+    relationsDiscovered: number;
+    warnings: string[];
+    durationMs: number;
+  }>(initResult);
+
+  expect(initGraph).toMatchObject({
+    documentsFound: 2,
+    relationsDiscovered: 2,
+    warnings: [],
+  });
+  expect(initGraph.durationMs).toBeGreaterThanOrEqual(0);
+  expect(existsSync(join(projectRoot, '.cord', 'cord.db'))).toBe(true);
+
+  const queryResult = await connection.client.callTool({
+    name: 'query_relations',
+    arguments: {
+      docPath: 'docs/overview.md',
+    },
+  });
+  const relations = getStructuredContent<{
+    relations: Array<{
+      relationId: string;
+      targetPath: string;
+      relationType: string;
+      confidence: number;
+      source: string;
+      status: string;
+      hopDistance: number;
+    }>;
+    totalCount: number;
+  }>(queryResult);
+
+  expect(relations.totalCount).toBeGreaterThanOrEqual(1);
+  expect(relations.relations).toContainEqual(expect.objectContaining({
+    relationId: expect.any(String),
+    targetPath: 'docs/notes.md',
+    relationType: 'references',
+    confidence: expect.any(Number),
+    source: 'auto_scan',
+    status: 'active',
+    hopDistance: 1,
+  }));
+
+  const impactResult = await connection.client.callTool({
+    name: 'analyze_impact',
+    arguments: {
+      docPath: 'docs/overview.md',
+    },
+  });
+  const impact = getStructuredContent<{
+    impactedDocs: Array<{
+      docPath: string;
+      relationType: string;
+      propagationType: string;
+      suggestedAction: string;
+      updateStrategy: string;
+      severity: string;
+      confidence: number;
+      hopDistance: number;
+    }>;
+    totalCount: number;
+  }>(impactResult);
+
+  expect(impact.totalCount).toBeGreaterThanOrEqual(1);
+  expect(impact.impactedDocs).toContainEqual(expect.objectContaining({
+    docPath: 'docs/notes.md',
+    relationType: 'references',
+    propagationType: 'references',
+    suggestedAction: '仅供参考',
+    updateStrategy: 'suggest',
+    severity: 'info',
+    confidence: expect.any(Number),
+    hopDistance: 1,
+  }));
+
+  const syncDocsResult = await connection.client.callTool({
+    name: 'sync_docs',
+    arguments: {
+      filePath: 'docs/overview.md',
+    },
+  });
+  const syncDocs = getStructuredContent<{
+    suggestions: Array<{
+      targetPath: string;
+      action: string;
+      updateStrategy: string;
+      reason: string;
+    }>;
+    affectedCount: number;
+  }>(syncDocsResult);
+
+  expect(syncDocs.affectedCount).toBe(syncDocs.suggestions.length);
+  expect(syncDocs.suggestions).toContainEqual({
+    targetPath: 'docs/notes.md',
+    action: 'review',
+    updateStrategy: 'suggest',
+    reason: '仅供参考',
+  });
 }
 
 describe('CORD MCP server integration', () => {
@@ -67,15 +241,7 @@ describe('CORD MCP server integration', () => {
     const result = await connection.client.listTools();
     const toolNames = result.tools.map((tool) => tool.name).sort();
 
-    expect(toolNames).toEqual([
-      'add_relation',
-      'analyze_impact',
-      'deprecate_relation',
-      'init_graph',
-      'query_relations',
-      'remove_relation',
-      'sync_docs',
-    ]);
+    expect(toolNames).toEqual(EXPECTED_TOOL_NAMES);
 
     const addRelationTool = result.tools.find((tool) => tool.name === 'add_relation');
     expect(addRelationTool?.inputSchema.properties).toHaveProperty('sourcePath');
@@ -92,107 +258,59 @@ describe('CORD MCP server integration', () => {
     const connection = await connectTestServer(projectRoot);
     cleanupCallbacks.push(connection.close);
 
-    const initResult = await connection.client.callTool({ name: 'init_graph', arguments: {} });
-    const initGraph = getStructuredContent<{
-      documentsFound: number;
-      relationsDiscovered: number;
-      warnings: string[];
-      durationMs: number;
-    }>(initResult);
+    await expectCoreToolsWork(connection, projectRoot);
+  });
 
-    expect(initGraph).toMatchObject({
-      documentsFound: 2,
-      relationsDiscovered: 2,
-      warnings: [],
-    });
-    expect(initGraph.durationMs).toBeGreaterThanOrEqual(0);
-    expect(existsSync(join(projectRoot, '.cord', 'cord.db'))).toBe(true);
-
-    const queryResult = await connection.client.callTool({
-      name: 'query_relations',
-      arguments: {
-        docPath: 'docs/overview.md',
+  it('validates Claude Code, Cursor, and VS Code Copilot MCP configs against the same server tool chain', async () => {
+    const ideCases = [
+      {
+        name: 'claude-code',
+        readEntry(projectRoot: string): { command: string; args: string[] } {
+          new ClaudeCodeAdapter().generateMcpConfig(projectRoot);
+          return readJson<{ mcpServers: { cord: { command: string; args: string[] } } }>(join(projectRoot, '.claude', 'settings.json')).mcpServers.cord;
+        },
       },
-    });
-    const relations = getStructuredContent<{
-      relations: Array<{
-        relationId: string;
-        targetPath: string;
-        relationType: string;
-        confidence: number;
-        source: string;
-        status: string;
-        hopDistance: number;
-      }>;
-      totalCount: number;
-    }>(queryResult);
-
-    expect(relations.totalCount).toBeGreaterThanOrEqual(1);
-    expect(relations.relations).toContainEqual(expect.objectContaining({
-      relationId: expect.any(String),
-      targetPath: 'docs/notes.md',
-      relationType: 'references',
-      confidence: expect.any(Number),
-      source: 'auto_scan',
-      status: 'active',
-      hopDistance: 1,
-    }));
-
-    const impactResult = await connection.client.callTool({
-      name: 'analyze_impact',
-      arguments: {
-        docPath: 'docs/overview.md',
+      {
+        name: 'cursor',
+        readEntry(projectRoot: string): { command: string; args: string[] } {
+          new CursorAdapter().generateMcpConfig(projectRoot);
+          return readJson<{ mcpServers: { cord: { command: string; args: string[] } } }>(join(projectRoot, '.cursor', 'mcp.json')).mcpServers.cord;
+        },
       },
-    });
-    const impact = getStructuredContent<{
-      impactedDocs: Array<{
-        docPath: string;
-        relationType: string;
-        propagationType: string;
-        suggestedAction: string;
-        updateStrategy: string;
-        severity: string;
-        confidence: number;
-        hopDistance: number;
-      }>;
-      totalCount: number;
-    }>(impactResult);
-
-    expect(impact.totalCount).toBeGreaterThanOrEqual(1);
-    expect(impact.impactedDocs).toContainEqual(expect.objectContaining({
-      docPath: 'docs/notes.md',
-      relationType: 'references',
-      propagationType: 'references',
-      suggestedAction: '仅供参考',
-      updateStrategy: 'suggest',
-      severity: 'info',
-      confidence: expect.any(Number),
-      hopDistance: 1,
-    }));
-
-    const syncDocsResult = await connection.client.callTool({
-      name: 'sync_docs',
-      arguments: {
-        filePath: 'docs/overview.md',
+      {
+        name: 'vscode-copilot',
+        readEntry(projectRoot: string): { command: string; args: string[]; type: string } {
+          new VscodeCopilotAdapter().generateMcpConfig(projectRoot);
+          return readJson<{ servers: { cord: { command: string; args: string[]; type: string } } }>(join(projectRoot, '.vscode', 'mcp.json')).servers.cord;
+        },
       },
-    });
-    const syncDocs = getStructuredContent<{
-      suggestions: Array<{
-        targetPath: string;
-        action: string;
-        updateStrategy: string;
-        reason: string;
-      }>;
-      affectedCount: number;
-    }>(syncDocsResult);
+    ] as const;
 
-    expect(syncDocs.affectedCount).toBe(syncDocs.suggestions.length);
-    expect(syncDocs.suggestions).toContainEqual({
-      targetPath: 'docs/notes.md',
-      action: 'review',
-      updateStrategy: 'suggest',
-      reason: '仅供参考',
-    });
+    for (const ideCase of ideCases) {
+      const projectRoot = createTempProjectFromFixture('generic-project');
+      createdRoots.push(projectRoot);
+
+      const entry = ideCase.readEntry(projectRoot);
+      expect(entry).toMatchObject({
+        command: 'node',
+        args: ['./dist/mcp/server.js'],
+      });
+
+      if ('type' in entry) {
+        expect(entry.type).toBe('stdio');
+      }
+
+      const connection = await connectConfiguredStdioServer({
+        projectRoot,
+        command: entry.command,
+        args: entry.args,
+      });
+      cleanupCallbacks.push(connection.close);
+
+      const listedTools = await connection.client.listTools();
+      expect(listedTools.tools.map((tool) => tool.name).sort()).toEqual(EXPECTED_TOOL_NAMES);
+      await expectCoreToolsWork(connection, projectRoot);
+    }
   });
 
   it('runs add_relation, deprecate_relation, and remove_relation against the real repository', async () => {

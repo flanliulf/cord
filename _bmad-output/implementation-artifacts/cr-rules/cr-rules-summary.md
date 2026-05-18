@@ -200,3 +200,115 @@
 - Story 5-1 本轮**无新增可沉淀的 CR 规则**。
 - 当前问题本质是历史 Story 示例漂移，不是运行时代码或全局规则缺口；全局约束已由 `_bmad-output/project-context.md`、`03-core-architectural-decisions.md`、`04-implementation-patterns-consistency-rules.md` 覆盖。
 - 后续若获得修改 Story 5.1 文档的明确许可，应优先按 `src/mcp/tools/schemas.ts` 与现有镜像规则同步 DTO 示例，再关闭对应 TODO。
+
+## Story 5-5 / 2026-05-18
+
+- **Story**: 5-5
+- **分析来源**:
+  - `5-5-code-review-summary-20260518-round-1.md`
+  - `5-5-code-review-evaluation-20260518-round-1.md`
+  - `5-5-code-review-summary-20260518-round-2.md`
+  - `5-5-code-review-evaluation-20260518-round-2.md`
+  - `5-5-code-review-summary-20260518-round-3.md`
+  - `5-5-code-review-evaluation-20260518-round-3.md`
+  - `5-5-code-review-summary-20260518-round-4.md`
+  - `5-5-code-review-evaluation-20260518-round-4.md`
+- **结论概览**:
+  - Round 1 到 Round 3 共暴露 3 个 `patch` 问题家族：Hooks 触发链路只测文件存在、三大 IDE MCP 验证只测配置形状、stdio MCP helper 重抛增强错误未保留 `cause`；另有 1 个历史 `defer` 项（QueryService 性能阈值波动）。
+  - Round 4 确认 3 个 `patch` 问题均已闭合，Story 5-5 审查通过。
+  - 本轮提炼出 2 条跨 Story 可复用、但仍偏 IDE/MCP 测试域的规则，按保守默认决策仅 record-only 到 `cr-rules-summary.md`；不触发 Rule Document Registry 全局文档同步。
+
+#### 升格判定摘要
+
+| 候选规则 | 硬性门槛 | 总分 | 建议去向 | 用户确认结果 |
+|----------|----------|------|----------|--------------|
+| CR-TEST-02：生成型自动化产物不能只验证存在性，必须同时校验精确配置与真实执行链路 | 通过 | 10/12 | rules-summary | 已按默认决策写入 CR rules summary |
+| CR-MCP-02：IDE MCP 集成测试必须消费生成配置的 `command/args` 并走真实 stdio 启动链路 | 通过 | 11/12 | rules-summary | 已按默认决策写入 CR rules summary |
+| 捕获异常后的增强重抛必须保留 `cause` | 未通过（已有 lint / 错误处理约束覆盖） | 4/12 | none | 不沉淀 |
+
+### 提炼规则
+
+#### CR-TEST-02：生成型自动化产物不能只验证存在性，必须同时校验精确配置与真实执行链路
+
+- **来源问题**: Round 1 暴露 Claude Code Hooks 的验收证据只覆盖文件存在与宽松配置形状，未覆盖 `PostToolUse` 精确 matcher/command，也未执行生成的 hook 脚本验证 `cord impact --json <path>` 真实调用链，导致 FR29/AC7 的自动触发能力可能在配置漂移时静默失效。
+- **CR 证据**:
+  - `5-5-code-review-summary-20260518-round-1.md`: reviewer 指出 Hooks “触发”只验证文件存在，没有验证落盘后会调用影响分析。
+  - `5-5-code-review-evaluation-20260518-round-1.md`: evaluator 确认应补精确 `PostToolUse` 断言与 hook 执行性测试。
+  - `5-5-code-review-summary-20260518-round-4.md`: Round 4 确认 matcher/command 精确断言与 stub `cord` 执行性测试持续闭合。
+- **硬性门槛**:
+  - 有证据: 是
+  - 可规则化: 是
+  - 非纯特例: 是
+  - 不重复: 是
+  - 状态明确: 是
+- **量化评分**:
+
+  | 维度 | 分数 | 理由 |
+  |------|------|------|
+  | 复现频次 | 1 | 同一 Story 的多轮 summary/evaluation 持续围绕同一测试缺口闭环。 |
+  | 影响范围 | 1 | 主要影响 IDE adapter / init 输出的生成型自动化产物验证，属于单技术域。 |
+  | 风险等级 | 2 | 会让自动触发关系检查的核心体验在配置漂移时静默失效，属于用户可感知功能回归。 |
+  | 根因稳定性 | 2 | 根因是“生成产物只测存在、不测执行”的稳定测试盲区，后续生成脚本/命令类能力容易复发。 |
+  | 可执行性 | 2 | 可明确要求精确断言 matcher/command，并用 stub + 执行脚本的回归测试锁定。 |
+  | 文档缺口 | 2 | 当前全局文档与既有 CR 规则未覆盖“生成型自动化产物需执行性验证”模式。 |
+
+- **总分**: 10/12
+- **建议去向**: rules-summary
+- **适用范围**: IDE adapter、`cord init` 生成的 hook/script/automation config、相关单元与集成测试。
+- **规避指南**:
+  - 禁止只断言生成文件存在，或只用 `expect.any(...)` 验证自动化配置的宽松形状。
+  - 禁止把“脚本已生成”当作“自动化行为已验证”。
+- **最佳实践**:
+  - 对生成的 hook / script / automation config，必须同时断言关键配置项的精确值（如 matcher、command、args）。
+  - 至少补 1 条执行性测试：在临时项目中执行生成脚本或命令，并通过 stub 可执行文件断言真实收到的 CLI 参数链路。
+- **全局文档建议**:
+  - 暂不升格到 Rule Document Registry 文档。该规则虽可复用，但目前证据仍集中在 Epic 5 的 IDE 自动化测试域；若后续 Story 再次出现生成型脚本/命令只测存在性的问题，再考虑升格到 `_bmad-output/project-context.md`、`03-core-architectural-decisions.md`、`04-implementation-patterns-consistency-rules.md` 的 IDE adapter / 测试策略章节。
+- **本次落地**:
+  - 已按默认决策记录到 `cr-rules-summary.md`；不修改源码、Story 文档或全局规则文档。
+- **同步状态**: 已写入规则总结
+
+#### CR-MCP-02：IDE MCP 集成测试必须消费生成配置的 `command/args` 并走真实 stdio 启动链路
+
+- **来源问题**: Round 1 与 Round 2 暴露三大 IDE MCP “端到端验证”只验证生成配置里的 `command/args/type` 字符串，随后仍回退到 in-memory MCP helper，未真实消费 IDE 生成配置启动 stdio server，导致 AC6/AC7 与 NFR11 的关键链路无法证明。
+- **CR 证据**:
+  - `5-5-code-review-summary-20260518-round-1.md`: reviewer 首次指出三大 IDE MCP 端到端验证只覆盖通用 MCP server 与部分 IDE 配置形状。
+  - `5-5-code-review-evaluation-20260518-round-2.md`: evaluator 明确确认必须消费生成的 `command/args`，不能继续用 in-memory server 代替 IDE 配置验证。
+  - `5-5-code-review-summary-20260518-round-4.md`: Round 4 确认 Claude Code / Cursor / VS Code Copilot 三 IDE 矩阵测试均已通过 `StdioClientTransport` 消费生成配置并完成核心工具链验证。
+- **硬性门槛**:
+  - 有证据: 是
+  - 可规则化: 是
+  - 非纯特例: 是
+  - 不重复: 是
+  - 状态明确: 是
+- **量化评分**:
+
+  | 维度 | 分数 | 理由 |
+  |------|------|------|
+  | 复现频次 | 1 | 同一 Story 多轮复审重复命中，直到真实 stdio 启动链路补齐后才闭合。 |
+  | 影响范围 | 2 | 同时影响 IDE adapter、MCP server、init 产物和集成测试矩阵，属于跨模块问题。 |
+  | 风险等级 | 2 | 若只测配置形状，真实 IDE 启动入口、相对路径或进程链路漂移会被静默放过。 |
+  | 根因稳定性 | 2 | 根因是“配置形状测试冒充端到端验证”的集成测试设计缺口，后续 IDE/MCP 能力扩展时高概率复发。 |
+  | 可执行性 | 2 | 可写成明确规则：消费生成配置启动 stdio transport，并执行最小工具链回归。 |
+  | 文档缺口 | 2 | 现有全局文档仅约束 MCP DTO 与 stdout/stderr 边界，未约束 IDE MCP 配置验证必须走真实 transport。 |
+
+- **总分**: 11/12
+- **建议去向**: rules-summary
+- **适用范围**: IDE adapter 生成的 MCP 配置、MCP 集成测试、需要验证 `command/args/cwd` 真实执行链路的启动型配置。
+- **规避指南**:
+  - 禁止先验证 IDE 生成配置形状，再回退到 in-memory helper 作为“端到端验证”。
+  - 禁止在声称验证 IDE MCP 集成时绕过生成配置里的 `command`、`args`、`cwd` 等真实启动契约。
+- **最佳实践**:
+  - IDE MCP 矩阵测试必须读取各 IDE 生成配置，并用同一份 `command/args` 通过 `StdioClientTransport` 或等价子进程链路启动 server。
+  - 启动后至少验证 `listTools()` 与最小核心工具链，确保配置、打包入口和真实 transport 三者同时闭合。
+- **全局文档建议**:
+  - 暂不升格到 Rule Document Registry 文档。该规则已满足高分阈值，但当前适用面仍偏 Epic 5 的 IDE/MCP 集成测试域；保守起见先 record-only。若后续其它 Story 再出现“生成配置只测形状、未走真实 transport”的同类问题，再升格到 `_bmad-output/project-context.md`、`03-core-architectural-decisions.md`、`04-implementation-patterns-consistency-rules.md`。
+- **本次落地**:
+  - 已按默认决策记录到 `cr-rules-summary.md`；不修改源码、Story 文档或全局规则文档。
+- **同步状态**: 已写入规则总结
+
+### 治理结论
+
+- Story 5-5 本轮新增 2 条可复用规则，均按保守默认决策 record-only 到 `cr-rules-summary.md`。
+- `capture -> rethrow` 保留 `cause` 的问题不新增规则：现有 lint 规则 `preserve-caught-error` 与错误处理约束已覆盖，重复沉淀收益不足。
+- 本轮**不更新** `_bmad-output/project-context.md`、`03-core-architectural-decisions.md`、`04-implementation-patterns-consistency-rules.md`，因为两条候选规则尚未达到“足够全局”的升格范围。
+- 无需新增 `05 TODO Tracker` 条目；历史 QueryService 性能阈值波动已由 `cr-todo-backlog.md` 的 `TODO-024` 持续跟踪。
