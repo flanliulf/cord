@@ -33,4 +33,6 @@ Story：5-5-hooks-auto-trigger-and-skills-generation
 
 - 已定位 Story 文件：`_bmad-output/implementation-artifacts/stories/5-5-hooks-auto-trigger-and-skills-generation.md`
 - 已创建进度记录目录：`_bmad-output/implementation-artifacts/code-reviews/5-5-code-review/`
-- 下一步：启动开发 sub agent。
+- 最终状态：Story 5-5 已完成开发、4 轮 CR 循环、规则提炼、TODO 检查、CR finalizer，并已完成本地提交。
+- 主提交：`5d8b319596efdb0273ad1368cc2f6880ea72af50`，`feat(ide): 实现 Hooks 自动触发与 Skills 生成（Story 5-5）`。
+- 未推送远程。

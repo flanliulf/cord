@@ -32,3 +32,4 @@
 - 04 已 record-only 到 CR rules summary，未升格全局文档。默认决策：05 只确认已有 TODO-024，不重复添加相同 QueryService 性能波动项。
 - 05 已确认无新增 TODO，TODO-024 维持 open。默认决策：06 将 Story/sprint/workflow 状态同步为 done；若 Epic 状态需要额外确认，保守选择不自动更新 Epic。
 - 06 已完成 Story/sprint done，同步 workflow 因文件不存在跳过，Epic 未自动联动。下一步提交时必须避免纳入无关工作区变更，采用中文 Conventional Commit，不推送。
+- git commit convention 已完成主提交：`5d8b319596efdb0273ad1368cc2f6880ea72af50`。由于提交后需要补齐本进度文件的最终结果，默认决策：追加一次仅包含 5-5 进度记录的本地提交；仍不推送，不纳入 Story 5-3 的无关变更。
