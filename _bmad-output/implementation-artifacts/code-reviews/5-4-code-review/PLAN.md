@@ -40,7 +40,7 @@ Implement Story 5-4, run sequential cross-LLM CR workflow until both review and 
 - [x] Development complete.
 - [x] CR loop approved.
 - [x] Finalization complete.
-- [x] Local commit prepared.
+- [x] Local commit complete.
 
 ## Finalization Results
 
@@ -54,3 +54,10 @@ Implement Story 5-4, run sequential cross-LLM CR workflow until both review and 
 - Commit model record for this finalization step: `GPT-5.4 (copilot)`.
 - Planned local commit scope: Story 5-4 implementation files, Story 5-4 CR artifacts, Story 5-4 finalization records, and related status files only.
 - These PLAN / EXPERIMENTS / EXPERIMENT_NOTES updates are intentionally included in the same local commit as the finalization record.
+
+## Commit Record
+
+- Primary local commit: `ce8ca10` `feat(init): 实现一键初始化流程（Story 5-4）`
+- Push: not performed.
+- Scope check: Story 5-4 target files were committed; unrelated Story 5-3 progress-file changes remain uncommitted.
+- Note: this commit record is written after the primary commit, so it is persisted as a note-only follow-up commit rather than amending history.

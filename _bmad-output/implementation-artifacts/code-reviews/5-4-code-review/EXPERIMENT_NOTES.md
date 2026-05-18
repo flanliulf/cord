@@ -62,3 +62,7 @@ Date: 2026-05-18
 - Workflow sync note: `_bmad-output/planning-artifacts/bmm-workflow-status.yaml` does not exist in this repository; skipped per skill rule without blocking finalization.
 - Epic note: Epic 5 cannot be marked done because Story 5-5 remains `ready-for-dev`.
 - Next action: create a local-only Story 5-4 scoped commit, adding only 5-4 related files explicitly and excluding unrelated working-tree changes. These note updates are intended to be included in that same commit.
+- Primary local commit completed: `ce8ca10` `feat(init): 实现一键初始化流程（Story 5-4）`.
+- Push was not performed.
+- Remaining uncommitted files after primary commit are unrelated Story 5-3 progress records; they were intentionally excluded.
+- This post-commit note update will be persisted in a small follow-up commit without amending history.
