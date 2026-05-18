@@ -1,6 +1,6 @@
 # Story 5.3: IDE 适配器与自动检测
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -21,15 +21,15 @@ So that `cord init` 可以为我的 IDE 生成正确的配置文件。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 定义 IIdeAdapter 接口 (AC: #1)
-- [ ] Task 2: 实现 IDE 检测器 (AC: #2)
-- [ ] Task 3: 实现 4 个 IDE 适配器 (AC: #3-#6, #7)
-  - [ ] 3.1 `src/adapters/ide/claude-code.ts`
-  - [ ] 3.2 `src/adapters/ide/cursor.ts`
-  - [ ] 3.3 `src/adapters/ide/vscode-copilot.ts` — 生成 copilot-instructions.md + AGENTS.md + MCP Host 配置
-  - [ ] 3.4 `src/adapters/ide/codex-cli.ts`
-- [ ] Task 4: 更新 index.ts
-- [ ] Task 5: 编写测试 (AC: #8)
+- [x] Task 1: 定义 IIdeAdapter 接口 (AC: #1)
+- [x] Task 2: 实现 IDE 检测器 (AC: #2)
+- [x] Task 3: 实现 4 个 IDE 适配器 (AC: #3-#6, #7)
+  - [x] 3.1 `src/adapters/ide/claude-code.ts`
+  - [x] 3.2 `src/adapters/ide/cursor.ts`
+  - [x] 3.3 `src/adapters/ide/vscode-copilot.ts` — 生成 copilot-instructions.md + AGENTS.md + MCP Host 配置
+  - [x] 3.4 `src/adapters/ide/codex-cli.ts`
+- [x] Task 4: 更新 index.ts
+- [x] Task 5: 编写测试 (AC: #8)
 
 ## Dev Notes
 
@@ -110,6 +110,34 @@ export interface IIdeAdapter {
 ## Dev Agent Record
 
 ### Agent Model Used
+- GPT-5.4 (copilot)
 ### Debug Log References
+- `npm test -- --run tests/unit/adapters/ide.test.ts`
+- `npm run type-check`
+- `npm run lint`
+- `npm test`
 ### Completion Notes List
+- 已新增 `IIdeAdapter`、`IdeName`、检测器与 `resolveIdeAdapter` 门面，覆盖 Claude Code / Cursor / VS Code Copilot / Codex CLI 四种 IDE 检测与冲突裁决。
+- 已实现 4 个 IDE 适配器：Claude Code 生成 `.claude/rules/cord-relations.md`、`CLAUDE.md` 引导壳、`.claude/settings.json` 与 Hook 脚本；Cursor 生成 `.cursor/mcp.json` 与 `.cursor/rules/cord-relations.mdc`；VS Code Copilot 生成 `.github/copilot-instructions.md`、`.vscode/mcp.json` 与共享 `AGENTS.md` 区块；Codex CLI 生成共享 `AGENTS.md` 区块。
+- 已实现零侵入写入策略：IDE 原生配置文件仅 create-if-absent / same-content no-op，冲突时抛出 `CordError` 风格的 `AdapterError`；`AGENTS.md` 作为 appendable 例外，使用 `<!-- CORD:START -->` / `<!-- CORD:END -->` 共享区块追加或替换。
+- 已补充 AC #8 测试，覆盖 4 种 IDE 检测、配置生成、共享 `AGENTS.md` 追加、冲突报错与零侵入保护，并通过窄测试、全量测试、类型检查和 lint。
 ### File List
+- _bmad-output/implementation-artifacts/code-reviews/5-3-code-review/EXPERIMENTS.md
+- _bmad-output/implementation-artifacts/code-reviews/5-3-code-review/EXPERIMENT_NOTES.md
+- _bmad-output/implementation-artifacts/code-reviews/5-3-code-review/PLAN.md
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/stories/5-3-ide-adapter-and-auto-detection.md
+- src/adapters/ide/claude-code.ts
+- src/adapters/ide/codex-cli.ts
+- src/adapters/ide/cursor.ts
+- src/adapters/ide/detector.ts
+- src/adapters/ide/index.ts
+- src/adapters/ide/interfaces.ts
+- src/adapters/ide/shared.ts
+- src/adapters/ide/vscode-copilot.ts
+- tests/unit/adapters/ide.test.ts
+
+### Change Log
+
+- 2026-05-18: 开始 Story 5.3 开发，状态更新为 in-progress，开发模型记录为 GPT-5.4 (copilot)。
+- 2026-05-18: 完成 Story 5.3 的 IDE 适配器、检测器与测试，状态更新为 review。
