@@ -30,7 +30,7 @@
 - [x] CR 规则提炼完成
 - [x] CR TODO 处理完成
 - [x] Story finalizer 收尾完成
-- [ ] Git 本地提交完成
+- [x] Git 本地提交完成
 
 ## 决策记录
 
@@ -43,3 +43,4 @@
 - 2026-05-19：第 2 轮 CR reviewer 结论为通过，无需修复项、无可延迟项；仍需 evaluator 独立确认。
 - 2026-05-19：第 2 轮 evaluator 确认 reviewer 的通过结论成立，无修复项；满足循环停止条件，因此不再执行无修复项的 fixer。
 - 2026-05-19：CR 收尾 sub agent 采用 record-only 沉淀 `CR-DOC-01`，无新增 CR TODO；finalizer 将 Story 6-2、`6-2-user-docs-and-readme` 和 `epic-6` 标记为 done，`bmm-workflow-status.yaml` 不存在按规则跳过。
+- 2026-05-19：git commit sub agent 使用 `git-commit-convention` 完成本地提交，提交为 `0a30510 docs(user-docs): 完成 Story 6-2 用户文档交付`，未推送。

@@ -80,3 +80,13 @@
 - **Finalizer 结果**: Story 6-2 状态更新为 `done`；`sprint-status.yaml` 中 `6-2-user-docs-and-readme` 与 `epic-6` 更新为 `done`；`bmm-workflow-status.yaml` 不存在，按容错规则跳过。
 - **验证**: 对规则 summary、Story 文件、sprint-status 运行 Prettier 检查并通过。
 - **后续调整**: 启动 git commit sub agent，使用 `git-commit-convention`，默认中文，不推送。
+
+## 尝试 9：git-commit-convention 本地提交（成功）
+
+- **时间**: 2026-05-19
+- **方案**: 启动全新的 sub agent，使用 `git-commit-convention`，模型记录为 GPT-5.4，默认中文 commit message，仅本地提交不推送。
+- **选择原因**: 用户要求最后使用该 skill 提交代码，且默认中文、不推送。
+- **结果**: 成功。提交 `0a30510 docs(user-docs): 完成 Story 6-2 用户文档交付`。
+- **提交范围**: README、用户文档、Story/sprint 状态、CR 审查/评估文件、CR rules summary、6-2 进度记录文件。
+- **剩余状态**: 提交完成时工作区干净，无未提交无关变更；未执行 push。
+- **补充动作**: 为满足进度记录覆盖最终步骤，本文件和同目录 `PLAN.md`、`EXPERIMENT_NOTES.md` 追加最终提交结果后，需要再执行一次只包含进度记录收尾更新的本地提交。

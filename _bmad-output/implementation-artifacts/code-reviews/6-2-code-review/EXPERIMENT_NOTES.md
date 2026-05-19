@@ -61,3 +61,10 @@
 - TODO tracker：无新增 TODO。
 - Finalizer：Story 6-2 与 sprint 状态已 done，Epic 6 也已 done；`bmm-workflow-status.yaml` 不存在，跳过。
 - 下一步：使用 `git-commit-convention` 进行本地提交，默认中文，不推送。
+
+## 2026-05-19 Git 提交
+
+- 已使用 `git-commit-convention` 完成本地提交：`0a30510 docs(user-docs): 完成 Story 6-2 用户文档交付`。
+- 未推送。
+- 提交完成时工作区干净，无未提交无关变更。
+- 当前补记最终提交结果，因此需要将这三份进度记录的收尾更新再做一次本地提交。
