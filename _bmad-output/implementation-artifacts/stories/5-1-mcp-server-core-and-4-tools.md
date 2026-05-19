@@ -75,12 +75,14 @@ export const QueryRelationsInput = z.object({
   docPath: z.string().describe('查询文档路径'),
   type: RelationTypeSchema.optional().describe('按关系类型过滤（FR14）'),
   includeDeprecated: z.boolean().optional().default(false).describe('是否包含 deprecated 状态的关系'),
+  depth: z.number().int().min(1).max(3).optional().default(1).describe('遍历深度（1-3）'),
 });
 ```
 
 **CLI/MCP 字段对齐约定**：
 - CLI `--type` flag 对应 `QueryRelationsInput.type`
 - CLI `--include-deprecated` flag 对应 `QueryRelationsInput.includeDeprecated`
+- CLI `--depth` flag 对应 `QueryRelationsInput.depth`
 - MCP 返回结果字段顺序与 CLI `--json` 输出字段顺序完全一致
 
 ### sync_docs Tool 契约（发现#3 裁决）
@@ -138,11 +140,12 @@ export const AnalyzeImpactResult = z.object({
   impactedDocs: z.array(z.object({
     docPath: z.string(),
     relationType: RelationTypeSchema,
-    propagationType: z.enum(['sync_required','must_consistent','lifecycle_bound','contains','sync_suggested','derived_from','context_for','references','deprecated']),  // FR17
+    propagationType: RelationTypeSchema,                                  // FR17
     suggestedAction: z.string(),                                          // FR17 parity 字段：人读建议（CLI/MCP 展示）
     updateStrategy: z.enum(['auto', 'suggest', 'log_only']),              // Story 4.3 元数据字段：机器决策
+    severity: z.enum(['critical', 'high', 'medium', 'low', 'info', 'none']),
     confidence: z.number(),
-    reason: z.string(),
+    hopDistance: z.number().int().min(1),
   })),
   totalCount: z.number(),
 });
@@ -156,6 +159,7 @@ export const QueryRelationsResult = z.object({
     confidence: z.number(),
     source: z.enum(['auto_scan', 'manual', 'framework_preset']),
     status: z.enum(['active', 'deprecated']),
+    hopDistance: z.number().int().min(1),
   })),
   totalCount: z.number(),
 });
@@ -165,7 +169,7 @@ export const InitGraphResult = z.object({
   documentsFound: z.number(),       // 对齐 ScanResult.documentsFound
   relationsDiscovered: z.number(),  // 对齐 ScanResult.relationsDiscovered
   warnings: z.array(z.string()),    // 对齐 ScanResult.warnings
-  duration: z.number().describe('扫描耗时（ms）'),
+  durationMs: z.number().describe('扫描耗时（ms）'),
 });
 
 // sync_docs — 输出 DTO（单文档）
@@ -240,3 +244,4 @@ export const SyncDocsResult = z.object({
 
 - 2026-05-16: 实现 MCP Server 核心、4 个 tools、命名 schema/JSON Schema 导出，以及对应单元/集成测试；同步 Rule Document Registry 三份文档中的 MCP I/O 契约；Story 状态更新为 review。
 - 2026-05-17: CR round 1 reviewer/evaluator 通过，fixer no-op；finalizer 将 Story 状态更新为 done，并将旧 DTO 示例漂移登记为 `TODO-034` 非阻塞文档债。
+- 2026-05-19: 按 CR rules extractor 确认方案同步 Story 内旧 DTO 示例到当前 `src/mcp/tools/schemas.ts` 契约，并关闭 `TODO-034`。

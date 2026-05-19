@@ -6,9 +6,9 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 36 |
+| Open | 34 |
 | In Progress | 0 |
-| Resolved | 0 |
+| Resolved | 2 |
 | **合计** | **36** |
 
 ---
@@ -62,21 +62,6 @@
   - `vitest.config.ts`
 - **问题描述**：`tsconfig.json` 的 `include` 仅覆盖 `src/**/*.ts`，`tests/`、`tsup.config.ts`、`vitest.config.ts` 均被排除，导致 `npm run type-check` 无法检测这些文件中的类型错误。
 - **建议时机**：引入真实测试代码的 Story（1-2 或 1-3），通过新增 `tsconfig.check.json`（`include` 扩展至 `tests/` 和配置文件）统一处理
-- **解决记录**：—
-
----
-
-### TODO-004
-
-- **标题**：MCP 入口为静默空实现，缺少防御性占位输出
-- **状态**：open
-- **优先级**：P3（择机处理）
-- **类别**：tech-debt
-- **来源**：Story 1-1 / Round 1 / 2026-04-26（发现 #4）
-- **涉及文件**：
-  - `src/mcp/server.ts`
-- **问题描述**：`src/mcp/server.ts` 当前为仅含注释的占位文件（符合 Task 2.5 显式要求），构建后 `node dist/mcp/server.js` 静默退出（exit code 0），运维层面难以区分"正常启动"与"空实现静默退出"。
-- **建议时机**：Epic 5 启动时，将占位文件升级为防御性实现（如 `throw new Error('not implemented')` 或向 stderr 输出提示信息）
 - **解决记录**：—
 
 ---
@@ -477,25 +462,6 @@
 
 ---
 
-### TODO-034
-
-- **标题**：Story 5.1 DTO 示例需与 MCP 共享契约同步
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 5-1 / Round 1 / 2026-05-17（reviewer 发现 #1；evaluator accepted as deferred）
-- **涉及文件**：
-  - `_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md`
-  - `src/mcp/tools/schemas.ts`
-  - `_bmad-output/project-context.md`
-  - `_bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md`
-  - `_bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md`
-- **问题描述**：Story 5.1 中的历史 DTO 示例仍与当前共享契约不一致：`_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md:72-79` 的 `QueryRelationsInput` 示例缺少 `depth`；`_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md:137-169` 仍包含旧字段 `AnalyzeImpactResult.reason`、`InitGraphResult.duration`，且缺少 `severity`、`hopDistance`、`durationMs`。当前运行时代码和镜像规则文档已以 `src/mcp/tools/schemas.ts` 为准，因此该问题不会阻塞交付，但若后续 Story/CR 回读旧示例，容易再次引入 DTO 漂移。
-- **建议时机**：下次明确允许修改 Story 5.1 文档，或触及 MCP DTO/Story 5.1 文档整理时，与 `src/mcp/tools/schemas.ts` 和 Rule Document Registry 三份镜像规则一并同步。
-- **解决记录**：—
-
----
-
 ### TODO-035
 
 - **标题**：贡献指南集成测试模板补重复扫描断言
@@ -606,4 +572,36 @@
 
 ## Resolved Items
 
-（暂无）
+---
+
+### TODO-034
+
+- **标题**：Story 5.1 DTO 示例需与 MCP 共享契约同步
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 5-1 / Round 1 / 2026-05-17（reviewer 发现 #1；evaluator accepted as deferred）
+- **涉及文件**：
+  - `_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md`
+  - `src/mcp/tools/schemas.ts`
+  - `_bmad-output/project-context.md`
+  - `_bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md`
+  - `_bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md`
+- **问题描述**：Story 5.1 中的历史 DTO 示例曾与当前共享契约不一致：`QueryRelationsInput` 示例缺少 `depth`；`AnalyzeImpactResult` / `InitGraphResult` 示例仍包含旧字段或旧别名，且缺少 `severity`、`hopDistance`、`durationMs`。
+- **处理方式**：已按 `src/mcp/tools/schemas.ts` 和现有 Rule Document Registry 镜像规则同步 Story 5.1 DTO 示例；全局规则文档本身无需更新。
+- **解决记录**：2026-05-19 已按用户确认的 CR rules extractor 方案 2 同步 `_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md` 中的 DTO 示例：补齐 `QueryRelationsInput.depth`、`QueryRelationsResult.hopDistance`、`AnalyzeImpactResult.severity` / `hopDistance`，并将 `InitGraphResult.duration` 更新为 `durationMs`。全局规则文档已存在等价约束，本次未修改。
+
+---
+
+### TODO-004
+
+- **标题**：MCP 入口为静默空实现，缺少防御性占位输出
+- **状态**：resolved
+- **优先级**：P3（择机处理）
+- **类别**：tech-debt
+- **来源**：Story 1-1 / Round 1 / 2026-04-26（发现 #4）
+- **涉及文件**：
+  - `src/mcp/server.ts`
+- **问题描述**：`src/mcp/server.ts` 曾为仅含注释的占位文件，构建后 `node dist/mcp/server.js` 静默退出（exit code 0），运维层面难以区分"正常启动"与"空实现静默退出"。
+- **处理方式**：Story 5-1 已实现真实 MCP Server 入口，包含 stdio transport 启动路径、MCP tool 注册、stderr 运行日志和 SIGTERM/SIGINT 优雅退出处理。
+- **解决记录**：2026-05-19 按 CR TODO Tracker 对 Story 5-1 的相关待办检查结果标记 resolved；实现证据位于 `src/mcp/server.ts`，测试证据覆盖 `tests/unit/mcp/server.test.ts` 与 `tests/integration/mcp/server.test.ts`。
