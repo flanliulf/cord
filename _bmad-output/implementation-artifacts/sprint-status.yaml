@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-09
-last_updated: 2026-05-18 19:03
+last_updated: 2026-05-19
 project: CORD
 project_key: NOKEY
 tracking_system: file-system
@@ -71,20 +71,20 @@ development_status:
   epic-3-retrospective: done
 
   # Epic 4: 关系管理与图谱修正
-  epic-4: in-progress
+  epic-4: done
   4-1-relationservice-manual-add-and-remove-relations: done
   4-2-convergence-protection-and-source-priority: done
   4-3-document-category-update-strategy-config: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 
   # Epic 5: AI IDE 集成（MCP Server + Hooks + 指令注入）
-  epic-5: in-progress
+  epic-5: done
   5-1-mcp-server-core-and-4-tools: done
   5-2-mcp-tools-relation-management: done
   5-3-ide-adapter-and-auto-detection: done
   5-4-initservice-one-click-init-cord-init: done
   5-5-hooks-auto-trigger-and-skills-generation: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done
 
   # Epic 6: 社区贡献体验与文档交付
   epic-6: in-progress
