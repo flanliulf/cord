@@ -35,7 +35,8 @@ Date: 2026-05-18
 - Finalizer result: latest evaluation is Approved, but Story file and sprint-status were already `done` before this pass, so 06 becomes an idempotent confirmation rather than a new state mutation.
 - `_bmad-output/planning-artifacts/bmm-workflow-status.yaml` does not exist in this repository; per skill rule, skip workflow-state sync without blocking finalization.
 - Epic 5 is not all done because `5-4-initservice-one-click-init-cord-init` and `5-5-hooks-auto-trigger-and-skills-generation` remain unfinished; do not update `epic-5` to done.
-- Next action: perform a Story 5-3 scoped local commit only, then append the resulting commit hash/message back into these progress files.
+- Primary local commit completed: `7021232` `feat(ide): 实现 IDE 适配器与自动检测（Story 5-3）`.
+- Progress files now store the primary commit hash/message; a note-only follow-up commit persists that audit record without history rewrite.
 
 ## Validation Commands
 

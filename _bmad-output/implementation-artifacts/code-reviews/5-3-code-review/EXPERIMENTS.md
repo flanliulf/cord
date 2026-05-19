@@ -80,5 +80,11 @@ Date: 2026-05-18
 
 - Plan: Create a Story 5-3 scoped local commit without push, adding files one by one and excluding unrelated user changes.
 - Rationale: User explicitly requested a Chinese local commit via the git-commit-convention skill and forbade `git add -A` / `git add .`.
-- Result: In progress. Commit hash will be recorded after the local commit completes.
+- Result: Completed. Staged only Story 5-3 related files one by one and created primary local commit `7021232` with message `feat(ide): 实现 IDE 适配器与自动检测（Story 5-3）`.
+
+### Attempt 14: Record Primary Commit Hash In Progress Files
+
+- Plan: Append the primary local commit hash and message to `PLAN.md`, `EXPERIMENTS.md`, and `EXPERIMENT_NOTES.md`, then store those note-only updates in a follow-up local commit.
+- Rationale: A commit cannot record its own hash inside tracked files without rewriting history, so the audit record must be captured in a subsequent note-only commit.
+- Result: Completed. The progress files now record primary commit `7021232` and its message; a note-only follow-up commit is used only to persist that audit trail without amending history.
 

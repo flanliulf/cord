@@ -38,7 +38,7 @@ Complete Story 5-3 implementation, cross-LLM CR loop, CR finalization, and local
 - Development sub agent: completed with GPT-5.4 (copilot)
 - CR loop: completed. Round 2 reviewer passed and round 2 evaluator Approved.
 - Finalization: completed sequentially with GPT-5.4 (copilot)
-- Commit: pending local Story 5-3 scoped commit
+- Primary local commit: `7021232` `feat(ide): 实现 IDE 适配器与自动检测（Story 5-3）`
 
 ## Finalization Results
 
@@ -73,3 +73,9 @@ Complete Story 5-3 implementation, cross-LLM CR loop, CR finalization, and local
 - Workflow state file: `_bmad-output/planning-artifacts/bmm-workflow-status.yaml` not found, so skipped per skill rules.
 - Epic 5 state: not updated; Epic 5 still has unfinished stories `5-4` and `5-5`.
 - Finalizer outcome: idempotent confirmation only; no additional status edit required.
+
+## Commit Record
+
+- Primary commit hash: `7021232`
+- Primary commit message: `feat(ide): 实现 IDE 适配器与自动检测（Story 5-3）`
+- Note: this PLAN update is written after the primary commit so the hash can be recorded without amending history.
