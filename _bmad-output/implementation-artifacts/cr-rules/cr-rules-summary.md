@@ -12,6 +12,7 @@
 | CR-TEST-01 | 测试 helper 的时间/序列数据必须用数值偏移生成，并覆盖跨位数边界           | 4-1        | 历史记录未量化 | global-doc    | 已同步全局文档 |
 | CR-SCAN-02 | 人工修正必须落成扫描保护可识别的持久化信号                                | 4-2        | 10/12          | global-doc    | 已同步全局文档 |
 | CR-SCAN-03 | 批内候选裁剪必须先比较来源优先级，再比较置信度                            | 4-2        | 11/12          | global-doc    | 已同步全局文档 |
+| CR-PROCESS-01 | Rule Document Registry 镜像同步后必须核对旧语义残留                  | 4-3        | 7/12           | rules-summary | 已写入规则总结 |
 | CR-TEST-02 | 生成型自动化产物不能只验证存在性，必须同时校验精确配置与真实执行链路      | 5-5        | 10/12          | rules-summary | 已写入规则总结 |
 | CR-MCP-02  | IDE MCP 集成测试必须消费生成配置的 `command/args` 并走真实 stdio 启动链路 | 5-5        | 11/12          | rules-summary | 已写入规则总结 |
 | CR-DOC-01  | Markdown 表格中的联合类型和枚举值必须转义管道符并校验列数                 | 6-2        | 8/12           | rules-summary | 已写入规则总结 |
@@ -189,6 +190,75 @@
 - Story 4-2 无新增 backlog TODO；`bmenhance-cr-05-todo-tracker` 无需新增条目。
 - 本次提炼出的两条规则均满足全局升格阈值，并已完成 Rule Document Registry 要求的三份镜像文档同步。
 - 后续凡涉及“人工修正覆盖自动结果”或“前置候选裁剪”类逻辑，应直接引用 `CR-SCAN-02` 与 `CR-SCAN-03`。
+
+---
+
+## Story 4-3 / 2026-05-19
+
+- **Story**: 4-3
+- **分析来源**:
+  - `4-3-code-review-summary-20260515-round-1.md`
+  - `4-3-code-review-evaluation-20260515-round-1.md`
+  - `4-3-code-review-summary-20260515-round-2.md`
+  - `4-3-code-review-evaluation-20260515-round-2.md`
+- **结论概览**:
+  - Round 1 暴露 1 个 `patch` 问题：Rule Document Registry 三份镜像文档中，`04-implementation-patterns-consistency-rules.md` 对 `updateStrategies` 仍残留旧的“未知 key 回退 + debug 日志”语义。
+  - Round 1 evaluation 确认该发现有效并按 P1 修复；Round 2 reviewer / evaluator 确认三份镜像文档与当前 schema、类型和 `ImpactService` 解析逻辑已重新对齐。
+  - 本轮不新增全局规则，因为 Rule Document Registry 同步义务已存在；仅将“同步后核对旧语义残留”的执行检查点 record-only 到 `cr-rules-summary.md`。
+
+#### 升格判定摘要
+
+| 候选规则                                                            | 硬性门槛 | 总分 | 建议去向      | 用户确认结果                 |
+| ------------------------------------------------------------------- | -------- | ---- | ------------- | ---------------------------- |
+| CR-PROCESS-01：Rule Document Registry 镜像同步后必须核对旧语义残留 | 通过     | 7/12 | rules-summary | 用户确认 record-only 后写入 |
+
+### 提炼规则
+
+#### CR-PROCESS-01：Rule Document Registry 镜像同步后必须核对旧语义残留
+
+- **来源问题**: Story 4-3 实现 `updateStrategies` 后，三份 Rule Document Registry 文档中有两份已更新为当前契约，但 `04-implementation-patterns-consistency-rules.md` 仍残留旧注释，要求“未知 key 回退 + 记录 debug 日志”。该残留会让后续 Story 或 CR 误以为需要实现当前代码并不支持的 debug 日志语义。
+- **CR 证据**:
+  - `4-3-code-review-summary-20260515-round-1.md`: reviewer 指出 `04-implementation-patterns-consistency-rules.md` 残留旧语义，与 `project-context.md`、`03-core-architectural-decisions.md` 和当前 schema / service 契约不一致。
+  - `4-3-code-review-evaluation-20260515-round-1.md`: evaluator 确认发现有效，判定为 P1 修复项，并限定修复范围为移除旧注释、同步当前 `docType` key / 默认回退契约。
+  - `4-3-code-review-evaluation-20260515-round-2.md`: Round 2 evaluator 确认三份 Rule Document Registry 文档已对齐当前契约，且无新增 CR TODO。
+- **硬性门槛**:
+  - 有证据: 是
+  - 可规则化: 是
+  - 非纯特例: 是
+  - 不重复: 是；本规则不重复新增“必须同步三份文档”的全局约束，只沉淀同步后的旧语义残留检查点
+  - 状态明确: 是
+- **量化评分**:
+
+  | 维度       | 分数 | 理由                                                                                     |
+  | ---------- | ---- | ---------------------------------------------------------------------------------------- |
+  | 复现频次   | 1    | 当前 CR 证据集中在单 Story，但 Epic 4 SR 历史中已有 `updateStrategies` 镜像同步漂移模式。 |
+  | 影响范围   | 1    | 主要影响 Rule Document Registry 镜像文档与后续代理读取口径，未直接改变运行时代码。        |
+  | 风险等级   | 1    | 可能诱导后续实现错误契约或 CR 误判，但本轮已在交付前修复。                               |
+  | 根因稳定性 | 1    | 根因是“新增规则文本时只检查新内容是否写入，未检查旧术语是否清除”的流程习惯。             |
+  | 可执行性   | 2    | 可通过对三份 Registry 文档执行关键术语 grep、旧默认值扫描和代码契约核对来检查。           |
+  | 文档缺口   | 1    | 全局文档已有同步义务，但没有显式沉淀“同步后查旧语义残留”的 CR 操作检查点。               |
+
+- **总分**: 7/12
+- **建议去向**: rules-summary
+- **适用范围**: Rule Document Registry 三份镜像文档、Story / CR / 临时决策中引入或修改规则边界的文档同步流程。
+- **规避指南**:
+  - 禁止只确认新规则已写入目标文档，而不检查同一章节中是否仍保留旧术语、旧默认值、旧异常处理或旧注释。
+  - 禁止在三份镜像文档中留下与当前代码契约不一致的“兼容性说明”或“调试日志要求”。
+- **最佳实践**:
+  - 每次同步 Rule Document Registry 文档后，围绕变更字段执行一次反向关键词扫描，例如旧字段名、旧默认值、旧错误处理语义和已否决的日志要求。
+  - 将扫描结果与源码契约、测试断言和另外两份镜像文档交叉核对，确认“新增语义已写入”和“旧语义已移除”同时成立。
+- **全局文档建议**:
+  - 暂不升格到 Rule Document Registry 文档。三份文档同步义务已由 `CLAUDE.md`、`AGENTS.md`、`project-context.md` 及架构镜像规则覆盖；本条是 CR 执行层检查点，record-only 足够。
+- **本次落地**:
+  - 已在 Round 1 修复执行记录中同步 `04-implementation-patterns-consistency-rules.md` 的 `updateStrategies` 旧语义。
+  - 已按用户确认的 record-only 决策记录到 `cr-rules-summary.md`；不修改源码、Story 文档或全局规则文档。
+- **同步状态**: 已写入规则总结
+
+### 治理结论
+
+- Story 4-3 本轮新增 1 条可复用流程检查点，按用户确认 record-only 到 `cr-rules-summary.md`。
+- 本轮不更新 `_bmad-output/project-context.md`、`03-core-architectural-decisions.md`、`04-implementation-patterns-consistency-rules.md`，避免重复写入已存在的 Rule Document Registry 同步约束。
+- 本轮无新增 `05 TODO Tracker` 条目；Round 2 evaluation 明确无需要延迟跟踪的 CR TODO。
 
 ---
 
