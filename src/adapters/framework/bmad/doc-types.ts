@@ -3,6 +3,8 @@ import type { DocTypeDefinition } from '../interfaces.js';
 /**
  * BMAD v0.1 文档类型定义。
  *
+ * 贡献者可复制此声明式结构为新框架注册文档类型：`name` 是图谱分类值，
+ * `patterns` 只负责匹配候选 Markdown 文件，扫描边界仍由适配器 scanPaths 控制。
  * 仅包含 Markdown 文档；YAML 类型 `sprint-status` 与 `config` 延后到 v0.2。
  */
 export const BMAD_DOCUMENT_TYPES: DocTypeDefinition[] = [

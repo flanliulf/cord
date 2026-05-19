@@ -1,7 +1,12 @@
 import { RELATION_TYPES } from '../../../types/index.js';
 import type { PresetRule } from '../interfaces.js';
 
-/** BMAD 框架的声明式预设关系规则。 */
+/**
+ * BMAD 框架的声明式预设关系规则。
+ *
+ * 贡献者可复制此结构表达框架内稳定关系；不稳定或只在单个项目成立的关系，
+ * 应由内容扫描或手动关系管理处理，而不是写成全局预设。
+ */
 export const BMAD_PRESET_RULES: PresetRule[] = [
   {
     sourceDocType: 'prd',

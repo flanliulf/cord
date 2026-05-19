@@ -6,10 +6,10 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 34 |
+| Open | 36 |
 | In Progress | 0 |
 | Resolved | 0 |
-| **合计** | **34** |
+| **合计** | **36** |
 
 ---
 
@@ -492,6 +492,36 @@
   - `_bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md`
 - **问题描述**：Story 5.1 中的历史 DTO 示例仍与当前共享契约不一致：`_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md:72-79` 的 `QueryRelationsInput` 示例缺少 `depth`；`_bmad-output/implementation-artifacts/stories/5-1-mcp-server-core-and-4-tools.md:137-169` 仍包含旧字段 `AnalyzeImpactResult.reason`、`InitGraphResult.duration`，且缺少 `severity`、`hopDistance`、`durationMs`。当前运行时代码和镜像规则文档已以 `src/mcp/tools/schemas.ts` 为准，因此该问题不会阻塞交付，但若后续 Story/CR 回读旧示例，容易再次引入 DTO 漂移。
 - **建议时机**：下次明确允许修改 Story 5.1 文档，或触及 MCP DTO/Story 5.1 文档整理时，与 `src/mcp/tools/schemas.ts` 和 Rule Document Registry 三份镜像规则一并同步。
+- **解决记录**：—
+
+---
+
+### TODO-035
+
+- **标题**：贡献指南集成测试模板补重复扫描断言
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：test-gap
+- **来源**：Story 6-1 / Round 1-2 / 2026-05-19（R1 发现 #1；R2 维持 P2 defer）
+- **涉及文件**：
+  - `docs/contributing.md`
+- **问题描述**：`docs/contributing.md` 的集成测试指南已声明“重复扫描不会破坏已有图谱”，但可复制模板只执行一次 `service.scan({ projectRoot, rebuild: true, force: true })`，没有第二次扫描或重复关系断言。贡献者照抄模板时容易漏掉增量/重复扫描安全性验证，降低集成测试模板完整性。
+- **建议时机**：下次触及贡献指南、适配器集成测试模板或测试示例质量增强时，在模板中补第二次 `service.scan({ projectRoot })` 及关系不重复断言，或追加独立“重复扫描断言”片段。
+- **解决记录**：—
+
+---
+
+### TODO-036
+
+- **标题**：贡献指南 SQLite 测试模板失败路径关闭连接
+- **状态**：open
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 6-1 / Round 1-2 / 2026-05-19（R1 发现 #2；R2 维持 P2 defer）
+- **涉及文件**：
+  - `docs/contributing.md`
+- **问题描述**：`docs/contributing.md` 的集成测试模板创建 `SqliteGraphRepository` 和 `ScanService` 后，仅在所有断言之后调用 `service.close()`；如果任一断言失败，SQLite 连接不会关闭，可能在部分平台或失败场景中造成临时目录清理噪音。
+- **建议时机**：下次触及贡献指南或集成测试模板时，将示例改为 `try { ... } finally { service.close(); }`，或在 `afterEach` 中集中关闭 service 实例后再删除临时目录。
 - **解决记录**：—
 
 ---
