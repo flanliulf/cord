@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-09
-last_updated: 2026-05-19 13:08
+last_updated: 2026-05-19
 project: CORD
 project_key: NOKEY
 tracking_system: file-system
@@ -90,4 +90,4 @@ development_status:
   epic-6: done
   6-1-framework-adapter-contributor-docs: done
   6-2-user-docs-and-readme: done
-  epic-6-retrospective: optional
+  epic-6-retrospective: done
