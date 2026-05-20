@@ -1,8 +1,14 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -12,14 +18,14 @@ jobs:
   release:
     name: semantic-release
     runs-on: ubuntu-latest
-    # Skip release commits created by semantic-release itself
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -32,6 +38,12 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: CLI binary smoke test
+        run: npm run smoke:bin
+
+      - name: Verify npm package contents
+        run: npm run pack:check
 
       - name: Release
         run: npx semantic-release

@@ -11,7 +11,7 @@ So that 每个 PR 都经过自动化的 lint、类型检查、测试和覆盖率
 ## Acceptance Criteria (AC)
 
 1. **Given** Story 1.1-1.4 的代码基础已就绪 **When** 配置 CI **Then** `.github/workflows/ci.yml` 配置 PR 检查管道：lint → type-check → test → coverage
-2. **Given** CI 管道就绪 **When** 配置 Release **Then** `.github/workflows/release.yml` 配置完整可执行的发布流程：main 分支 push 触发、`permissions.id-token: write`（npm provenance 必须）+ `permissions.contents: write`（GitHub Release 和 tags 创建必须）、由 `semantic-release` 全权负责发布（通过 `@semantic-release/npm` 插件执行 npm publish，在 `npmPublish` 配置中启用 provenance，并由 `@semantic-release/github` 创建 GitHub Release）
+2. **Given** CI 管道就绪 **When** 配置 Release **Then** `.github/workflows/release.yml` 配置完整可执行的发布流程：main 分支 CI 成功后触发、`permissions.id-token: write`（npm provenance 必须）+ `permissions.contents: write`（GitHub Release 和 tags 创建必须）、由 `semantic-release` 全权负责发布（通过 `@semantic-release/npm` 插件执行 npm publish，并通过 release workflow 的 `NPM_CONFIG_PROVENANCE=true` 与 OIDC 权限启用 npm provenance，由 `@semantic-release/github` 创建 GitHub Release）
 3. **Given** 需要跨平台验证 **When** 配置矩阵测试 **Then** `.github/workflows/cross-platform.yml` 配置跨平台矩阵（ubuntu / macos / windows）验证 better-sqlite3 native addon
 4. **Given** CI 管道运行 **When** 检查覆盖率 **Then** 覆盖率门禁配置：整体 ≥ 80%
 5. **Given** 需要标准化协作流程 **When** 创建模板 **Then** `.github/ISSUE_TEMPLATE/` 和 `PULL_REQUEST_TEMPLATE.md` 创建完毕
@@ -26,11 +26,11 @@ So that 每个 PR 都经过自动化的 lint、类型检查、测试和覆盖率
   - [x] 1.3 配置覆盖率报告和门禁（≥ 80%）
   - [x] 1.4 配置 PR 评论覆盖率摘要（可选）— 通过 upload-artifact 上传 coverage/ 目录实现
 - [x] Task 2: 创建 Release 工作流 (AC: #2, #6)
-  - [x] 2.1 `.github/workflows/release.yml` — 触发条件：main 分支 push
+  - [x] 2.1 `.github/workflows/release.yml` — 触发条件：main 分支 CI 成功后触发
   - [x] 2.2 配置 workflow 权限：`permissions.id-token: write`（npm provenance 必须）+ `permissions.contents: write`（GitHub Release 和 tags 创建必须）
   - [x] 2.3 安装 semantic-release devDependencies：`semantic-release`、`@semantic-release/changelog`、`@semantic-release/git`（`@semantic-release/npm` 和 `@semantic-release/github` 为内置插件）
   - [x] 2.4 配置 semantic-release 执行步骤（commit-analyzer → release-notes-generator → changelog → npm → git → github）
-  - [x] 2.5 在 `@semantic-release/npm` 配置中启用 provenance：`{ "npmPublish": true, "tarballDir": ".", "pkgRoot": "." }`，workflow 中添加 `NPM_CONFIG_PROVENANCE: true` 环境变量
+  - [x] 2.5 通过 release workflow 环境变量 `NPM_CONFIG_PROVENANCE: true` 与 OIDC 权限启用 provenance；`@semantic-release/npm` 保持发布 owner（`npmPublish: true`）
   - [x] 2.6 验证 release.yml 语法正确，发布链路完整可执行（semantic-release 为唯一发布 owner）
 - [x] Task 3: 创建跨平台测试 (AC: #3)
   - [x] 3.1 `.github/workflows/cross-platform.yml` — ubuntu / macos / windows 矩阵
@@ -93,7 +93,7 @@ CI 门禁当前阶段设整体 ≥ 80%，后续根据分层目标细化。
 
 ### semantic-release 配置
 
-`semantic-release` 是唯一发布 owner，全权负责 npm publish 和 GitHub Release 创建。
+`semantic-release` 是唯一发布 owner，全权负责 npm publish 和 GitHub Release 创建。Release workflow 由 main 分支 CI 成功后的 `workflow_run` 触发，避免未通过质量门禁的提交进入发布链路。
 
 ```json
 // .releaserc.json
@@ -195,6 +195,8 @@ Claude Sonnet 4.6 (GitHub Copilot)
 - `cross-platform.yml` 的 Windows 步骤使用 `node -e "require('better-sqlite3')"` 验证 native addon 编译，同时通过 `actions/setup-python@v5` 为 node-gyp 提供 Python 依赖
 - 本地验证结果：lint ✓ / type-check ✓ / 200 tests ✓ / 覆盖率 98.35% ✓
 - `@semantic-release/npm` 和 `@semantic-release/github` 为 semantic-release 内置插件，无需额外安装
+- 2026-05-19 发布门禁收口：release workflow 改为 CI 成功后 `workflow_run` 触发，新增发布并发保护、CLI binary smoke、npm pack dry-run；包根导出与 CLI bin 分离；type-check 覆盖 tests 与 TS 配置文件
+- 2026-05-19 本地验证结果：lint ✓ / type-check ✓ / build ✓ / CLI smoke ✓ / pack dry-run ✓ / 422 tests + coverage ✓（整体覆盖率 90.67%）
 
 ### File List
 
@@ -208,3 +210,17 @@ Claude Sonnet 4.6 (GitHub Copilot)
 - `vitest.config.ts` — 修改（新增 thresholds, json-summary reporter）
 - `package.json` — 修改（新增 devDependencies: semantic-release, @semantic-release/changelog, @semantic-release/git）
 - `package-lock.json` — 修改（新增 semantic-release 依赖树）
+- `src/index.ts` — 新增（包根公共导出入口）
+- `tsconfig.check.json` — 新增（type-check 覆盖 src/tests/config）
+- `tsup.config.ts` — 修改（新增包根构建入口）
+- `src/schemas/query-input.ts` — 修改（区分 schema input/output 类型）
+- `src/schemas/scan-input.ts` — 修改（区分 schema input/output 类型）
+- `tests/integration/mcp/server.test.ts` — 修改（测试结果类型守卫）
+- `tests/unit/adapters/framework.test.ts` — 修改（测试 adapter name 类型）
+- `tests/unit/cli/commands/export.test.ts` — 修改（mock DTO 类型对齐）
+- `tests/unit/cli/commands/impact.test.ts` — 修改（mock DTO 类型对齐）
+- `tests/unit/cli/commands/query.test.ts` — 修改（mock DTO 类型对齐）
+- `tests/unit/cli/index.test.ts` — 修改（mock service 类型对齐）
+- `tests/unit/scanner/pipeline.test.ts` — 修改（Vitest matcher 类型对齐）
+- `tests/unit/services/relation-service.test.ts` — 修改（测试关系 fixture 补 confidence）
+- `_bmad-output/implementation-artifacts/cr-rules/cr-todo-backlog.md` — 修改（TODO-001/002/003/012/013/014/015/016 标记 resolved）
