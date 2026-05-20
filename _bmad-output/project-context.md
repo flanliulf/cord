@@ -215,14 +215,14 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
   - 跨平台回归必须覆盖 win32 语义：至少验证跨盘符路径（如 `D:\outside.json`）与 UNC 路径（如 `\\server\share\outside.json`）会在入口层被拒绝；若 `relative(projectRoot, input)` 结果仍为绝对路径，必须判定为 project-root 外路径并在 `serviceFactory()` 前返回 `ConfigError`
 - **若默认 Service 封装了带 `close()` 的 Repository / 连接资源，Service 层必须显式转发生命周期方法；禁止让入口层的 `finally { service?.close?.(); }` 在默认实现上退化为空调用**（CR-QUERY-03）
 
-**Status / 健康检查规则（CR-STATUS-01/02/03，来源：Story 3-5 CR 历史）：**
+**只读命令 / 健康检查规则（CR-STATUS-01/02/03，来源：Story 3-5 CR 历史 + TODO-028 治理）：**
 
 - **CR-STATUS-01：声明为观测型的 status / health 命令不得因读取而初始化存储**
-  - 适用范围：`status`、health check、diagnostic summary 等承诺“查看当前状态”的命令
-  - 若持久化存储不存在，必须返回“未初始化”或空状态；禁止为读取创建 `.cord`、数据库文件或隐式执行迁移
+  - 适用范围：`status`、`query`、`impact`、`export`、health check、diagnostic summary 等只读/观测命令
+  - 若持久化存储不存在，必须返回“未初始化”或空状态；禁止为读取创建 `.cord`、数据库文件或隐式执行迁移；`query` / `impact` / `export` 默认 CLI 路径必须先检查 `.cord/cord.db` 是否存在，再创建 repository
   - 若命令语义需要区分“未初始化”和“已初始化但空图谱”，必须在结果字段或文本输出中显式保留该边界
   - 回归测试至少覆盖：未初始化项目执行只读命令后不创建 `.cord/cord.db`，且返回稳定状态载荷
-  - 豁免说明：`query` / `impact` 的历史初始化副作用仍由 TODO-028 跟踪；在统一治理完成前，本规则先强制适用于 `status` / 健康检查类命令，禁止新命令继续复制旧模式
+  - 输入错误和配置错误必须在默认 service / repository 初始化前完成校验；`export` 的 `projectName` 配置错误不得先读取 repository 或创建 `.cord`
 
 - **CR-STATUS-02：健康检查统计必须来自同一持久化快照**
   - 文档数、关系数、按类型分布、过时关系、孤立节点、悬空边、迁移版本等对外展示字段，必须由单次 repository transaction 或等价 snapshot 一致派生

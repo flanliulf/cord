@@ -48,9 +48,9 @@
   - 迁移回归测试除标准旧库升级外，还必须覆盖“部分迁移数据库”场景（如列已存在但索引缺失），确保启动后可自愈到完整目标 schema
   - v0.1 pre-release 阶段允许直接重写 baseline migration；为兼容早期旧 v1 baseline，已通过 `003-fix-v1-baseline` 补齐约束/索引自愈迁移；首个稳定 release 后切换为只增不改的增量迁移模式
   - 图谱批量写入（documents / relations / sync_states）必须先在事务外收敛可持久化 workset；事务内仅执行完整写入计划，若发现端点映射或计划失配必须抛错回滚，禁止用普通 `return` 提前结束 transaction callback
-  - 对明确承诺“查看当前状态”的 `status` / 健康检查命令，持久化存储不存在时必须返回未初始化或空状态；禁止为读取创建数据库、目录或隐式执行迁移
+  - 对明确承诺“查看/导出/分析当前图谱”的 `status` / `query` / `impact` / `export` / 健康检查命令，持久化存储不存在时必须返回未初始化或空状态；禁止为读取创建数据库、目录或隐式执行迁移；`query` / `impact` / `export` 默认 CLI 路径必须先检查 `.cord/cord.db` 是否存在，再创建 repository
   - 状态/健康检查对外展示的统计字段必须来自单次 transaction snapshot 或等价一致快照；禁止混用数组读取和后续独立 count 查询形成混合口径
-  - `query` / `impact` 的历史只读副作用统一治理仍由 TODO-028 跟踪；在统一治理完成前，至少不得让新的 status / 健康检查命令继续复制初始化副作用模式
+  - 输入错误和配置错误必须在默认 service / repository 初始化前完成校验；`export` 的 `projectName` 配置错误不得先读取 repository 或创建 `.cord`
   - `cord status` 展示当前已执行迁移版本数及最新版本号
 
 ## Error Handling & Logging

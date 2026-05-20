@@ -95,6 +95,7 @@ export class ExportService {
   }
 
   private buildSnapshot(projectRoot: string): GraphSnapshot {
+    const project = resolveProjectName(projectRoot);
     const documents = this.repository
       .getAllDocuments()
       .map(serializeDocument)
@@ -107,7 +108,7 @@ export class ExportService {
     return {
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
       exportedAt: this.now().toISOString(),
-      project: resolveProjectName(projectRoot),
+      project,
       documents,
       relations,
     };

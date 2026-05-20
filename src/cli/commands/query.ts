@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
@@ -75,10 +75,24 @@ function parseDepthOption(rawValue: string): number {
 }
 
 function createDefaultQueryService(projectRoot: string): QueryService {
-  const dataDirectory = join(projectRoot, CORD_DATA_DIR);
-  mkdirSync(dataDirectory, { recursive: true });
-  const dbPath = join(dataDirectory, CORD_DB_FILE);
+  const dbPath = resolveGraphDatabasePath(projectRoot);
+  assertGraphDatabaseInitialized(dbPath);
   return new QueryService(new SqliteGraphRepository(dbPath));
+}
+
+function resolveGraphDatabasePath(projectRoot: string): string {
+  return join(projectRoot, CORD_DATA_DIR, CORD_DB_FILE);
+}
+
+function assertGraphDatabaseInitialized(dbPath: string): void {
+  if (!existsSync(dbPath)) {
+    throw new ConfigError({
+      message: `[CORD_CONFIG_011] CORD 图谱尚未初始化: ${dbPath}`,
+      code: 'CORD_CONFIG_011',
+      suggestion: '请先运行 cord scan 建立本地图谱后再执行只读查询命令',
+      context: { dbPath },
+    });
+  }
 }
 
 function normalizeQueryDocPath(projectRoot: string, docPath: string): string {

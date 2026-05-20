@@ -585,15 +585,15 @@ return service.query({ docPath, type: options.type });
 - 若 CLI 已验证 flag 正确转发，且 Service 层已验证过滤语义，则可豁免重复的 CLI 端到端语义输出测试；此类豁免必须以现有 Service 测试覆盖为前提
 - 新增错误路径时，至少在对应层补一条契约测试，保护 `CordError.code`、`suggestion` 或 JSON 错误载荷
 
-## Status / 健康检查规则（来源：Story 3-5 CR 历史）
+## 只读命令 / 健康检查规则（来源：Story 3-5 CR 历史 + TODO-028 治理）
 
 **CR-STATUS-01：声明为观测型的 status / health 命令不得因读取而初始化存储**
 
-- 适用范围：`status`、health check、diagnostic summary 等承诺“查看当前状态”的命令
-- 若持久化存储不存在，必须返回“未初始化”或空状态；禁止为读取创建 `.cord`、数据库文件或隐式执行迁移
+- 适用范围：`status`、`query`、`impact`、`export`、health check、diagnostic summary 等只读/观测命令
+- 若持久化存储不存在，必须返回“未初始化”或空状态；禁止为读取创建 `.cord`、数据库文件或隐式执行迁移；`query` / `impact` / `export` 默认 CLI 路径必须先检查 `.cord/cord.db` 是否存在，再创建 repository
 - 若命令语义需要区分“未初始化”和“已初始化但空图谱”，必须在结果字段或文本输出中显式保留该边界
 - 回归测试至少覆盖：未初始化项目执行只读命令后不创建 `.cord/cord.db`，且返回稳定状态载荷
-- 豁免说明：`query` / `impact` 的历史初始化副作用仍由 TODO-028 跟踪；在统一治理完成前，本规则先强制适用于 `status` / 健康检查类命令，禁止新命令继续复制旧模式
+- 输入错误和配置错误必须在默认 service / repository 初始化前完成校验；`export` 的 `projectName` 配置错误不得先读取 repository 或创建 `.cord`
 
 **CR-STATUS-02：健康检查统计必须来自同一持久化快照**
 

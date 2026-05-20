@@ -1,5 +1,7 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, win32 } from 'node:path';
 import { Command } from 'commander';
-import { win32 } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createExportCommand } from '../../../../src/cli/commands/export.js';
 import type { ExportInput } from '../../../../src/schemas/index.js';
@@ -371,5 +373,55 @@ describe('createExportCommand', () => {
     expect(serviceFactory).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(2);
     expect(stderr.read()).toContain('项目根目录外');
+  });
+
+  it('default service reports uninitialized graph without creating .cord', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'cord-export-uninitialized-'));
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const command = createExportCommand({
+      cwd: () => projectRoot,
+      stdout,
+      stderr,
+    });
+
+    try {
+      await parseExportCommand(command, ['export']);
+
+      expect(process.exitCode).toBe(2);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('CORD_CONFIG_011');
+      expect(stderr.read()).toContain('请先运行 cord scan');
+      expect(existsSync(join(projectRoot, '.cord'))).toBe(false);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('validates invalid projectName before initializing the service or creating .cord', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'cord-export-invalid-config-'));
+    const serviceFactory = vi.fn<() => ExportServiceLike>();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const command = createExportCommand({
+      cwd: () => projectRoot,
+      serviceFactory,
+      stdout,
+      stderr,
+    });
+
+    try {
+      writeFileSync(join(projectRoot, 'cord.config.json'), JSON.stringify({ projectName: '   ' }), 'utf-8');
+
+      await parseExportCommand(command, ['export']);
+
+      expect(serviceFactory).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(2);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('验证失败');
+      expect(existsSync(join(projectRoot, '.cord'))).toBe(false);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 });

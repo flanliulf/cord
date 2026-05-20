@@ -6,9 +6,9 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 20 |
+| Open | 18 |
 | In Progress | 0 |
-| Resolved | 16 |
+| Resolved | 18 |
 | **合计** | **36** |
 
 ---
@@ -195,22 +195,6 @@
 
 ---
 
-### TODO-028
-
-- **标题**：只读命令默认 service 创建 `.cord` 副作用
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-3；R3 维持非阻塞）
-- **涉及文件**：
-  - `src/cli/commands/impact.ts`
-  - `src/cli/commands/query.ts`
-- **问题描述**：`impact` 这类读取/分析命令在默认 serviceFactory 路径下会 `mkdirSync('.cord')` 并打开/创建数据库；后续复查也确认 `query` 存在同类初始化模式。虽然该行为不阻塞当前 Story 验收，但会让只读命令产生本地状态副作用，并掩盖“数据库未初始化 / 尚未扫描”的真实诊断语义，后续若继续新增只读命令，体验和错误契约会持续漂移。
-- **建议时机**：下次统一治理只读命令默认 service 初始化、副作用控制或诊断体验时一并处理。
-- **解决记录**：—
-
----
-
 ### TODO-029
 
 - **标题**：导出快照排序稳定性加固
@@ -255,24 +239,6 @@
   - `tests/unit/cli/commands/export.test.ts`
 - **问题描述**：Story 3-4 已补齐 POSIX 项目外路径与 win32 跨盘符/UNC 的词法边界校验，但 CR 仍保留三类非阻塞硬化点：symlink 物理逃逸场景、UNC `projectRoot` 组合场景，以及 `--output snapshots/` 这类目录形态输入的明确语义与回归测试。当前入口层已覆盖主要交付门禁，但这些剩余边界若长期不固化，后续继续演进导出路径逻辑时容易再次引入文件系统边界漂移。
 - **建议时机**：下次触及 `cord export --output` 路径归一化、文件系统安全边界或输出 UX 语义时一并处理，结合 realpath/symlink 场景与 UNC projectRoot 测试统一补齐。
-- **解决记录**：—
-
----
-
-### TODO-032
-
-- **标题**：非法 projectName 配置错误路径副作用测试
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：test-gap
-- **来源**：Story 3-4 / Round 4 / 2026-05-13（R4 defer）
-- **涉及文件**：
-  - `src/services/export-service.ts`
-  - `src/cli/commands/export.ts`
-  - `tests/unit/services/export-service.test.ts`
-  - `tests/unit/cli/commands/export.test.ts`
-- **问题描述**：当 `cord.config` 中的 `projectName` 非法时，`ExportService` 目前会先读取 repository 中的 documents/relations，再在 `loadConfig(projectRoot)` 处抛出 `ConfigError`；CLI 默认路径下也可能先创建 `.cord` 并初始化 repository，之后才以退出码 2 失败。该行为被 CR 正确降级为“配置错误路径”的非阻塞观察，但当前仍缺少对退出码、错误输出、是否创建 `.cord`、是否提前读取 repository 等副作用的明确测试保护。
-- **建议时机**：下次触及 `projectName` 配置验证、导出错误契约或配置错误诊断体验时一并处理，优先补齐 CLI / Service 的错误路径回归测试；若团队希望进一步收紧副作用，再评估把配置解析前置到 repository 读取之前。
 - **解决记录**：—
 
 ---
@@ -341,6 +307,44 @@
 ---
 
 ## Resolved Items
+
+---
+
+### TODO-028
+
+- **标题**：只读命令默认 service 创建 `.cord` 副作用
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-3；R3 维持非阻塞）
+- **涉及文件**：
+  - `src/cli/commands/query.ts`
+  - `src/cli/commands/impact.ts`
+  - `src/cli/commands/export.ts`
+  - `tests/unit/cli/commands/query.test.ts`
+  - `tests/unit/cli/commands/impact.test.ts`
+  - `tests/unit/cli/commands/export.test.ts`
+- **问题描述**：`impact` 这类读取/分析命令在默认 serviceFactory 路径下会 `mkdirSync('.cord')` 并打开/创建数据库；后续复查也确认 `query` 存在同类初始化模式。虽然该行为不阻塞当前 Story 验收，但会让只读命令产生本地状态副作用，并掩盖“数据库未初始化 / 尚未扫描”的真实诊断语义，后续若继续新增只读命令，体验和错误契约会持续漂移。
+- **处理方式**：`query` / `impact` / `export` 默认 service factory 改为先检查现有 `.cord/cord.db`，不存在时抛稳定 `ConfigError`（`CORD_CONFIG_011`），不再创建 `.cord` 或空数据库；空图谱仍由 service 层返回 `CORD_QUERY_001`，保留“未初始化”和“已初始化但未扫描到该文档”的诊断边界。
+- **解决记录**：2026-05-20 批次 4 只读命令副作用治理完成。验证：未初始化项目执行默认 `query` / `impact` / `export` 不创建 `.cord`；空图谱 `query` / `impact` 返回 `CORD_QUERY_001`。
+
+---
+
+### TODO-032
+
+- **标题**：非法 projectName 配置错误路径副作用测试
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：test-gap
+- **来源**：Story 3-4 / Round 4 / 2026-05-13（R4 defer）
+- **涉及文件**：
+  - `src/services/export-service.ts`
+  - `src/cli/commands/export.ts`
+  - `tests/unit/services/export-service.test.ts`
+  - `tests/unit/cli/commands/export.test.ts`
+- **问题描述**：当 `cord.config` 中的 `projectName` 非法时，`ExportService` 目前会先读取 repository 中的 documents/relations，再在 `loadConfig(projectRoot)` 处抛出 `ConfigError`；CLI 默认路径下也可能先创建 `.cord` 并初始化 repository，之后才以退出码 2 失败。该行为被 CR 正确降级为“配置错误路径”的非阻塞观察，但当前仍缺少对退出码、错误输出、是否创建 `.cord`、是否提前读取 repository 等副作用的明确测试保护。
+- **处理方式**：`ExportService.buildSnapshot()` 先解析项目配置再读取 repository；CLI `export` 在创建默认 service 前先执行配置校验。补充 service 测试断言非法 `projectName` 不读取 documents/relations，CLI 测试断言非法配置不调用 serviceFactory 且不创建 `.cord`。
+- **解决记录**：2026-05-20 批次 4 只读命令副作用治理完成。验证：`npm test -- tests/unit/cli/commands/query.test.ts tests/unit/cli/commands/impact.test.ts tests/unit/cli/commands/export.test.ts tests/unit/services/export-service.test.ts` 通过。
 
 ---
 

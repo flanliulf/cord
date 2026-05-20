@@ -1,6 +1,10 @@
+import { existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createQueryCommand } from '../../../../src/cli/commands/query.js';
+import { SqliteGraphRepository } from '../../../../src/repositories/index.js';
 import type { QueryInput } from '../../../../src/schemas/index.js';
 import type { QueryRelationsOutput } from '../../../../src/services/index.js';
 import { QueryError } from '../../../../src/utils/index.js';
@@ -366,5 +370,53 @@ describe('createQueryCommand', () => {
     expect(serviceFactory).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(2);
     expect(stderr.read()).toContain('项目根目录外');
+  });
+
+  it('default service reports uninitialized graph without creating .cord', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'cord-query-uninitialized-'));
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const command = createQueryCommand({
+      cwd: () => projectRoot,
+      stdout,
+      stderr,
+    });
+
+    try {
+      await parseQueryCommand(command, ['query', 'docs/source.md']);
+
+      expect(process.exitCode).toBe(2);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('CORD_CONFIG_011');
+      expect(stderr.read()).toContain('请先运行 cord scan');
+      expect(existsSync(join(projectRoot, '.cord'))).toBe(false);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('default service reports empty initialized graph as document-not-found', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'cord-query-empty-'));
+    const dataDirectory = join(projectRoot, '.cord');
+    mkdirSync(dataDirectory, { recursive: true });
+    new SqliteGraphRepository(join(dataDirectory, 'cord.db')).close();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const command = createQueryCommand({
+      cwd: () => projectRoot,
+      stdout,
+      stderr,
+    });
+
+    try {
+      await parseQueryCommand(command, ['query', 'docs/source.md']);
+
+      expect(process.exitCode).toBe(1);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('CORD_QUERY_001');
+      expect(stderr.read()).toContain('请先运行 cord scan 确认文档路径');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 });

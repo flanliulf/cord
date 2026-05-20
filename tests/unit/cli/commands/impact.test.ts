@@ -1,6 +1,10 @@
+import { existsSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createImpactCommand } from '../../../../src/cli/commands/impact.js';
+import { SqliteGraphRepository } from '../../../../src/repositories/index.js';
 import type { ImpactInput } from '../../../../src/schemas/index.js';
 import type { ImpactResult } from '../../../../src/services/index.js';
 import { QueryError } from '../../../../src/utils/index.js';
@@ -301,5 +305,53 @@ describe('createImpactCommand', () => {
     expect(serviceFactory).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(2);
     expect(stderr.read()).toContain('项目根目录外');
+  });
+
+  it('default service reports uninitialized graph without creating .cord', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'cord-impact-uninitialized-'));
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const command = createImpactCommand({
+      cwd: () => projectRoot,
+      stdout,
+      stderr,
+    });
+
+    try {
+      await parseImpactCommand(command, ['impact', 'docs/source.md']);
+
+      expect(process.exitCode).toBe(2);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('CORD_CONFIG_011');
+      expect(stderr.read()).toContain('请先运行 cord scan');
+      expect(existsSync(join(projectRoot, '.cord'))).toBe(false);
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('default service reports empty initialized graph as document-not-found', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'cord-impact-empty-'));
+    const dataDirectory = join(projectRoot, '.cord');
+    mkdirSync(dataDirectory, { recursive: true });
+    new SqliteGraphRepository(join(dataDirectory, 'cord.db')).close();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    const command = createImpactCommand({
+      cwd: () => projectRoot,
+      stdout,
+      stderr,
+    });
+
+    try {
+      await parseImpactCommand(command, ['impact', 'docs/source.md']);
+
+      expect(process.exitCode).toBe(1);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('CORD_QUERY_001');
+      expect(stderr.read()).toContain('请先运行 cord scan 确认文档路径');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
   });
 });

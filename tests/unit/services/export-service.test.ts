@@ -1,10 +1,11 @@
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IGraphRepository, SyncState } from '../../../src/repositories/index.js';
 import { ExportService } from '../../../src/services/export-service.js';
 import { RELATION_TYPES, type DocumentNode, type RelationEdge, type RelationType } from '../../../src/types/index.js';
+import { ConfigError } from '../../../src/utils/index.js';
 
 class InMemoryExportRepository implements IGraphRepository {
   private readonly documentsById: Map<string, DocumentNode>;
@@ -276,6 +277,19 @@ describe('ExportService', () => {
     const result = await service.exportSnapshot({ projectRoot });
 
     expect(result.snapshot.project).toBe('configured-project-name');
+  });
+
+  it('validates projectName before reading repository data', async () => {
+    const projectRoot = createProjectRoot('invalid-config-project', createdRoots);
+    writeFileSync(join(projectRoot, 'cord.config.json'), JSON.stringify({ projectName: '   ' }), 'utf-8');
+    const repository = new InMemoryExportRepository([], []);
+    const getAllDocuments = vi.spyOn(repository, 'getAllDocuments');
+    const getAllRelations = vi.spyOn(repository, 'getAllRelations');
+    const service = new ExportService(repository);
+
+    await expect(service.exportSnapshot({ projectRoot })).rejects.toBeInstanceOf(ConfigError);
+    expect(getAllDocuments).not.toHaveBeenCalled();
+    expect(getAllRelations).not.toHaveBeenCalled();
   });
 
   it('exports an empty graph and creates parent directories for custom output paths', async () => {
