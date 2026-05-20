@@ -1,5 +1,6 @@
 import type { DocumentNode, RelationEdge, RelationSource, RelationType } from '../types/index.js';
 import { RELATION_TYPES } from '../types/index.js';
+import { StorageError } from '../utils/errors.js';
 import type { SyncState } from './interfaces.js';
 
 // ── DB 行类型（snake_case，与数据库列一一对应）────────────────────────────────
@@ -50,33 +51,48 @@ const VALID_RELATION_SOURCES: ReadonlySet<string> = new Set(['auto_scan', 'manua
 const VALID_RELATION_STATUSES: ReadonlySet<string> = new Set(['active', 'deprecated']);
 const VALID_SYNC_STATUSES: ReadonlySet<string> = new Set(['synced', 'modified']);
 
+type MapperContext = { table: string; id: string; column: string };
+
+const STORAGE_METADATA_ERROR_CODE = 'CORD_STORAGE_001';
+const STORAGE_ENUM_ERROR_CODE = 'CORD_STORAGE_002';
+
 /**
  * 安全解析 JSON 元数据字段。
  * 解析失败时抛出带上下文信息的错误（而非静默返回 null）。
  */
 function parseJsonMetadata(
   raw: string | null,
-  context: { table: string; id: string; column: string },
+  context: MapperContext,
 ): Record<string, unknown> | undefined {
   if (raw == null) return undefined;
+
+  let parsed: unknown;
   try {
-    return assertMetadataObject(JSON.parse(raw), context);
+    parsed = JSON.parse(raw);
   } catch (err) {
-    throw new Error(
-      `[mappers] Failed to parse JSON in ${context.table}.${context.column} for id="${context.id}": ${String(err)}`,
-      { cause: err },
-    );
+    throw new StorageError({
+      message: `[mappers] Failed to parse JSON in ${context.table}.${context.column} for id="${context.id}": ${String(err)}`,
+      code: STORAGE_METADATA_ERROR_CODE,
+      suggestion: '请检查数据库 metadata 字段是否为合法 JSON object',
+      context: { ...context, reason: 'invalid_json' },
+      cause: err instanceof Error ? err : undefined,
+    });
   }
+
+  return assertMetadataObject(parsed, context);
 }
 
 function assertMetadataObject(
   value: unknown,
-  context: { table: string; id: string; column: string },
+  context: MapperContext,
 ): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(
-      `[mappers] Invalid JSON object in ${context.table}.${context.column} for id="${context.id}"`,
-    );
+    throw new StorageError({
+      message: `[mappers] Invalid JSON object in ${context.table}.${context.column} for id="${context.id}"`,
+      code: STORAGE_METADATA_ERROR_CODE,
+      suggestion: '请确认 metadata 字段是 JSON object，而不是 null、数组或原始值',
+      context: { ...context, reason: 'invalid_shape', valueType: Array.isArray(value) ? 'array' : typeof value },
+    });
   }
 
   return value as Record<string, unknown>;
@@ -84,7 +100,7 @@ function assertMetadataObject(
 
 function serializeMetadata(
   value: Record<string, unknown> | undefined,
-  context: { table: string; id: string; column: string },
+  context: MapperContext,
 ): string | null {
   return value != null ? JSON.stringify(assertMetadataObject(value, context)) : null;
 }
@@ -96,13 +112,17 @@ function serializeMetadata(
 function assertEnum<T extends string>(
   value: string,
   valid: ReadonlySet<string>,
-  context: { table: string; id: string; column: string },
+  context: MapperContext,
 ): T {
   if (!valid.has(value)) {
-    throw new Error(
-      `[mappers] Invalid value "${value}" for ${context.table}.${context.column} (id="${context.id}"). ` +
-      `Allowed: [${[...valid].join(', ')}]`,
-    );
+    const allowedValues = [...valid];
+    throw new StorageError({
+      message: `[mappers] Invalid value "${value}" for ${context.table}.${context.column} (id="${context.id}"). ` +
+        `Allowed: [${allowedValues.join(', ')}]`,
+      code: STORAGE_ENUM_ERROR_CODE,
+      suggestion: '请检查数据库枚举字段是否来自受支持的 CORD schema 版本',
+      context: { ...context, value, allowedValues },
+    });
   }
   return value as T;
 }

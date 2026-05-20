@@ -160,6 +160,9 @@ export const RELATION_TYPES = {
 ```
 
 - 所有日期时间：ISO 8601 字符串
+- `DocumentNode.createdAt` / `updatedAt` 必须通过 ISO 8601 datetime 校验
+- `DocumentNode.path` 必须是 normalized project-relative POSIX path；禁止绝对路径、Win32/UNC 路径、反斜杠与 `..` 逃逸
+- `ScanInput.projectRoot` 必须是跨平台绝对路径，允许 POSIX / Win32 absolute 形式
 - JSON 字段：camelCase
 - null 值：保留（不省略键）
 
@@ -193,6 +196,8 @@ MCP 入口 → catch → 转换为 MCP 标准错误响应
 - Service 层直接 `console.log` 或 `process.exit`
 - MCP 层直接输出到 stdout（stdout 是 JSON-RPC 通道）
 - 吞掉异常不处理
+
+Repository mapper 遇到 metadata JSON 损坏或枚举越界时必须抛 `StorageError`，并携带稳定 `code`、`suggestion` 与 `table/id/column` 等结构化 context；禁止继续抛普通 `Error` 让上层依赖字符串匹配。
 
 **P13. 异步 vs 同步模式：**
 

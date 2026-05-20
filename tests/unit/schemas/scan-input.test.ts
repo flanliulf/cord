@@ -22,6 +22,11 @@ describe('scanInputSchema', () => {
       expect(result.rebuild).toBe(true);
       expect(result.force).toBe(true);
     });
+
+    it('accepts win32 absolute projectRoot for cross-platform callers', () => {
+      const result = scanInputSchema.parse({ projectRoot: 'C:\\repo\\cord' });
+      expect(result.projectRoot).toBe('C:\\repo\\cord');
+    });
   });
 
   describe('invalid inputs', () => {
@@ -31,6 +36,10 @@ describe('scanInputSchema', () => {
 
     it('rejects missing projectRoot', () => {
       expect(() => scanInputSchema.parse({})).toThrow();
+    });
+
+    it.each(['project', './project', 'docs/project'])('rejects relative projectRoot %s', (projectRoot) => {
+      expect(() => scanInputSchema.parse({ projectRoot })).toThrow();
     });
 
     it('rejects non-string path element', () => {
@@ -52,6 +61,21 @@ describe('scanInputSchema', () => {
       } catch (err) {
         expect(err).toBeInstanceOf(ConfigError);
         expect((err as ConfigError).code).toBe('CORD_SCHEMA_004');
+        expect((err as ConfigError).suggestion).toBe('请检查输入数据是否符合预期格式');
+      }
+    });
+
+    it('ConfigError exposes absolute path contract issue context', () => {
+      try {
+        validateScanInput({ projectRoot: 'relative-project' });
+        expect.fail('should have thrown');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ConfigError);
+        expect((err as ConfigError).context.issues).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ message: 'projectRoot 必须是绝对路径' }),
+          ]),
+        );
       }
     });
   });

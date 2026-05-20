@@ -6,9 +6,9 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 22 |
+| Open | 20 |
 | In Progress | 0 |
-| Resolved | 14 |
+| Resolved | 16 |
 | **合计** | **36** |
 
 ---
@@ -30,38 +30,6 @@
   - `tests/unit/cli/index.test.ts`
 - **问题描述**：`runCli()` 现已改为 `await program.parseAsync(process.argv)`，但 `applyVerboseFlag(program.opts(), process.env)` 仍在 async action 完成后才生效。因此通过 `--verbose` 打开的 debug 级别不会覆盖 action 执行期间的 `logger.debug()` 调用，真实子命令路径中的排障日志会被吞掉。`CORD_DEBUG=1` 路径不受影响，因为 logger 初始化时已读取环境变量。Story 2-5 round 4 已在真实 `cord scan` async action 语义下再次确认这是同一类非阻塞问题，因此不再新增重复 TODO。
 - **建议时机**：下次触及 CLI 根选项处理或调试体验增强的 Story 时一并处理；可在 parse 前预解析 root-level `--verbose`，或在确认 Commander action 注册稳定后使用 root `preAction` 提前启用 verbose，并补入口级 action 内 debug 行为回归测试
-- **解决记录**：—
-
----
-
-### TODO-006
-
-- **标题**：schema 时间字段缺 ISO 8601 约束；document.path / scan.projectRoot 缺路径格式约束
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 1-3 / Round 1 / 2026-04-27（发现 #3；Round 2、Round 3 均维持非阻塞）
-- **涉及文件**：
-  - `src/schemas/document.ts`
-  - `src/schemas/relation.ts`
-  - `src/schemas/scan-input.ts`
-- **问题描述**：`createdAt`/`updatedAt` 仅用 `z.string().min(1)` 校验，未约束 ISO 8601 格式（应改为 `z.string().datetime()`）；`document.path` 未约束相对路径语义；`scan.projectRoot` 未约束绝对路径语义。非法时间戳会污染排序和增量扫描判断，非法路径会破坏以路径为主键的查询/缓存键值一致性。
-- **建议时机**：首次真正消费上述 schema 字段的 Story（如 1-4 扫描器或查询模块），在引入真实路径处理逻辑时，叠加 `z.string().datetime()`、相对路径 `.refine()`、绝对路径 `.refine()` 约束，并同步补对应回归测试
-- **解决记录**：—
-
----
-
-### TODO-011
-
-- **标题**：Mapper 错误缺少统一仓储层错误类型（`RepositoryError`），上层只能字符串匹配错误类别
-- **状态**：open
-- **优先级**：P3（择机处理）
-- **类别**：tech-debt
-- **来源**：Story 1-4 / Round 3 / 2026-04-28（发现 #2）
-- **涉及文件**：
-  - `src/repositories/mappers.ts`
-- **问题描述**：`mappers.ts` 中 JSON/枚举校验失败时直接 `throw new Error(...)`，缺少统一的 `RepositoryError` / `StorageError` 类型，上层如需稳定识别"数据损坏 / 枚举越界 / metadata 解析失败"等错误类别，只能依赖字符串匹配。这会弱化后续 CLI、日志与诊断体验的一致性，也让错误类型的集成测试缺乏稳定断言点。
-- **建议时机**：引入 CLI 错误处理或日志规范的 Story（如错误码统一 / 诊断体验 Story），与 CLI 诊断体验一并引入 `RepositoryError`，保留 `table/id/column/cause` 等结构化字段，并为上层消费路径补充错误类型断言测试。
 - **解决记录**：—
 
 ---
@@ -373,6 +341,40 @@
 ---
 
 ## Resolved Items
+
+---
+
+### TODO-006
+
+- **标题**：schema 时间字段缺 ISO 8601 约束；document.path / scan.projectRoot 缺路径格式约束
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 1-3 / Round 1 / 2026-04-27（发现 #3；Round 2、Round 3 均维持非阻塞）
+- **涉及文件**：
+  - `src/schemas/document.ts`
+  - `src/schemas/scan-input.ts`
+  - `tests/unit/schemas/document.test.ts`
+  - `tests/unit/schemas/scan-input.test.ts`
+- **问题描述**：`createdAt`/`updatedAt` 仅用 `z.string().min(1)` 校验，未约束 ISO 8601 格式（应改为 `z.string().datetime()`）；`document.path` 未约束相对路径语义；`scan.projectRoot` 未约束绝对路径语义。非法时间戳会污染排序和增量扫描判断，非法路径会破坏以路径为主键的查询/缓存键值一致性。
+- **处理方式**：`documentSchema` 将 `createdAt` / `updatedAt` 收紧为 ISO 8601 datetime；`document.path` 收紧为 normalized project-relative POSIX path，拒绝绝对路径、Windows/UNC 路径、反斜杠和 `..` 逃逸；`scanInputSchema.projectRoot` 收紧为跨平台绝对路径，保留 POSIX / Win32 absolute 支持。
+- **解决记录**：2026-05-20 批次 3 Schema 与错误契约修复完成。验证：`npm test -- tests/unit/schemas/document.test.ts tests/unit/schemas/scan-input.test.ts tests/unit/repositories/mappers.test.ts` 通过。
+
+---
+
+### TODO-011
+
+- **标题**：Mapper 错误缺少统一仓储层错误类型（`RepositoryError`），上层只能字符串匹配错误类别
+- **状态**：resolved
+- **优先级**：P3（择机处理）
+- **类别**：tech-debt
+- **来源**：Story 1-4 / Round 3 / 2026-04-28（发现 #2）
+- **涉及文件**：
+  - `src/repositories/mappers.ts`
+  - `tests/unit/repositories/mappers.test.ts`
+- **问题描述**：`mappers.ts` 中 JSON/枚举校验失败时直接 `throw new Error(...)`，缺少统一的 `RepositoryError` / `StorageError` 类型，上层如需稳定识别"数据损坏 / 枚举越界 / metadata 解析失败"等错误类别，只能依赖字符串匹配。这会弱化后续 CLI、日志与诊断体验的一致性，也让错误类型的集成测试缺乏稳定断言点。
+- **处理方式**：mapper JSON metadata 解析/形态错误统一抛 `StorageError` + `CORD_STORAGE_001`；关系与同步状态枚举损坏统一抛 `StorageError` + `CORD_STORAGE_002`；错误 context 保留 `table` / `id` / `column` / `reason` / `allowedValues` 等结构化字段，测试覆盖 code、suggestion 与 context。
+- **解决记录**：2026-05-20 批次 3 Schema 与错误契约修复完成。验证：`npm test -- tests/unit/schemas/document.test.ts tests/unit/schemas/scan-input.test.ts tests/unit/repositories/mappers.test.ts` 通过。
 
 ---
 

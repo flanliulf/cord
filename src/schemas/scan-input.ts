@@ -2,13 +2,26 @@
  * Zod schema — 扫描操作输入验证。
  */
 
+import { posix, win32 } from 'node:path';
 import { z } from 'zod';
 import { validateWithCordError } from './helpers.js';
+
+const ABSOLUTE_PROJECT_ROOT_MESSAGE = 'projectRoot 必须是绝对路径';
+
+const absoluteProjectRootSchema = z
+  .string()
+  .trim()
+  .min(1, 'projectRoot 不能为空')
+  .refine(isAbsolutePath, ABSOLUTE_PROJECT_ROOT_MESSAGE);
+
+function isAbsolutePath(value: string): boolean {
+  return !value.includes('\0') && (posix.isAbsolute(value) || win32.isAbsolute(value));
+}
 
 /** 扫描输入 Zod schema。 */
 export const scanInputSchema = z.object({
   /** 项目根目录路径（绝对路径）。 */
-  projectRoot: z.string().min(1, 'projectRoot 不能为空'),
+  projectRoot: absoluteProjectRootSchema,
 
   /** 指定扫描的子路径列表（可选，默认扫描整个项目）。 */
   paths: z.array(z.string()).optional(),

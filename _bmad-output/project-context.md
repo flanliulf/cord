@@ -110,12 +110,21 @@ import { formatOutput } from './helpers.js';
 | CLI / MCP 入口 | **async** | Commander action / MCP handler 均 async |
 
 **错误处理（P12）：**
+
 - 所有异常必须是 `CordError` 子类，携带 `code` + `suggestion`
+- Repository mapper 遇到 metadata JSON 损坏或枚举越界时必须抛 `StorageError`，并携带稳定 `code`、`suggestion` 与 `table/id/column` 等结构化 context；禁止继续抛普通 `Error` 让上层依赖字符串匹配
 - Service 层禁止 `console.log` / `process.exit`
 - MCP Server 的 stdout 只用于 JSON-RPC，日志走 stderr
 - 禁止静默吞掉异常
 
+**Schema 契约（CR-SCHEMA-01）：**
+
+- `DocumentNode.createdAt` / `updatedAt` 必须是 ISO 8601 datetime 字符串
+- `DocumentNode.path` 必须是 normalized project-relative POSIX path；禁止绝对路径、Win32/UNC 路径、反斜杠与 `..` 逃逸
+- `ScanInput.projectRoot` 必须是跨平台绝对路径，允许 POSIX / Win32 absolute 形式
+
 **Service 方法签名（P11）：**
+
 ```typescript
 // ✅ 输入：单一对象参数，Zod schema 推导类型
 async scanDocuments(input: ScanInput): Promise<ScanResult>

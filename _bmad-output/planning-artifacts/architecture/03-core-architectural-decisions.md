@@ -62,6 +62,7 @@
 - **影响范围：** 全局，所有模块
 - **实现要点：**
   - `CordError` 基类包含 `code: string`、`suggestion: string`、`context: Record<string, unknown>`
+  - Repository mapper 遇到 metadata JSON 损坏或枚举越界时必须抛 `StorageError`，并携带稳定 `code`、`suggestion` 与 `table/id/column` 等结构化 context；禁止继续抛普通 `Error` 让上层依赖字符串匹配
   - CLI 入口层：捕获 CordError，用 chalk 格式化输出错误信息和修复建议
   - Commander CLI 若包含 async action，真实入口必须暴露 async `runCli()` 并 `await program.parseAsync(process.argv)`；entrypoint 守卫负责 Promise rejection 兜底
   - 参数解析错误、业务 `ConfigError` 和 runtime error 的退出码映射必须在真实 CLI 入口层统一处理，并由入口级测试覆盖
@@ -71,6 +72,15 @@
   - `finally` / cleanup 中的 `close()`、`dispose()`、`release()` 属于 best-effort；清理失败不得覆盖成功输出、原始错误 payload 或 exit code，若需暴露只能作为附加诊断信息
   - MCP 入口层：捕获 CordError，转换为 MCP 标准错误响应格式
   - 错误码命名规范：`CORD_SCAN_001`、`CORD_QUERY_001` 等
+
+**D3a. Schema 输入契约：ISO 时间 + 路径语义**
+
+- **决策：** `DocumentNode.createdAt` / `updatedAt` 使用 ISO 8601 datetime；`DocumentNode.path` 使用 normalized project-relative POSIX path；`ScanInput.projectRoot` 使用跨平台绝对路径
+- **理由：** 时间字段参与排序与增量判断，路径字段参与仓储主键、查询和缓存键；模糊路径会污染图谱一致性
+- **实现要点：**
+  - `DocumentNode.path` 禁止绝对路径、Win32/UNC 路径、反斜杠与 `..` 逃逸
+  - `ScanInput.projectRoot` 允许 POSIX / Win32 absolute 形式，但拒绝相对路径与空路径
+  - schema 失败统一抛 `ConfigError`，测试必须覆盖 error code、suggestion 或等价结构化 context
 
 **D4. 日志策略：自研轻量 Logger**
 

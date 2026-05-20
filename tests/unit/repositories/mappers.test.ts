@@ -12,6 +12,7 @@ import {
   type RelationRow,
   type SyncStateRow,
 } from '../../../src/repositories/mappers.js';
+import { StorageError } from '../../../src/utils/errors.js';
 
 // ── DocumentNode mappers ──────────────────────────────────────────────────────
 
@@ -118,7 +119,21 @@ describe('documentToRow', () => {
       updatedAt: '2024-01-01T00:00:00.000Z',
     };
 
-    expect(() => documentToRow(doc)).toThrow(/metadata.*doc-array-metadata/i);
+    try {
+      documentToRow(doc);
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(StorageError);
+      expect((err as StorageError).code).toBe('CORD_STORAGE_001');
+      expect((err as StorageError).suggestion).toContain('JSON object');
+      expect((err as StorageError).context).toMatchObject({
+        table: 'documents',
+        id: 'doc-array-metadata',
+        column: 'metadata',
+        reason: 'invalid_shape',
+        valueType: 'array',
+      });
+    }
   });
 
   it('serializes metadata object to JSON string', () => {
@@ -371,7 +386,20 @@ describe('rowToDocument — 损坏数据防御（F4）', () => {
       created_at: '2024-01-01T00:00:00.000Z',
       updated_at: '2024-01-01T00:00:00.000Z',
     };
-    expect(() => rowToDocument(row)).toThrow(/metadata.*doc-bad/i);
+    try {
+      rowToDocument(row);
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(StorageError);
+      expect((err as StorageError).code).toBe('CORD_STORAGE_001');
+      expect((err as StorageError).suggestion).toBe('请检查数据库 metadata 字段是否为合法 JSON object');
+      expect((err as StorageError).context).toMatchObject({
+        table: 'documents',
+        id: 'doc-bad',
+        column: 'metadata',
+        reason: 'invalid_json',
+      });
+    }
   });
 
   it.each(['null', '[]', '123', '"text"'])('metadata 为非对象 JSON %s 时抛出含上下文的错误', (metadata) => {
@@ -387,7 +415,7 @@ describe('rowToDocument — 损坏数据防御（F4）', () => {
       updated_at: '2024-01-01T00:00:00.000Z',
     };
 
-    expect(() => rowToDocument(row)).toThrow(/metadata.*doc-shape/i);
+    expect(() => rowToDocument(row)).toThrow(StorageError);
   });
 });
 
@@ -406,7 +434,21 @@ describe('rowToRelation — 枚举校验防御（F4）', () => {
   };
 
   it('relation_type 值非法时抛出含上下文的错误', () => {
-    expect(() => rowToRelation({ ...baseRow, relation_type: 'hacked_type' })).toThrow(/relation_type.*rel-bad/i);
+    try {
+      rowToRelation({ ...baseRow, relation_type: 'hacked_type' });
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(StorageError);
+      expect((err as StorageError).code).toBe('CORD_STORAGE_002');
+      expect((err as StorageError).suggestion).toBe('请检查数据库枚举字段是否来自受支持的 CORD schema 版本');
+      expect((err as StorageError).context).toMatchObject({
+        table: 'relations',
+        id: 'rel-bad',
+        column: 'relation_type',
+        value: 'hacked_type',
+      });
+      expect((err as StorageError).context.allowedValues).toEqual(expect.arrayContaining(['references']));
+    }
   });
 
   it('source 值非法时抛出含上下文的错误', () => {
@@ -436,6 +478,6 @@ describe('rowToSyncState — 枚举校验防御（F4）', () => {
       status: 'corrupted',
       updated_at: '2024-01-01T00:00:00.000Z',
     };
-    expect(() => rowToSyncState(row)).toThrow(/status.*sync-bad/i);
+    expect(() => rowToSyncState(row)).toThrow(StorageError);
   });
 });
