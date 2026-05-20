@@ -226,6 +226,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 
 - **CR-STATUS-02：健康检查统计必须来自同一持久化快照**
   - 文档数、关系数、按类型分布、过时关系、孤立节点、悬空边、迁移版本等对外展示字段，必须由单次 repository transaction 或等价 snapshot 一致派生
+  - `StatusService` 是持久化图谱库存与健康快照：`relationCount`、`relationsByType`、`staleRelations`、`orphanedNodes`、`danglingEdges` 均使用 active + deprecated 全量关系口径；`status='deprecated'` 是状态位，不重写 `relationType`
   - 禁止用前序数组读取计算派生指标，再用后续独立 count 查询回填总数，形成混合口径
   - 图健康判断中，只有双端都存在的关系才能证明节点 connected；dangling relation 只能计入异常指标，不能降低 `orphanedNodes`
   - 回归测试至少覆盖：fake repository 在二次 count 查询时返回不同口径时，status 输出仍来自同一快照；文档唯一关系为 dangling 时仍计入 `orphanedNodes`
@@ -251,6 +252,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - **CR-QUERY-07：受影响文档集合类分析必须自有定向遍历语义**
   - 适用范围：impact / affected-doc / downstream propagation 这类输出“文档集合”的分析服务
   - 若路径资格依赖 `status`、`confidence`、方向等传播语义，必须在扩展前判断；禁止先执行通用双向查询再对结果做后过滤
+  - Impact 的 relationType 级传播方向必须由 `src/types/relations.ts` 中的显式矩阵定义；v0.1 所有内置 relationType 均按 source -> target 传播，且仅 `status='active'` 可传播。`derived_from` 表示目标文档从源文档派生，`contains` 表示源文档逻辑包含目标文档，二者都不反向传播
   - 结果若按文档计数，必须按 impacted document 聚合去重；`totalCount` 等基数字段必须与去重后的文档集合一致
   - 源文档不得因自环、回源环或多路径回流出现在自身结果中；若同一文档可经多条路径命中且需保留关系元数据，必须定义稳定候选优先级
   - 回归测试至少覆盖：反向边不误报、低置信桥接边不继续扩展、自环/回源环不回写源文档、多路径命中同一文档只计一次

@@ -2,7 +2,7 @@
  * CORD 图遍历相关类型定义。
  */
 
-import type { RelationType } from './relations.js';
+import type { RelationStatus, RelationType } from './relations.js';
 
 /** 关系来源类型：自动扫描、手动添加或框架预设。 */
 export type RelationSource = 'auto_scan' | 'manual' | 'framework_preset';
@@ -33,7 +33,7 @@ export interface RelationEdge {
   source: RelationSource;
 
   /** 关系状态；新建时默认为 `'active'`。 */
-  status: 'active' | 'deprecated';
+  status: RelationStatus;
 
   /** 扩展元数据。 */
   metadata?: Record<string, unknown>;

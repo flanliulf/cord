@@ -67,6 +67,14 @@ interface StatusResult {
 - 限制：反映的是上次扫描时的状态而非实时文件系统状态，AC 中应标注此为近似方案
 - 后续版本如需实时，可推入 `IFileSystem.statFile()` 读取当前文件系统时间戳
 
+### deprecated 关系健康统计口径（v0.1 裁决）
+
+`StatusService` 是持久化图谱库存与健康快照，不是 Impact / Query 的可传播边集合。因此状态统计使用全量持久化关系口径：`relationCount`、`relationsByType`、`staleRelations`、`orphanedNodes` 和 `danglingEdges` 均基于 `active + deprecated` 关系数组计算。
+
+- `status='deprecated'` 是关系状态位，不重写 `relationType`；按类型分布仍按原始 `relationType` 归类。
+- `QueryService` / `ImpactService` 的读侧遍历仍可按路径语义默认排除 `status='deprecated'`；这不改变 `StatusService` 的库存统计口径。
+- Export 快照继续保留完整图谱，便于审计关系从 active 变为 deprecated 后的持久化状态。
+
 ### Project Structure Notes
 
 - `src/services/status-service.ts`

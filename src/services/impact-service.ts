@@ -3,7 +3,9 @@ import { type ImpactInput, validateImpactInput } from '../schemas/index.js';
 import {
   DEFAULT_UPDATE_STRATEGY,
   type DocumentNode,
+  RELATION_IMPACT_PROPAGATION_MATRIX,
   type RelationEdge,
+  type RelationImpactPropagationRule,
   type RelationType,
   type UpdateStrategy,
 } from '../types/index.js';
@@ -180,8 +182,11 @@ export class ImpactService {
 }
 
 function isTraversableRelation(relation: RelationEdge, sourceDocId: string, confidenceThreshold: number): boolean {
-  return relation.sourceDocId === sourceDocId
-    && relation.status === 'active'
+  const propagationRule: RelationImpactPropagationRule = RELATION_IMPACT_PROPAGATION_MATRIX[relation.relationType];
+
+  return propagationRule.direction === 'source_to_target'
+    && relation.sourceDocId === sourceDocId
+    && propagationRule.traversableStatuses.includes(relation.status)
     && relation.confidence >= confidenceThreshold;
 }
 

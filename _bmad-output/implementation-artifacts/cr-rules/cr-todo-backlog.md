@@ -6,9 +6,9 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 18 |
+| Open | 16 |
 | In Progress | 0 |
-| Resolved | 18 |
+| Resolved | 20 |
 | **合计** | **36** |
 
 ---
@@ -161,23 +161,6 @@
 
 ---
 
-### TODO-026
-
-- **标题**：relationType 级传播方向矩阵显式建模
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：other
-- **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-1；R3 维持非阻塞）
-- **涉及文件**：
-  - `src/services/impact-service.ts`
-  - `src/types/relations.ts`
-  - `tests/unit/services/impact-service.test.ts`
-- **问题描述**：Story 3-3 当前已按 CR 裁定采用统一的 `source -> target` 有向传播语义，足以满足本轮交付；但 `must_consistent`、`context_for` 等 relationType 是否应与 `sync_required` 共享同一传播方向，仍未被显式建模。若后续继续扩展 `ImpactService` 能力而不先定义 relationType 级传播矩阵，容易再次出现“实现先行、语义后补”的歧义，导致新 Story 对影响范围的理解不一致。
-- **建议时机**：下次触及 ImpactService 传播语义、扩展 relationType 规则或实现更细粒度 analyze-impact 行为时一并处理。
-- **解决记录**：—
-
----
-
 ### TODO-027
 
 - **标题**：Impact 多跳结果补完整路径解释
@@ -243,24 +226,6 @@
 
 ---
 
-### TODO-033
-
-- **标题**：status 健康统计是否排除 deprecated 关系需独立冻结
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：other
-- **来源**：Story 3-5 / Round 2 / 2026-05-14（已知非阻塞观察项）
-- **涉及文件**：
-  - `src/services/status-service.ts`
-  - `src/types/graph.ts`
-  - `tests/unit/services/status-service.test.ts`
-  - `_bmad-output/implementation-artifacts/stories/3-5-statusservice-health-check.md`
-- **问题描述**：`src/services/status-service.ts` 当前按全部关系数组计算 `relationCount` 与 `relationsByType`，而 `src/types/graph.ts` 中 `RelationEdge.status` 已定义 `active | deprecated`。Story 3.5 的 AC 只要求输出“关系总数、按类型分布”，尚未冻结 status 健康统计是否应排除 deprecated 关系；如果后续在无产品/Story 裁决的情况下直接调整实现，容易让 status 输出、测试断言和 Epic 4 的关系管理语义再次漂移。
-- **建议时机**：下次触及 Epic 4 关系管理口径、status 健康指标定义或修订 Story/AC/测试时一并处理，先明确“健康统计是否只计 active 关系”，再同步实现与回归测试。
-- **解决记录**：—
-
----
-
 ### TODO-035
 
 - **标题**：贡献指南集成测试模板补重复扫描断言
@@ -307,6 +272,41 @@
 ---
 
 ## Resolved Items
+
+---
+
+### TODO-026
+
+- **标题**：relationType 级传播方向矩阵显式建模
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：other
+- **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-1；R3 维持非阻塞）
+- **涉及文件**：
+  - `src/services/impact-service.ts`
+  - `src/types/relations.ts`
+  - `tests/unit/services/impact-service.test.ts`
+- **问题描述**：Story 3-3 当前已按 CR 裁定采用统一的 `source -> target` 有向传播语义，足以满足本轮交付；但 `must_consistent`、`context_for` 等 relationType 是否应与 `sync_required` 共享同一传播方向，仍未被显式建模。若后续继续扩展 `ImpactService` 能力而不先定义 relationType 级传播矩阵，容易再次出现“实现先行、语义后补”的歧义，导致新 Story 对影响范围的理解不一致。
+- **处理方式**：在 `src/types/relations.ts` 增加 `RELATION_IMPACT_PROPAGATION_MATRIX`，冻结 v0.1 所有内置 relationType 均按 source -> target 且仅 active 可传播；`ImpactService` 改为读取矩阵执行传播资格判断，并补 `derived_from` / `contains` 与 deprecated status 混合回归测试。
+- **解决记录**：2026-05-20 批次 5 Impact 传播语义治理完成。验证：`npm test -- tests/unit/services/impact-service.test.ts tests/unit/services/status-service.test.ts` 与 `npm run type-check -- --pretty false` 通过。
+
+---
+
+### TODO-033
+
+- **标题**：status 健康统计是否排除 deprecated 关系需独立冻结
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：other
+- **来源**：Story 3-5 / Round 2 / 2026-05-14（已知非阻塞观察项）
+- **涉及文件**：
+  - `src/services/status-service.ts`
+  - `src/types/graph.ts`
+  - `tests/unit/services/status-service.test.ts`
+  - `_bmad-output/implementation-artifacts/stories/3-5-statusservice-health-check.md`
+- **问题描述**：`src/services/status-service.ts` 当前按全部关系数组计算 `relationCount` 与 `relationsByType`，而 `src/types/graph.ts` 中 `RelationEdge.status` 已定义 `active | deprecated`。Story 3.5 的 AC 只要求输出“关系总数、按类型分布”，尚未冻结 status 健康统计是否应排除 deprecated 关系；如果后续在无产品/Story 裁决的情况下直接调整实现，容易让 status 输出、测试断言和 Epic 4 的关系管理语义再次漂移。
+- **处理方式**：裁决 `StatusService` 是持久化图谱库存与健康快照，`relationCount`、`relationsByType`、`staleRelations`、`orphanedNodes`、`danglingEdges` 均按 active + deprecated 全量关系口径计算；同步 Story 3.5 与 Rule Document Registry 三份规则文档，并补 active + deprecated 混合状态测试。
+- **解决记录**：2026-05-20 批次 5 status 健康统计口径治理完成。验证：`npm test -- tests/unit/services/impact-service.test.ts tests/unit/services/status-service.test.ts` 与 `npm run type-check -- --pretty false` 通过。
 
 ---
 

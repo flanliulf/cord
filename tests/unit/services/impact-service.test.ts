@@ -266,6 +266,60 @@ describe('ImpactService', () => {
     expect(result).toEqual({ impactedDocs: [], totalCount: 0 });
   });
 
+  it('applies source-to-target propagation for derived_from and contains while ignoring deprecated status', () => {
+    const documents = [
+      createDocument('doc-upstream', 'docs/upstream.md'),
+      createDocument('doc-source', 'docs/source.md'),
+      createDocument('doc-generated', 'docs/generated.md'),
+      createDocument('doc-section', 'docs/section.md'),
+      createDocument('doc-deprecated-status', 'docs/deprecated-status.md'),
+    ];
+    const relations = [
+      createRelation({
+        id: 'rel-derived-active',
+        sourceDocId: 'doc-source',
+        targetDocId: 'doc-generated',
+        relationType: RELATION_TYPES.DERIVED_FROM,
+        confidence: 0.92,
+      }),
+      createRelation({
+        id: 'rel-contains-active',
+        sourceDocId: 'doc-source',
+        targetDocId: 'doc-section',
+        relationType: RELATION_TYPES.CONTAINS,
+        confidence: 0.91,
+      }),
+      createRelation({
+        id: 'rel-derived-deprecated-status',
+        sourceDocId: 'doc-source',
+        targetDocId: 'doc-deprecated-status',
+        relationType: RELATION_TYPES.DERIVED_FROM,
+        confidence: 0.95,
+        status: 'deprecated',
+      }),
+      createRelation({
+        id: 'rel-incoming-contains',
+        sourceDocId: 'doc-upstream',
+        targetDocId: 'doc-source',
+        relationType: RELATION_TYPES.CONTAINS,
+        confidence: 0.99,
+      }),
+    ];
+    const service = createService({ documents, relations });
+
+    const result = service.analyzeImpact({ docPath: 'docs/source.md' });
+
+    expect(result.totalCount).toBe(2);
+    expect(result.impactedDocs.map((item) => item.docPath)).toEqual([
+      'docs/section.md',
+      'docs/generated.md',
+    ]);
+    expect(result.impactedDocs.map((item) => item.relationType)).toEqual([
+      RELATION_TYPES.CONTAINS,
+      RELATION_TYPES.DERIVED_FROM,
+    ]);
+  });
+
   it('does not expand through low-confidence relations that fail the threshold', () => {
     const documents = [
       createDocument('doc-source', 'docs/source.md'),

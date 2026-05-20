@@ -344,6 +344,49 @@ describe('StatusService', () => {
     expect(result.migrationVersion).toBe(4);
   });
 
+  it('counts deprecated relations as persisted status inventory alongside active relations', () => {
+    const documents = [
+      createDocument('doc-a', 'docs/a.md'),
+      createDocument('doc-b', 'docs/b.md'),
+      createDocument('doc-c', 'docs/c.md'),
+    ];
+    const relations = [
+      createRelation({
+        id: 'rel-active',
+        sourceDocId: 'doc-a',
+        targetDocId: 'doc-b',
+        relationType: RELATION_TYPES.REFERENCES,
+        status: 'active',
+        createdAt: '2026-05-12T00:00:00.000Z',
+      }),
+      createRelation({
+        id: 'rel-deprecated-status',
+        sourceDocId: 'doc-b',
+        targetDocId: 'doc-c',
+        relationType: RELATION_TYPES.SYNC_REQUIRED,
+        status: 'deprecated',
+        createdAt: '2026-05-10T00:00:00.000Z',
+      }),
+    ];
+    const syncStates = [
+      createSyncState('doc-a', { lastObservedMtimeMs: Date.parse('2026-05-12T00:00:00.000Z') }),
+      createSyncState('doc-b', { lastObservedMtimeMs: Date.parse('2026-05-11T00:00:00.000Z') }),
+      createSyncState('doc-c', { lastObservedMtimeMs: Date.parse('2026-05-11T00:00:00.000Z') }),
+    ];
+    const service = new StatusService(new InMemoryStatusRepository(documents, relations, syncStates, 4));
+
+    const result = service.getStatus({ projectRoot: '/repo' });
+
+    expect(result.relationCount).toBe(2);
+    expect(result.relationsByType).toEqual({
+      references: 1,
+      sync_required: 1,
+    });
+    expect(result.staleRelations).toBe(1);
+    expect(result.orphanedNodes).toBe(0);
+    expect(result.danglingEdges).toBe(0);
+  });
+
   it('uses a single repository transaction and derives counts from the same snapshot arrays', () => {
     const documents = [
       createDocument('doc-a', 'docs/a.md'),
