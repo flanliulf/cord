@@ -20,8 +20,11 @@ export const scanInputSchema = z.object({
   force: z.boolean().optional().default(false),
 });
 
-/** 由 schema 推导的类型。 */
-export type ScanInput = z.infer<typeof scanInputSchema>;
+/** 扫描输入类型，保留 default 字段的调用方可选语义。 */
+export type ScanInput = z.input<typeof scanInputSchema>;
+
+/** 验证后的扫描输入类型，包含 schema default 补齐后的字段。 */
+export type ValidatedScanInput = z.output<typeof scanInputSchema>;
 
 /**
  * 验证扫描输入数据，失败时抛出 `ConfigError`（AC6）。
@@ -30,6 +33,6 @@ export type ScanInput = z.infer<typeof scanInputSchema>;
  * @returns 验证通过的类型安全 `ScanInput`
  * @throws {@link ConfigError} 当验证失败时（code: `CORD_SCHEMA_004`）
  */
-export function validateScanInput(data: unknown): ScanInput {
+export function validateScanInput(data: unknown): ValidatedScanInput {
   return validateWithCordError(scanInputSchema, data, 'CORD_SCHEMA_004');
 }

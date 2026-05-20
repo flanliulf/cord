@@ -3,22 +3,14 @@ import { win32 } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createExportCommand } from '../../../../src/cli/commands/export.js';
 import type { ExportInput } from '../../../../src/schemas/index.js';
+import type { ExportResult } from '../../../../src/services/index.js';
 
 interface BufferingWriter {
   write(chunk: string): boolean;
   read(): string;
 }
 
-interface ExportCommandResult {
-  outputPath: string;
-  snapshot: {
-    schemaVersion: string;
-    exportedAt: string;
-    project: string;
-    documents: unknown[];
-    relations: unknown[];
-  };
-}
+type ExportCommandResult = ExportResult;
 
 interface ExportServiceLike {
   exportSnapshot(input: ExportInput): Promise<ExportCommandResult>;
@@ -69,8 +61,29 @@ describe('createExportCommand', () => {
         schemaVersion: '1.0',
         exportedAt: '2026-05-12T12:34:56.789Z',
         project: 'repo',
-        documents: [{ id: 'doc-1' }],
-        relations: [{ id: 'rel-1' }],
+        documents: [{
+          id: 'doc-1',
+          path: 'docs/source.md',
+          title: null,
+          docType: null,
+          framework: null,
+          contentHash: null,
+          metadata: null,
+          createdAt: '2026-05-12T00:00:00.000Z',
+          updatedAt: '2026-05-12T00:00:00.000Z',
+        }],
+        relations: [{
+          id: 'rel-1',
+          sourceDocId: 'doc-1',
+          targetDocId: 'doc-2',
+          relationType: 'references',
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+          metadata: null,
+          createdAt: '2026-05-12T00:00:00.000Z',
+          updatedAt: '2026-05-12T00:00:00.000Z',
+        }],
       },
     } satisfies ExportCommandResult);
     const command = createExportCommand({

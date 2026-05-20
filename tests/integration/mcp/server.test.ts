@@ -105,9 +105,14 @@ async function connectConfiguredStdioServer(options: {
   };
 }
 
-function getStructuredContent<T extends Record<string, unknown>>(result: { structuredContent?: Record<string, unknown> }): T {
-  expect(result.structuredContent).toBeDefined();
-  return result.structuredContent as T;
+function getStructuredContent<T extends Record<string, unknown>>(result: unknown): T {
+  const toolResult = result as { structuredContent?: Record<string, unknown> };
+  expect(toolResult.structuredContent).toBeDefined();
+  return toolResult.structuredContent as T;
+}
+
+function getTextContent(result: unknown): Array<Record<string, unknown>> {
+  return (result as { content: Array<Record<string, unknown>> }).content;
 }
 
 function readJson<T extends Record<string, unknown>>(filePath: string): T {
@@ -489,7 +494,7 @@ describe('CORD MCP server integration', () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]).toMatchObject({
+    expect(getTextContent(result)[0]).toMatchObject({
       type: 'text',
       text: expect.stringContaining('Input validation error'),
     });

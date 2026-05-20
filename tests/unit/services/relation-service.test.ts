@@ -271,6 +271,7 @@ describe('RelationService', () => {
           sourceDocId,
           targetDocId,
           relationType,
+          confidence: 0.8,
           source: 'manual',
           status: 'active',
         }),

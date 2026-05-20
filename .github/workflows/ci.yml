@@ -28,6 +28,12 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      - name: Build
+        run: npm run build
+
+      - name: CLI binary smoke test
+        run: npm run smoke:bin
+
       - name: Test with coverage
         run: npm run test:coverage
 

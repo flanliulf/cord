@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createQueryCommand } from '../../../../src/cli/commands/query.js';
 import type { QueryInput } from '../../../../src/schemas/index.js';
+import type { QueryRelationsOutput } from '../../../../src/services/index.js';
 import { QueryError } from '../../../../src/utils/index.js';
 
 interface BufferingWriter {
@@ -9,18 +10,7 @@ interface BufferingWriter {
   read(): string;
 }
 
-interface QueryCommandResult {
-  relations: Array<{
-    relationId: string;
-    targetPath: string;
-    relationType: string;
-    confidence: number;
-    source: string;
-    status: 'active' | 'deprecated';
-    hopDistance: number;
-  }>;
-  totalCount: number;
-}
+type QueryCommandResult = QueryRelationsOutput;
 
 interface QueryServiceLike {
   query(input: QueryInput): QueryCommandResult;

@@ -16,7 +16,7 @@ import type { CordConfig } from '../../../src/types/index.js';
 import { ConfigError } from '../../../src/utils/index.js';
 
 class TestFrameworkAdapter extends AbstractFrameworkAdapter {
-  readonly name = 'test';
+  readonly name: string = 'test';
 
   detectFramework(): boolean {
     return false;

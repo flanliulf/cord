@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { createInitCommand, createQueryCommand, createScanCommand } from '../../../src/cli/commands/index.js';
 import { applyVerboseFlag } from '../../../src/cli/verbose.js';
 import { createProgram, runCli } from '../../../src/cli/index.js';
+import type { QueryRelationsOutput, ScanResult } from '../../../src/services/index.js';
 import { ConfigError } from '../../../src/utils/errors.js';
 import { logger } from '../../../src/utils/index.js';
 
@@ -26,7 +27,7 @@ function createWriter(): BufferingWriter {
 }
 
 function createCliProgramWithScanCommand(options: {
-  scan: (input: { projectRoot: string; rebuild?: boolean; force?: boolean }) => Promise<unknown>;
+  scan: (input: { projectRoot: string; rebuild?: boolean; force?: boolean }) => Promise<ScanResult>;
   stdout?: BufferingWriter;
   stderr?: BufferingWriter;
 }): Command {
@@ -39,6 +40,7 @@ function createCliProgramWithScanCommand(options: {
         cwd: () => '/tmp/project',
         serviceFactory: () => ({
           scan: options.scan,
+          getManualRelationsCount: () => 0,
         }),
         stdout: options.stdout,
         stderr: options.stderr,
@@ -48,7 +50,7 @@ function createCliProgramWithScanCommand(options: {
 }
 
 function createCliProgramWithQueryCommand(options: {
-  query: (input: { docPath: string; type?: string; includeDeprecated?: boolean }) => unknown;
+  query: (input: { docPath: string; type?: string; includeDeprecated?: boolean }) => QueryRelationsOutput;
   stdout?: BufferingWriter;
   stderr?: BufferingWriter;
 }): Command {

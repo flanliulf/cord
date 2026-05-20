@@ -36,8 +36,11 @@ export const queryInputSchema = z.object({
   depth: z.number().int().min(1).max(3).optional().default(1),
 });
 
-/** 由 schema 推导的类型。 */
-export type QueryInput = z.infer<typeof queryInputSchema>;
+/** 查询输入类型，保留 default 字段的调用方可选语义。 */
+export type QueryInput = z.input<typeof queryInputSchema>;
+
+/** 验证后的查询输入类型，包含 schema default 补齐后的字段。 */
+export type ValidatedQueryInput = z.output<typeof queryInputSchema>;
 
 /**
  * 验证文档查询输入数据，失败时抛出 `ConfigError`（AC6）。
@@ -46,6 +49,6 @@ export type QueryInput = z.infer<typeof queryInputSchema>;
  * @returns 验证通过的类型安全 `QueryInput`
  * @throws {@link ConfigError} 当验证失败时（code: `CORD_SCHEMA_005`）
  */
-export function validateQueryInput(data: unknown): QueryInput {
+export function validateQueryInput(data: unknown): ValidatedQueryInput {
   return validateWithCordError(queryInputSchema, data, 'CORD_SCHEMA_005');
 }

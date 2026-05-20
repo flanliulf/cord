@@ -21,6 +21,7 @@ export default defineConfig({
         // src/cli/index.ts is intentionally NOT listed here because it contains
         // real logic (runCli, entrypoint guard) and must remain inside the gate.
         'src/adapters/index.ts',
+        'src/index.ts',
         'src/adapters/framework/index.ts',
         'src/adapters/ide/index.ts',
         'src/mcp/index.ts',

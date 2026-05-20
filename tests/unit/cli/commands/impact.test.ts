@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createImpactCommand } from '../../../../src/cli/commands/impact.js';
 import type { ImpactInput } from '../../../../src/schemas/index.js';
+import type { ImpactResult } from '../../../../src/services/index.js';
 import { QueryError } from '../../../../src/utils/index.js';
 
 interface BufferingWriter {
@@ -9,19 +10,7 @@ interface BufferingWriter {
   read(): string;
 }
 
-interface ImpactCommandResult {
-  impactedDocs: Array<{
-    docPath: string;
-    relationType: string;
-    propagationType: string;
-    suggestedAction: string;
-    updateStrategy: string;
-    severity: string;
-    confidence: number;
-    hopDistance: number;
-  }>;
-  totalCount: number;
-}
+type ImpactCommandResult = ImpactResult;
 
 interface ImpactServiceLike {
   analyzeImpact(input: ImpactInput): ImpactCommandResult;

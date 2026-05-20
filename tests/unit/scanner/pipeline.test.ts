@@ -99,10 +99,10 @@ describe('ScanPipeline', () => {
   it('should throw ScanError when the file cannot be read', async () => {
     const pipeline = new ScanPipeline();
 
-    await expect(pipeline.process('/tmp/does-not-exist.md')).rejects.toMatchObject<Partial<ScanError>>({
+    await expect(pipeline.process('/tmp/does-not-exist.md')).rejects.toMatchObject({
       code: 'CORD_SCAN_002',
       name: 'ScanError',
-    });
+    } satisfies Partial<ScanError>);
   });
 
   it('should wrap rule evaluation failures as ScanError', async () => {
@@ -122,10 +122,10 @@ describe('ScanPipeline', () => {
       },
     ]);
 
-    await expect(pipeline.process(filePath, [filePath])).rejects.toMatchObject<Partial<ScanError>>({
+    await expect(pipeline.process(filePath, [filePath])).rejects.toMatchObject({
       code: 'CORD_SCAN_001',
       name: 'ScanError',
-    });
+    } satisfies Partial<ScanError>);
   });
 
   it('should skip non-markdown files before reading and record a warning', async () => {

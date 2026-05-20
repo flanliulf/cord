@@ -25,7 +25,7 @@ Closes #<!-- issue 编号 -->
 
 - [ ] 单元测试已添加/更新，覆盖新增逻辑
 - [ ] 所有测试通过（`npm test`）
-- [ ] 覆盖率未下降（≥ 80%）
+- [ ] 覆盖率未下降（≥ 80%，`npm run test:coverage`）
 - [ ] 本地运行 `npm run lint && npm run type-check` 通过
 
 ## 检查清单
