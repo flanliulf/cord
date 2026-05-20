@@ -80,9 +80,10 @@ export class SqliteGraphRepository implements IGraphRepository {
     // 显式丢弃不可变字段（即使调用方传入也不生效）
     const { id: _id, createdAt: _ca, updatedAt: _ua, ...safeUpdates } = updates as Partial<DocumentNode>;
     void _id; void _ca; void _ua;
+    const definedUpdates = removeUndefinedProperties(safeUpdates);
     const merged: DocumentNode = {
       ...existing,
-      ...safeUpdates,
+      ...definedUpdates,
       id,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
@@ -173,9 +174,10 @@ export class SqliteGraphRepository implements IGraphRepository {
     // 显式丢弃不可变字段
     const { id: _id, createdAt: _ca, updatedAt: _ua, ...safeUpdates } = updates as Partial<RelationEdge>;
     void _id; void _ca; void _ua;
+    const definedUpdates = removeUndefinedProperties(safeUpdates);
     const merged: RelationEdge = {
       ...existing,
-      ...safeUpdates,
+      ...definedUpdates,
       id,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
@@ -297,4 +299,10 @@ export class SqliteGraphRepository implements IGraphRepository {
   close(): void {
     this.db.close();
   }
+}
+
+function removeUndefinedProperties<T extends object>(updates: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(updates).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
 }

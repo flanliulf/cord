@@ -60,13 +60,33 @@ function parseJsonMetadata(
 ): Record<string, unknown> | undefined {
   if (raw == null) return undefined;
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
+    return assertMetadataObject(JSON.parse(raw), context);
   } catch (err) {
     throw new Error(
       `[mappers] Failed to parse JSON in ${context.table}.${context.column} for id="${context.id}": ${String(err)}`,
       { cause: err },
     );
   }
+}
+
+function assertMetadataObject(
+  value: unknown,
+  context: { table: string; id: string; column: string },
+): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(
+      `[mappers] Invalid JSON object in ${context.table}.${context.column} for id="${context.id}"`,
+    );
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function serializeMetadata(
+  value: Record<string, unknown> | undefined,
+  context: { table: string; id: string; column: string },
+): string | null {
+  return value != null ? JSON.stringify(assertMetadataObject(value, context)) : null;
 }
 
 /**
@@ -125,7 +145,7 @@ export function documentToRow(
     doc_type: doc.docType ?? null,
     framework: doc.framework ?? null,
     content_hash: doc.contentHash ?? null,
-    metadata: doc.metadata != null ? JSON.stringify(doc.metadata) : null,
+    metadata: serializeMetadata(doc.metadata, { table: 'documents', id: doc.id, column: 'metadata' }),
     created_at: doc.createdAt,
     updated_at: doc.updatedAt,
   };
@@ -177,7 +197,7 @@ export function relationToRow(
     confidence: rel.confidence,
     source: rel.source,
     status: rel.status,
-    metadata: rel.metadata != null ? JSON.stringify(rel.metadata) : null,
+    metadata: serializeMetadata(rel.metadata, { table: 'relations', id: rel.id, column: 'metadata' }),
     created_at: rel.createdAt,
     updated_at: rel.updatedAt,
   };

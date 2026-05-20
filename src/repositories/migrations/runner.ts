@@ -1,6 +1,7 @@
 import type { Database } from 'better-sqlite3';
 import { INITIAL_SCHEMA_SQL } from './001-initial-schema.js';
 import { applyAddRelationStatusMigration } from './002-add-relation-status.js';
+import { applyFixV1BaselineMigration } from './003-fix-v1-baseline.js';
 
 /**
  * 迁移描述符，包含版本号和 SQL 内容。
@@ -19,6 +20,7 @@ function loadMigrations(): Migration[] {
   return [
     { version: 1, apply: (db) => { db.exec(INITIAL_SCHEMA_SQL); } },
     { version: 2, apply: applyAddRelationStatusMigration },
+    { version: 3, apply: applyFixV1BaselineMigration },
   ];
 }
 

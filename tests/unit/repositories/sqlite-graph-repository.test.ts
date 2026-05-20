@@ -6,6 +6,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SqliteGraphRepository } from '../../../src/repositories/sqlite-graph-repository.js';
 import { RELATION_TYPES } from '../../../src/types/index.js';
 
+type SchemaVersionRow = { version: number };
+type TableSqlRow = { sql: string };
+type CountRow = { count: number };
+
 // 使用 :memory: 数据库，每个 test 块独立实例
 function createRepo(): SqliteGraphRepository {
   return new SqliteGraphRepository(':memory:');
@@ -40,11 +44,29 @@ describe('SqliteGraphRepository — 迁移机制', () => {
     expect(() => createRepo().close()).not.toThrow();
   });
 
-  it('迁移版本已记录在 schema_migrations 表', () => {
-    // SqliteGraphRepository 不直接暴露 DB；通过 getDocumentCount 间接证明迁移已完成
-    const repo = createRepo();
-    expect(() => repo.getDocumentCount()).not.toThrow();
-    repo.close();
+  it('迁移版本已记录在 schema_migrations 表，重复连接不会重复记录', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cord-migrations-'));
+    const dbPath = join(root, 'cord.db');
+
+    try {
+      new SqliteGraphRepository(dbPath).close();
+      new SqliteGraphRepository(dbPath).close();
+
+      const db = new Database(dbPath, { readonly: true });
+
+      try {
+        const versions = db
+          .prepare<[], SchemaVersionRow>('SELECT version FROM schema_migrations ORDER BY version')
+          .all()
+          .map((row) => row.version);
+
+        expect(versions).toEqual([1, 2, 3]);
+      } finally {
+        db.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('升级旧版数据库时会为 relations 表补 status 列并将存量关系回填为 active', () => {
@@ -122,7 +144,7 @@ describe('SqliteGraphRepository — 迁移机制', () => {
       expect(relations).toHaveLength(1);
       expect(relations[0].status).toBe('active');
       expect(relations[0].relationType).toBe(RELATION_TYPES.REFERENCES);
-      expect(repo.getMigrationVersion()).toBe(2);
+      expect(repo.getMigrationVersion()).toBe(3);
     } finally {
       repo.close();
       rmSync(root, { recursive: true, force: true });
@@ -190,7 +212,7 @@ describe('SqliteGraphRepository — 迁移机制', () => {
     const repo = new SqliteGraphRepository(dbPath);
 
     try {
-      expect(repo.getMigrationVersion()).toBe(2);
+      expect(repo.getMigrationVersion()).toBe(3);
       repo.close();
 
       const verificationDb = new Database(dbPath, { readonly: true });
@@ -205,6 +227,206 @@ describe('SqliteGraphRepository — 迁移机制', () => {
         verificationDb.close();
       }
     } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('升级旧版 v1 baseline 时会补齐 relations / sync_states CHECK 约束和 source 维度唯一索引', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cord-v1-baseline-'));
+    const dbPath = join(root, 'cord.db');
+    const legacyDb = new Database(dbPath);
+
+    try {
+      legacyDb.exec(`
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE schema_migrations (
+          version     INTEGER PRIMARY KEY,
+          applied_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE documents (
+          id           TEXT PRIMARY KEY,
+          path         TEXT NOT NULL UNIQUE,
+          title        TEXT,
+          doc_type     TEXT,
+          framework    TEXT,
+          content_hash TEXT,
+          metadata     TEXT,
+          created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE relations (
+          id              TEXT    PRIMARY KEY,
+          source_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          target_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          relation_type   TEXT    NOT NULL,
+          confidence      REAL    NOT NULL DEFAULT 0.5,
+          source          TEXT    NOT NULL DEFAULT 'auto_scan',
+          status          TEXT    NOT NULL DEFAULT 'active',
+          metadata        TEXT,
+          created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE UNIQUE INDEX idx_relations_unique_pair
+          ON relations(source_doc_id, target_doc_id, relation_type);
+
+        CREATE TABLE sync_states (
+          doc_id                  TEXT    PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+          last_scanned_at         TEXT    NOT NULL,
+          last_observed_mtime_ms  INTEGER,
+          content_hash            TEXT    NOT NULL,
+          status                  TEXT    NOT NULL DEFAULT 'synced',
+          updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        INSERT INTO documents (id, path, title, doc_type, metadata, created_at, updated_at)
+        VALUES ('doc-src', 'docs/source.md', 'source', 'story', '{}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z');
+
+        INSERT INTO documents (id, path, title, doc_type, metadata, created_at, updated_at)
+        VALUES ('doc-tgt', 'docs/target.md', 'target', 'story', '{}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z');
+
+        INSERT INTO relations (id, source_doc_id, target_doc_id, relation_type, confidence, source, status, metadata, created_at, updated_at)
+        VALUES ('rel-legacy', 'doc-src', 'doc-tgt', 'references', 0.7, 'auto_scan', 'active', '{"legacy":true}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z');
+
+        INSERT INTO sync_states (doc_id, last_scanned_at, last_observed_mtime_ms, content_hash, status, updated_at)
+        VALUES ('doc-src', '2026-05-14T00:00:00.000Z', 1000, 'hash-src', 'synced', '2026-05-14T00:00:00.000Z');
+
+        INSERT INTO schema_migrations (version) VALUES (1), (2);
+      `);
+    } finally {
+      legacyDb.close();
+    }
+
+    const repo = new SqliteGraphRepository(dbPath);
+
+    try {
+      expect(repo.getMigrationVersion()).toBe(3);
+      expect(repo.getAllRelations()).toHaveLength(1);
+      expect(repo.getAllSyncStates()).toHaveLength(1);
+      repo.addRelation({
+        sourceDocId: 'doc-src',
+        targetDocId: 'doc-tgt',
+        relationType: RELATION_TYPES.REFERENCES,
+        confidence: 0.8,
+        source: 'manual',
+        status: 'active',
+      });
+      repo.close();
+
+      const verificationDb = new Database(dbPath, { readonly: true });
+
+      try {
+        const relationTable = verificationDb
+          .prepare<[], TableSqlRow>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'relations'")
+          .get();
+        const syncStateTable = verificationDb
+          .prepare<[], TableSqlRow>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sync_states'")
+          .get();
+        const uniqueIndexColumns = verificationDb
+          .prepare<[], { name: string }>("PRAGMA index_info('idx_relations_unique_pair')")
+          .all()
+          .map((row) => row.name);
+
+        expect(relationTable?.sql).toContain("relation_type IN ('sync_required'");
+        expect(relationTable?.sql).toContain("source IN ('auto_scan'");
+        expect(relationTable?.sql).toContain("status IN ('active'");
+        expect(syncStateTable?.sql).toContain("status IN ('synced'");
+        expect(uniqueIndexColumns).toEqual(['source_doc_id', 'target_doc_id', 'relation_type', 'source']);
+      } finally {
+        verificationDb.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('迁移失败时回滚 schema_migrations 与 schema 变更', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cord-migration-rollback-'));
+    const dbPath = join(root, 'cord.db');
+    const legacyDb = new Database(dbPath);
+
+    try {
+      legacyDb.exec(`
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE schema_migrations (
+          version     INTEGER PRIMARY KEY,
+          applied_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE documents (
+          id           TEXT PRIMARY KEY,
+          path         TEXT NOT NULL UNIQUE,
+          title        TEXT,
+          doc_type     TEXT,
+          framework    TEXT,
+          content_hash TEXT,
+          metadata     TEXT,
+          created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE relations (
+          id              TEXT    PRIMARY KEY,
+          source_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          target_doc_id   TEXT    NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+          relation_type   TEXT    NOT NULL,
+          confidence      REAL    NOT NULL DEFAULT 0.5,
+          source          TEXT    NOT NULL DEFAULT 'auto_scan',
+          status          TEXT    NOT NULL DEFAULT 'active',
+          metadata        TEXT,
+          created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE sync_states (
+          doc_id                  TEXT    PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+          last_scanned_at         TEXT    NOT NULL,
+          last_observed_mtime_ms  INTEGER,
+          content_hash            TEXT    NOT NULL,
+          status                  TEXT    NOT NULL DEFAULT 'synced',
+          updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        INSERT INTO documents (id, path, title, doc_type, metadata, created_at, updated_at)
+        VALUES ('doc-src', 'docs/source.md', 'source', 'story', '{}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z');
+
+        INSERT INTO documents (id, path, title, doc_type, metadata, created_at, updated_at)
+        VALUES ('doc-tgt', 'docs/target.md', 'target', 'story', '{}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z');
+
+        INSERT INTO relations (id, source_doc_id, target_doc_id, relation_type, confidence, source, status, metadata, created_at, updated_at)
+        VALUES ('rel-invalid', 'doc-src', 'doc-tgt', 'invalid_relation_type', 0.7, 'auto_scan', 'active', '{}', '2026-05-14T00:00:00.000Z', '2026-05-14T00:00:00.000Z');
+
+        INSERT INTO schema_migrations (version) VALUES (1), (2);
+      `);
+    } finally {
+      legacyDb.close();
+    }
+
+    expect(() => new SqliteGraphRepository(dbPath)).toThrow();
+
+    const verificationDb = new Database(dbPath, { readonly: true });
+
+    try {
+      const versions = verificationDb
+        .prepare<[], SchemaVersionRow>('SELECT version FROM schema_migrations ORDER BY version')
+        .all()
+        .map((row) => row.version);
+      const relationCount = verificationDb
+        .prepare<[], CountRow>('SELECT COUNT(*) AS count FROM relations')
+        .get();
+      const backupTables = verificationDb
+        .prepare<[], { name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%baseline_backup'")
+        .all();
+
+      expect(versions).toEqual([1, 2]);
+      expect(relationCount?.count).toBe(1);
+      expect(backupTables).toHaveLength(0);
+    } finally {
+      verificationDb.close();
       rmSync(root, { recursive: true, force: true });
     }
   });
@@ -261,6 +483,15 @@ describe('SqliteGraphRepository — 文档节点 CRUD', () => {
     expect(updated.title).toBe('New Title');
     expect(updated.contentHash).toBe('newhash');
     expect(updated.path).toBe('docs/d.md'); // 未修改字段保留
+  });
+
+  it('updateDocument 忽略显式 undefined 字段，不清空已有值', () => {
+    const added = repo.addDocument(makeDoc('docs/undefined-doc.md'));
+    const updated = repo.updateDocument(added.id, { title: undefined, contentHash: undefined });
+
+    expect(updated.title).toBe(added.title);
+    expect(updated.contentHash).toBe(added.contentHash);
+    expect(repo.getDocumentById(added.id)?.title).toBe(added.title);
   });
 
   it('updateDocument 对不存在 id 抛出错误', () => {
@@ -377,6 +608,15 @@ describe('SqliteGraphRepository — 关系边 CRUD', () => {
     const updated = repo.updateRelation(added.id, { confidence: 0.5, status: 'deprecated' });
     expect(updated.confidence).toBe(0.5);
     expect(updated.status).toBe('deprecated');
+  });
+
+  it('updateRelation 忽略显式 undefined 字段，不清空已有值', () => {
+    const added = repo.addRelation(makeRel({ metadata: { note: 'keep' } }));
+    const updated = repo.updateRelation(added.id, { confidence: undefined, metadata: undefined });
+
+    expect(updated.confidence).toBe(added.confidence);
+    expect(updated.metadata).toEqual({ note: 'keep' });
+    expect(repo.getRelationById(added.id)?.metadata).toEqual({ note: 'keep' });
   });
 
   it('updateRelation 对不存在 id 抛出错误', () => {
@@ -546,13 +786,21 @@ describe('SqliteGraphRepository — 事务', () => {
 
 describe('SqliteGraphRepository — WAL 模式', () => {
   it('构造后 journal_mode 为 wal', () => {
-    // 间接验证：WAL 模式下 PRAGMA 返回 'wal'
-    // 通过正常操作验证（无法直接访问私有 db）
-    const repo = createRepo();
-    // 能正常写入读取即说明 WAL 已启用且正常工作
-    const doc = repo.addDocument(makeDoc('wal.md'));
-    expect(repo.getDocumentById(doc.id)).not.toBeNull();
-    repo.close();
+    const root = mkdtempSync(join(tmpdir(), 'cord-wal-'));
+    const dbPath = join(root, 'cord.db');
+
+    try {
+      new SqliteGraphRepository(dbPath).close();
+      const db = new Database(dbPath);
+
+      try {
+        expect(db.pragma('journal_mode', { simple: true })).toBe('wal');
+      } finally {
+        db.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

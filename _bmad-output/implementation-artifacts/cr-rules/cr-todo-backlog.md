@@ -6,9 +6,9 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 26 |
+| Open | 22 |
 | In Progress | 0 |
-| Resolved | 10 |
+| Resolved | 14 |
 | **合计** | **36** |
 
 ---
@@ -47,76 +47,6 @@
   - `src/schemas/scan-input.ts`
 - **问题描述**：`createdAt`/`updatedAt` 仅用 `z.string().min(1)` 校验，未约束 ISO 8601 格式（应改为 `z.string().datetime()`）；`document.path` 未约束相对路径语义；`scan.projectRoot` 未约束绝对路径语义。非法时间戳会污染排序和增量扫描判断，非法路径会破坏以路径为主键的查询/缓存键值一致性。
 - **建议时机**：首次真正消费上述 schema 字段的 Story（如 1-4 扫描器或查询模块），在引入真实路径处理逻辑时，叠加 `z.string().datetime()`、相对路径 `.refine()`、绝对路径 `.refine()` 约束，并同步补对应回归测试
-- **解决记录**：—
-
----
-
-### TODO-007
-
-- **标题**：旧库升级路径未走 002 增量迁移（pre-release schema 直接重写约定文档化）
-- **状态**：open
-- **优先级**：P2（首个稳定 release 前处理）
-- **类别**：tech-debt
-- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #1）
-- **涉及文件**：
-  - `src/repositories/migrations/runner.ts`
-  - `src/repositories/migrations/001-initial-schema.sql`
-  - `src/repositories/migrations/001-initial-schema.ts`
-- **问题描述**：v0.1 pre-release 阶段多次对 `001-initial-schema` 直接重写（Round 1：唯一索引加 source 维度 + relations.source/status CHECK 约束；Round 3：relations.relation_type CHECK 约束），均未新增 `002` 增量迁移。`runMigrations` 的幂等跳过机制意味着「已跑过旧版 v1」的本地开发库无法自动升级到含完整约束的新 schema。当前 v0.1 pre-release 无任何在野老库，场景不成立。
-  - **002 需覆盖的完整修复范围**：`DROP INDEX idx_relations_unique_pair / CREATE UNIQUE INDEX`（加 source 维度）+ `relations.source` CHECK + `relations.status` CHECK + `sync_states.status` CHECK + `relations.relation_type` CHECK（共 5 项约束 + 1 个索引重建）。
-- **建议时机**：首个稳定 release（或确认有用户已用 0.x schema）前，新增 `002-fix-v1-baseline.sql` 增量迁移，覆盖上述全部范围，并在 Tech Notes 中记录「pre-release 直接重写 schema，首个稳定 release 后切换为只增不改的增量模式」约定。
-- **关联规则**：`CR-REPO-06`（迁移子步骤必须独立幂等，并覆盖部分迁移数据库场景）
-- **风险备注**：Story 4-1 已将“迁移子步骤独立幂等”和“部分迁移数据库回归”升格为全局规则，可降低同类缺口再次引入概率；但本条针对的是旧版 v1 基线整体升级债务，仍需在首个稳定 release 前单独解决。
-- **解决记录**：—
-
----
-
-### TODO-008
-
-- **标题**：`parseJsonMetadata` 未校验解析结果必须是非 null 对象（不含数组、原始值）
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #3）
-- **涉及文件**：
-  - `src/repositories/mappers.ts`
-- **问题描述**：`parseJsonMetadata` 仅做 `JSON.parse(raw) as Record<string, unknown>`，未校验解析结果的形态。`[]`、`123`、`"text"`、`null` 等合法 JSON 值会被错误地伪装成对象穿透；写入端（`documentToRow` / `relationToRow`）同样未做对称形态约束，只在读取端防守存在「只防读、不防写」的不对称性。
-- **建议时机**：与「写入端 metadata 对称形态校验」捆绑处理（同一 PR），在 `parseJsonMetadata` 增加 `parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)` 校验，写入端 mapper 做同等 TS 类型/运行时断言，并补对应失败用例。
-- **解决记录**：—
-
----
-
-### TODO-009
-
-- **标题**：`updateDocument` / `updateRelation` 未过滤 `undefined` 字段，可能误清空可选列
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #4）
-- **涉及文件**：
-  - `src/repositories/sqlite-graph-repository.ts`
-- **问题描述**：`updateDocument` 与 `updateRelation` 在 spread 时不过滤 `undefined`：若调用方显式传 `{ title: undefined }`，会覆盖 `existing.title` 为 `undefined`，最终 mapper 转为 `null` 写库；若 `path`（NOT NULL 列）被传 `undefined`，会触发约束错误。TypeScript `Partial<T>` 允许 `undefined`，但当前实现未对此做防御。
-- **建议时机**：Story 1-4 收尾或下一个消费 `updateDocument`/`updateRelation` 的 Story，添加 `Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined))` 一行过滤，并补「显式传 undefined 不应清空字段」回归测试。
-- **解决记录**：—
-
----
-
-### TODO-010
-
-- **标题**：迁移行为 AC 测试证据不足（未直接断言迁移版本记录、失败回滚、WAL 模式）
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：test-gap
-- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #5）
-- **涉及文件**：
-  - `tests/unit/repositories/sqlite-graph-repository.test.ts`
-- **问题描述**：
-  - AC#5：迁移测试只验证 `:memory:` 新库不抛错，未直接断言 `schema_migrations` 表仅有一行 version=1（幂等跳过验证）。
-  - AC#6：事务测试是业务事务，未模拟「迁移 SQL 故意抛错 → schema_migrations 与 schema 一并回滚」场景。
-  - AC#7：WAL 测试只验证读写正常，未直接 `db.pragma('journal_mode', { simple: true })` 断言返回 `'wal'`。
-- **建议时机**：Story 1-4 收尾，补 3 个专项测试用例：(1) 临时文件 DB 二次 reopen 断言 `schema_migrations` 一行；(2) 注入失败 SQL 验证回滚；(3) `repo['db'].pragma('journal_mode', { simple: true }) === 'wal'` 直接断言。
-- **关联规则**：`CR-REPO-06`（迁移子步骤必须独立幂等，并覆盖部分迁移数据库场景）
-- **风险备注**：Story 4-1 已补入“部分迁移数据库”回归，覆盖了迁移测试谱系中的一类残缺 schema 场景；但本条要求的迁移版本记录、失败回滚与 WAL 证据仍未被现有回归取代，状态保持 open。
 - **解决记录**：—
 
 ---
@@ -443,6 +373,73 @@
 ---
 
 ## Resolved Items
+
+---
+
+### TODO-007
+
+- **标题**：旧库升级路径未走 002 增量迁移（pre-release schema 直接重写约定文档化）
+- **状态**：resolved
+- **优先级**：P2（首个稳定 release 前处理）
+- **类别**：tech-debt
+- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #1）
+- **涉及文件**：
+  - `src/repositories/migrations/003-fix-v1-baseline.ts`
+  - `src/repositories/migrations/runner.ts`
+  - `tests/unit/repositories/sqlite-graph-repository.test.ts`
+  - `_bmad-output/project-context.md`
+  - `_bmad-output/planning-artifacts/architecture/03-core-architectural-decisions.md`
+  - `_bmad-output/planning-artifacts/architecture/04-implementation-patterns-consistency-rules.md`
+- **问题描述**：v0.1 pre-release 阶段多次对 `001-initial-schema` 直接重写（Round 1：唯一索引加 source 维度 + relations.source/status CHECK 约束；Round 3：relations.relation_type CHECK 约束），均未新增 `002` 增量迁移。`runMigrations` 的幂等跳过机制意味着「已跑过旧版 v1」的本地开发库无法自动升级到含完整约束的新 schema。当前 v0.1 pre-release 无任何在野老库，场景不成立。
+- **处理方式**：新增 `003-fix-v1-baseline.ts` 内联 TS 迁移，覆盖旧 v1 baseline 的 `relations.relation_type/source/status` CHECK、`sync_states.status` CHECK，以及 `idx_relations_unique_pair` source 维度；迁移按 schema 探测独立补齐表约束与索引，runner 注册 version 3；Rule Document Registry 三份规则文档同步记录 v0.1 pre-release baseline 与稳定版后只增不改策略。
+- **解决记录**：2026-05-20 批次 2 仓储防御修复完成。验证：新增旧 v1 baseline 升级测试，断言 version=3、约束/索引补齐且数据保留。
+
+---
+
+### TODO-008
+
+- **标题**：`parseJsonMetadata` 未校验解析结果必须是非 null 对象（不含数组、原始值）
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #3）
+- **涉及文件**：
+  - `src/repositories/mappers.ts`
+  - `tests/unit/repositories/mappers.test.ts`
+- **问题描述**：`parseJsonMetadata` 仅做 `JSON.parse(raw) as Record<string, unknown>`，未校验解析结果的形态。`[]`、`123`、`"text"`、`null` 等合法 JSON 值会被错误地伪装成对象穿透；写入端（`documentToRow` / `relationToRow`）同样未做对称形态约束，只在读取端防守存在「只防读、不防写」的不对称性。
+- **处理方式**：新增 `assertMetadataObject()` 与 `serializeMetadata()`，读写两端都拒绝顶层 `null`、数组和原始值 metadata，仅允许非 null object；补充读端非对象 JSON 与写端 array metadata 回归测试。
+- **解决记录**：2026-05-20 批次 2 仓储防御修复完成。验证：`npm test -- tests/unit/repositories/mappers.test.ts tests/unit/repositories/sqlite-graph-repository.test.ts` 通过。
+
+---
+
+### TODO-009
+
+- **标题**：`updateDocument` / `updateRelation` 未过滤 `undefined` 字段，可能误清空可选列
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #4）
+- **涉及文件**：
+  - `src/repositories/sqlite-graph-repository.ts`
+  - `tests/unit/repositories/sqlite-graph-repository.test.ts`
+- **问题描述**：`updateDocument` 与 `updateRelation` 在 spread 时不过滤 `undefined`：若调用方显式传 `{ title: undefined }`，会覆盖 `existing.title` 为 `undefined`，最终 mapper 转为 `null` 写库；若 `path`（NOT NULL 列）被传 `undefined`，会触发约束错误。TypeScript `Partial<T>` 允许 `undefined`，但当前实现未对此做防御。
+- **处理方式**：新增 `removeUndefinedProperties()`，在 `updateDocument()` / `updateRelation()` merge 前过滤显式 `undefined` 字段；补充文档与关系更新回归测试，断言已有值不会被清空。
+- **解决记录**：2026-05-20 批次 2 仓储防御修复完成。验证：`npm test -- tests/unit/repositories/mappers.test.ts tests/unit/repositories/sqlite-graph-repository.test.ts` 通过。
+
+---
+
+### TODO-010
+
+- **标题**：迁移行为 AC 测试证据不足（未直接断言迁移版本记录、失败回滚、WAL 模式）
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：test-gap
+- **来源**：Story 1-4 / Round 2 / 2026-04-28（发现 #5）
+- **涉及文件**：
+  - `tests/unit/repositories/sqlite-graph-repository.test.ts`
+- **问题描述**：迁移测试缺少对 `schema_migrations` 版本记录/幂等、迁移失败回滚、WAL 模式的直接证据。
+- **处理方式**：补充临时文件 DB 二次连接断言 `schema_migrations` 版本 `[1,2,3]` 且不重复；构造非法旧库触发 003 迁移失败，断言 version 3 未记录、原 relations 表数据仍在且无 backup table 泄漏；改 WAL 测试为直接 `PRAGMA journal_mode` 断言 `wal`。
+- **解决记录**：2026-05-20 批次 2 仓储防御修复完成。验证：`npm test -- tests/unit/repositories/mappers.test.ts tests/unit/repositories/sqlite-graph-repository.test.ts` 通过。
 
 ---
 

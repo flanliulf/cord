@@ -109,6 +109,18 @@ describe('documentToRow', () => {
     expect(row.metadata).toBeNull();
   });
 
+  it('rejects top-level array metadata before writing', () => {
+    const doc: DocumentNode = {
+      id: 'doc-array-metadata',
+      path: 'array.md',
+      metadata: [] as unknown as Record<string, unknown>,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+    };
+
+    expect(() => documentToRow(doc)).toThrow(/metadata.*doc-array-metadata/i);
+  });
+
   it('serializes metadata object to JSON string', () => {
     const doc: DocumentNode = {
       id: 'doc-3',
@@ -361,6 +373,22 @@ describe('rowToDocument — 损坏数据防御（F4）', () => {
     };
     expect(() => rowToDocument(row)).toThrow(/metadata.*doc-bad/i);
   });
+
+  it.each(['null', '[]', '123', '"text"'])('metadata 为非对象 JSON %s 时抛出含上下文的错误', (metadata) => {
+    const row: DocumentRow = {
+      id: `doc-shape-${metadata}`,
+      path: 'bad-shape.md',
+      title: null,
+      doc_type: null,
+      framework: null,
+      content_hash: null,
+      metadata,
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
+    };
+
+    expect(() => rowToDocument(row)).toThrow(/metadata.*doc-shape/i);
+  });
 });
 
 describe('rowToRelation — 枚举校验防御（F4）', () => {
@@ -391,6 +419,10 @@ describe('rowToRelation — 枚举校验防御（F4）', () => {
 
   it('metadata 为非法 JSON 时抛出含上下文的错误', () => {
     expect(() => rowToRelation({ ...baseRow, metadata: '{{bad' })).toThrow(/metadata.*rel-bad/i);
+  });
+
+  it('metadata 为非对象 JSON 时抛出含上下文的错误', () => {
+    expect(() => rowToRelation({ ...baseRow, metadata: '[]' })).toThrow(/metadata.*rel-bad/i);
   });
 });
 

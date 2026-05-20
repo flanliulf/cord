@@ -429,6 +429,7 @@ repository.transaction(() => {
 - 列新增、索引创建、数据回填等子步骤必须分别保持幂等；**禁止**因某个工件已存在就提前返回，导致其他仍可能缺失的工件无法补建
 - 迁移回归测试除标准旧库升级外，还必须覆盖“部分迁移数据库”场景，例如列已存在但索引缺失，确保应用启动后可自愈到完整目标 schema
 - 若某步天然不可重入，必须显式用 schema 探测或 `IF NOT EXISTS` 语义把风险隔离到该步，而不是整条 migration 直接短路
+- v0.1 pre-release 阶段允许直接重写 baseline migration；为兼容早期旧 v1 baseline，已通过 `003-fix-v1-baseline` 补齐约束/索引自愈迁移；首个稳定 release 后切换为只增不改的增量迁移模式
 
 ## Scanner / 增量扫描规则（来源：Story 2-6 CR 历史）
 

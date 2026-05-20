@@ -501,7 +501,7 @@ L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
 - **迁移 SQL 内联规则（CR-REPO-03）**：迁移 SQL 以 TS 模块字符串常量内联（`export const MIGRATION_XXX_SQL = \`...\``），禁止运行时 `readFileSync`；tsup 仅打包 TS/JS 文件，`.sql` 资源不会出现在 `dist/` 中
 - **迁移子步骤独立幂等规则（CR-REPO-06）**：列新增、索引创建、数据回填等子步骤必须分别保持幂等；禁止因为某个工件已存在就提前返回，导致其他仍可能缺失的工件无法补建
 - **部分迁移数据库回归规则（CR-REPO-06）**：迁移测试除标准旧库升级外，还必须覆盖“部分迁移数据库”场景（如列已存在但索引缺失），确保应用启动后可自愈到完整目标 schema
-- **pre-release schema 重写约定**：v0.1 发布前可直接重写已有 migration；首个稳定 release 后切换为只增不改的增量迁移模式（参见 TODO-007）
+- **pre-release schema 重写约定**：v0.1 发布前可直接重写已有 migration；为兼容早期旧 v1 baseline，已通过 `003-fix-v1-baseline` 补齐约束/索引自愈迁移；首个稳定 release 后切换为只增不改的增量迁移模式
 
 **配置管理（D6）：**
 - 支持 `cord.config.yaml`（推荐）和 `cord.config.json`
