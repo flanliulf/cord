@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { IGraphRepository } from '../repositories/index.js';
 import { type ExportInput, validateExportInput } from '../schemas/index.js';
@@ -6,7 +6,7 @@ import type { DocumentNode, RelationEdge } from '../types/index.js';
 import { loadConfig } from '../utils/index.js';
 
 const SNAPSHOT_SCHEMA_VERSION = '1.0';
-const DEFAULT_EXPORT_FILENAME = 'cord-snapshot.json';
+export const DEFAULT_EXPORT_FILENAME = 'cord-snapshot.json';
 
 export interface ExportedDocument {
   id: string;
@@ -49,6 +49,8 @@ export interface ExportResult {
 interface ExportServiceOptions {
   now?: () => Date;
   mkdir?: typeof mkdir;
+  rename?: typeof rename;
+  rm?: typeof rm;
   writeFile?: typeof writeFile;
   defaultFileName?: string;
 }
@@ -57,6 +59,10 @@ export class ExportService {
   private readonly now: () => Date;
 
   private readonly mkdir: typeof mkdir;
+
+  private readonly rename: typeof rename;
+
+  private readonly rm: typeof rm;
 
   private readonly writeFile: typeof writeFile;
 
@@ -68,6 +74,8 @@ export class ExportService {
   ) {
     this.now = options.now ?? (() => new Date());
     this.mkdir = options.mkdir ?? mkdir;
+    this.rename = options.rename ?? rename;
+    this.rm = options.rm ?? rm;
     this.writeFile = options.writeFile ?? writeFile;
     this.defaultFileName = options.defaultFileName ?? DEFAULT_EXPORT_FILENAME;
   }
@@ -82,7 +90,7 @@ export class ExportService {
     );
 
     await this.mkdir(dirname(outputPath), { recursive: true });
-    await this.writeFile(outputPath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf-8');
+    await this.writeSnapshotFile(outputPath, `${JSON.stringify(snapshot, null, 2)}\n`);
 
     return {
       outputPath,
@@ -113,6 +121,18 @@ export class ExportService {
       relations,
     };
   }
+
+  private async writeSnapshotFile(outputPath: string, contents: string): Promise<void> {
+    const temporaryOutputPath = createTemporaryOutputPath(outputPath);
+
+    try {
+      await this.writeFile(temporaryOutputPath, contents, 'utf-8');
+      await this.rename(temporaryOutputPath, outputPath);
+    } catch (error) {
+      await this.rm(temporaryOutputPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
 }
 
 function resolveProjectName(projectRoot: string): string {
@@ -125,7 +145,20 @@ function resolveOutputPath(projectRoot: string, outputPath: string | undefined, 
     return join(resolve(projectRoot), defaultFileName);
   }
 
+  if (isDirectoryLikeOutputPath(outputPath)) {
+    return resolve(projectRoot, outputPath, defaultFileName);
+  }
+
   return resolve(projectRoot, outputPath);
+}
+
+function isDirectoryLikeOutputPath(outputPath: string): boolean {
+  return outputPath.endsWith('/') || outputPath.endsWith('\\');
+}
+
+function createTemporaryOutputPath(outputPath: string): string {
+  const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return join(dirname(outputPath), `.${basename(outputPath)}.${nonce}.tmp`);
 }
 
 function serializeDocument(document: DocumentNode): ExportedDocument {
@@ -158,12 +191,24 @@ function serializeRelation(relation: RelationEdge): ExportedRelation {
 }
 
 function compareDocuments(left: ExportedDocument, right: ExportedDocument): number {
-  return left.path.localeCompare(right.path) || left.id.localeCompare(right.id);
+  return compareStrings(left.path, right.path) || compareStrings(left.id, right.id);
 }
 
 function compareRelations(left: ExportedRelation, right: ExportedRelation): number {
-  return left.sourceDocId.localeCompare(right.sourceDocId)
-    || left.targetDocId.localeCompare(right.targetDocId)
-    || left.relationType.localeCompare(right.relationType)
-    || left.id.localeCompare(right.id);
+  return compareStrings(left.sourceDocId, right.sourceDocId)
+    || compareStrings(left.targetDocId, right.targetDocId)
+    || compareStrings(left.relationType, right.relationType)
+    || compareStrings(left.id, right.id);
+}
+
+function compareStrings(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+
+  if (left > right) {
+    return 1;
+  }
+
+  return 0;
 }

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, win32 } from 'node:path';
 import { Command } from 'commander';
@@ -183,6 +183,32 @@ describe('createExportCommand', () => {
     expect(exportSnapshot).toHaveBeenCalledWith({
       projectRoot: '/repo',
       outputPath: 'snapshots/graph.json',
+    });
+  });
+
+  it('normalizes directory-shaped output paths to the default snapshot file', async () => {
+    const exportSnapshot = vi.fn().mockResolvedValue({
+      outputPath: '/repo/snapshots/cord-snapshot.json',
+      snapshot: {
+        schemaVersion: '1.0',
+        exportedAt: '2026-05-12T12:34:56.789Z',
+        project: 'repo',
+        documents: [],
+        relations: [],
+      },
+    } satisfies ExportCommandResult);
+    const command = createExportCommand({
+      cwd: () => '/repo',
+      serviceFactory: () => ({ exportSnapshot }),
+      stdout: createWriter(),
+      stderr: createWriter(),
+    });
+
+    await parseExportCommand(command, ['export', '--output', 'snapshots/']);
+
+    expect(exportSnapshot).toHaveBeenCalledWith({
+      projectRoot: '/repo',
+      outputPath: 'snapshots/cord-snapshot.json',
     });
   });
 
@@ -373,6 +399,67 @@ describe('createExportCommand', () => {
     expect(serviceFactory).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(2);
     expect(stderr.read()).toContain('项目根目录外');
+  });
+
+  it('normalizes win32 UNC project-root internal output paths', async () => {
+    const projectRoot = String.raw`\\server\share\repo`;
+    const outputPath = String.raw`\\server\share\repo\snapshots\graph.json`;
+
+    const exportSnapshot = vi.fn().mockResolvedValue({
+      outputPath,
+      snapshot: {
+        schemaVersion: '1.0',
+        exportedAt: '2026-05-12T12:34:56.789Z',
+        project: 'repo',
+        documents: [],
+        relations: [],
+      },
+    } satisfies ExportCommandResult);
+    const command = createExportCommand({
+      cwd: () => projectRoot,
+      pathApi: win32,
+      serviceFactory: () => ({ exportSnapshot }),
+      stdout: createWriter(),
+      stderr: createWriter(),
+    });
+
+    await parseExportCommand(command, ['export', '--output', outputPath]);
+
+    expect(process.exitCode ?? 0).toBe(0);
+    expect(exportSnapshot).toHaveBeenCalledWith({
+      projectRoot,
+      outputPath: 'snapshots/graph.json',
+    });
+  });
+
+  it('rejects symlinked output directories that physically escape the project root', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'cord-export-symlink-'));
+    const projectRoot = join(root, 'project');
+    const outsideRoot = join(root, 'outside');
+    const serviceFactory = vi.fn<() => ExportServiceLike>();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    mkdirSync(projectRoot, { recursive: true });
+    mkdirSync(outsideRoot, { recursive: true });
+    symlinkSync(outsideRoot, join(projectRoot, 'linked-outside'), 'dir');
+    const command = createExportCommand({
+      cwd: () => projectRoot,
+      serviceFactory,
+      stdout,
+      stderr,
+    });
+
+    try {
+      await parseExportCommand(command, ['export', '--output', 'linked-outside/graph.json']);
+
+      expect(serviceFactory).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(2);
+      expect(stdout.read()).toBe('');
+      expect(stderr.read()).toContain('项目根目录外');
+      expect(existsSync(join(projectRoot, '.cord'))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('default service reports uninitialized graph without creating .cord', async () => {

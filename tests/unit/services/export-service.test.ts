@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { rename as renameFile, writeFile as writeFileAsync } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -279,6 +280,56 @@ describe('ExportService', () => {
     expect(result.snapshot.project).toBe('configured-project-name');
   });
 
+  it('sorts documents and relations with binary string ordering', async () => {
+    const projectRoot = createProjectRoot('sort-project', createdRoots);
+    const service = new ExportService(
+      new InMemoryExportRepository(
+        [
+          createDocument('doc-lower-accent', 'docs/ä.md'),
+          createDocument('doc-a-2', 'docs/a-2.md'),
+          createDocument('doc-upper', 'docs/A.md'),
+          createDocument('doc-a-10', 'docs/a-10.md'),
+          createDocument('doc-lower', 'docs/a.md'),
+        ],
+        [
+          createRelation({
+            id: 'rel-z',
+            sourceDocId: 'doc-lower',
+            targetDocId: 'doc-a-2',
+            relationType: RELATION_TYPES.REFERENCES,
+          }),
+          createRelation({
+            id: 'rel-a',
+            sourceDocId: 'doc-upper',
+            targetDocId: 'doc-lower',
+            relationType: RELATION_TYPES.SYNC_REQUIRED,
+          }),
+          createRelation({
+            id: 'rel-b',
+            sourceDocId: 'doc-upper',
+            targetDocId: 'doc-lower',
+            relationType: RELATION_TYPES.REFERENCES,
+          }),
+        ],
+      ),
+    );
+
+    const result = await service.exportSnapshot({ projectRoot });
+
+    expect(result.snapshot.documents.map((document) => document.path)).toEqual([
+      'docs/A.md',
+      'docs/a-10.md',
+      'docs/a-2.md',
+      'docs/a.md',
+      'docs/ä.md',
+    ]);
+    expect(result.snapshot.relations.map((relation) => relation.id)).toEqual([
+      'rel-z',
+      'rel-b',
+      'rel-a',
+    ]);
+  });
+
   it('validates projectName before reading repository data', async () => {
     const projectRoot = createProjectRoot('invalid-config-project', createdRoots);
     writeFileSync(join(projectRoot, 'cord.config.json'), JSON.stringify({ projectName: '   ' }), 'utf-8');
@@ -290,6 +341,61 @@ describe('ExportService', () => {
     await expect(service.exportSnapshot({ projectRoot })).rejects.toBeInstanceOf(ConfigError);
     expect(getAllDocuments).not.toHaveBeenCalled();
     expect(getAllRelations).not.toHaveBeenCalled();
+  });
+
+  it('treats directory-shaped output paths as directories containing the default snapshot file', async () => {
+    const projectRoot = createProjectRoot('directory-output-project', createdRoots);
+    const service = new ExportService(new InMemoryExportRepository([], []));
+
+    const result = await service.exportSnapshot({
+      projectRoot,
+      outputPath: 'snapshots/',
+    });
+
+    expect(result.outputPath).toBe(join(projectRoot, 'snapshots', 'cord-snapshot.json'));
+    expect(existsSync(result.outputPath)).toBe(true);
+  });
+
+  it('overwrites existing snapshots through a temporary file and rename', async () => {
+    const projectRoot = createProjectRoot('overwrite-project', createdRoots);
+    const outputPath = join(projectRoot, 'snapshots', 'graph.json');
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, 'old snapshot\n', 'utf-8');
+    const renameSpy = vi.fn(async (oldPath: Parameters<typeof renameFile>[0], newPath: Parameters<typeof renameFile>[1]) => {
+      await renameFile(oldPath, newPath);
+    });
+    const service = new ExportService(new InMemoryExportRepository([], []), {
+      rename: renameSpy as unknown as typeof renameFile,
+    });
+
+    await service.exportSnapshot({ projectRoot, outputPath: 'snapshots/graph.json' });
+
+    expect(renameSpy).toHaveBeenCalledTimes(1);
+    expect(renameSpy.mock.calls[0]?.[0]).not.toBe(outputPath);
+    expect(renameSpy.mock.calls[0]?.[1]).toBe(outputPath);
+    expect(JSON.parse(readFileSync(outputPath, 'utf-8'))).toMatchObject({
+      schemaVersion: '1.0',
+      project: 'overwrite-project',
+    });
+  });
+
+  it('preserves an existing snapshot when writing the temporary file fails', async () => {
+    const projectRoot = createProjectRoot('failed-write-project', createdRoots);
+    const outputPath = join(projectRoot, 'snapshots', 'graph.json');
+    mkdirSync(dirname(outputPath), { recursive: true });
+    writeFileSync(outputPath, 'old snapshot\n', 'utf-8');
+    const writeFileSpy = vi.fn<typeof writeFileAsync>(async () => {
+      throw new Error('disk full');
+    });
+    const service = new ExportService(new InMemoryExportRepository([], []), {
+      writeFile: writeFileSpy,
+    });
+
+    await expect(service.exportSnapshot({ projectRoot, outputPath: 'snapshots/graph.json' })).rejects.toThrow('disk full');
+
+    expect(writeFileSpy).toHaveBeenCalledTimes(1);
+    expect(writeFileSpy.mock.calls[0]?.[0]).not.toBe(outputPath);
+    expect(readFileSync(outputPath, 'utf-8')).toBe('old snapshot\n');
   });
 
   it('exports an empty graph and creates parent directories for custom output paths', async () => {
