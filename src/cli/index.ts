@@ -37,6 +37,7 @@ export function createProgram(): Command {
  */
 export async function runCli(program = createProgram()): Promise<void> {
   installExitOverrideRecursively(program);
+  applyVerboseFlag({ verbose: hasRootVerboseFlag(process.argv) }, process.env);
 
   try {
     await program.parseAsync(process.argv);
@@ -53,6 +54,24 @@ export async function runCli(program = createProgram()): Promise<void> {
 
     throw error;
   }
+}
+
+function hasRootVerboseFlag(argv: string[]): boolean {
+  for (const arg of argv.slice(2)) {
+    if (arg === '--') {
+      return false;
+    }
+
+    if (arg === '--verbose' || arg === '-v') {
+      return true;
+    }
+
+    if (arg === '--no-verbose' || !arg.startsWith('-')) {
+      return false;
+    }
+  }
+
+  return false;
 }
 
 function installExitOverrideRecursively(command: Command): void {

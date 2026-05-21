@@ -187,6 +187,27 @@ describe('runCli (with injected mock program)', () => {
     expect(spy).toHaveBeenCalledWith(true);
   });
 
+  it('activates root --verbose before an async action runs', async () => {
+    const savedArgv = process.argv.slice();
+    const program = new Command();
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    program
+      .name('cord')
+      .option('-v, --verbose', 'enable debug output')
+      .command('debug-action')
+      .action(async () => {
+        logger.debug('debug from action');
+      });
+    process.argv = ['node', 'cord', '--verbose', 'debug-action'];
+
+    try {
+      await runCli(program);
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('[debug] debug from action'));
+    } finally {
+      process.argv = savedArgv;
+    }
+  });
+
   it('activates verbose when CORD_DEBUG=1 is set', async () => {
     process.env['CORD_DEBUG'] = '1';
     const mockProgram = {
