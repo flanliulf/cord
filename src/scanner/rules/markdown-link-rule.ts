@@ -3,6 +3,8 @@ import { RELATION_TYPES } from '../../types/index.js';
 import type { DiscoveredRelation, ParsedDocument } from '../types.js';
 import type { IScanRule } from './index.js';
 
+const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
+
 /**
  * markdown-link-rule：根据 Markdown 链接生成引用关系。
  */
@@ -103,8 +105,7 @@ function sanitizeReference(reference: string): string | undefined {
     return undefined;
   }
 
-  const lowerCased = trimmed.toLowerCase();
-  if (lowerCased.startsWith('http://') || lowerCased.startsWith('https://')) {
+  if (URI_SCHEME_PATTERN.test(trimmed)) {
     return undefined;
   }
 

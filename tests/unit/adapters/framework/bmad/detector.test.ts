@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -78,5 +78,81 @@ describe('BMAD detector', () => {
       'bmad-frontmatter',
     ]);
     expect(detectBmadFramework(projectRoot)).toBe(true);
+  });
+
+  it('does not throw when a skills path exists but cannot be read as a directory', () => {
+    const projectRoot = createTempProject();
+    createdRoots.push(projectRoot);
+    mkdirSync(join(projectRoot, '_bmad-output'), { recursive: true });
+    mkdirSync(join(projectRoot, '.claude'), { recursive: true });
+    writeFileSync(join(projectRoot, '.claude', 'skills'), 'not a directory');
+
+    expect(collectBmadDetectionSignals(projectRoot)).toEqual(['bmad-output-directory']);
+  });
+
+  it('only accepts standalone YAML frontmatter closing delimiters', () => {
+    const projectRoot = createTempProject();
+    createdRoots.push(projectRoot);
+    mkdirSync(join(projectRoot, '_bmad-output'), { recursive: true });
+    mkdirSync(join(projectRoot, 'docs'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'docs', 'bad-context.md'),
+      ['---', 'project_name: Demo', '---not-a-delimiter', '', '# Context'].join('\n'),
+    );
+
+    expect(collectBmadDetectionSignals(projectRoot)).toEqual(['bmad-output-directory']);
+  });
+
+  it('accepts CRLF frontmatter with standalone delimiters', () => {
+    const projectRoot = createTempProject();
+    createdRoots.push(projectRoot);
+    mkdirSync(join(projectRoot, '_bmad-output'), { recursive: true });
+    mkdirSync(join(projectRoot, 'docs'), { recursive: true });
+    writeFileSync(
+      join(projectRoot, 'docs', 'context.md'),
+      ['---', 'project_name: Demo', 'user_name: Tester', '---', '', '# Context'].join('\r\n'),
+    );
+
+    expect(collectBmadDetectionSignals(projectRoot)).toEqual([
+      'bmad-output-directory',
+      'bmad-frontmatter',
+    ]);
+  });
+
+  it.runIf(process.platform !== 'win32')('does not throw when markdown candidate directories cannot be read', () => {
+    const projectRoot = createTempProject();
+    const unreadableDirectory = join(projectRoot, 'docs');
+    createdRoots.push(projectRoot);
+    mkdirSync(join(projectRoot, '_bmad-output'), { recursive: true });
+    mkdirSync(unreadableDirectory, { recursive: true });
+    writeFileSync(join(unreadableDirectory, 'context.md'), ['---', 'project_name: Demo', '---'].join('\n'));
+    chmodSync(unreadableDirectory, 0o000);
+
+    try {
+      expect(collectBmadDetectionSignals(projectRoot)).toEqual(['bmad-output-directory']);
+    } finally {
+      chmodSync(unreadableDirectory, 0o700);
+    }
+  });
+
+  it('prioritizes high-value frontmatter paths before root markdown files exhaust the scan budget', () => {
+    const projectRoot = createTempProject();
+    createdRoots.push(projectRoot);
+    mkdirSync(join(projectRoot, '_bmad-output'), { recursive: true });
+    mkdirSync(join(projectRoot, 'docs'), { recursive: true });
+
+    for (let index = 0; index < 70; index += 1) {
+      writeFileSync(join(projectRoot, `root-${String(index).padStart(2, '0')}.md`), '# filler');
+    }
+
+    writeFileSync(
+      join(projectRoot, 'docs', 'context.md'),
+      ['---', 'project_name: Demo', 'user_name: Tester', '---', '', '# Context'].join('\n'),
+    );
+
+    expect(collectBmadDetectionSignals(projectRoot)).toEqual([
+      'bmad-output-directory',
+      'bmad-frontmatter',
+    ]);
   });
 });

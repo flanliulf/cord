@@ -149,6 +149,37 @@ describe('MarkdownLinkRule', () => {
       }),
     ]);
   });
+
+  it('should ignore non-file URI schemes even when they resemble local document names', () => {
+    const rule = new MarkdownLinkRule();
+    const document = createDocument({
+      links: [
+        'mailto:other.md',
+        'tel:other.md',
+        'file:other.md',
+        'custom+scheme:other.md',
+        './colon:name.md',
+      ],
+    });
+
+    const relations = rule.evaluate(document, [
+      '/project/docs/guide.md',
+      '/project/docs/mailto:other.md',
+      '/project/docs/tel:other.md',
+      '/project/docs/file:other.md',
+      '/project/docs/custom+scheme:other.md',
+      '/project/docs/colon:name.md',
+    ]);
+
+    expect(relations).toEqual([
+      expect.objectContaining({
+        confidence: 0.85,
+        relationType: 'references',
+        sourceDoc: '/project/docs/guide.md',
+        targetDoc: '/project/docs/colon:name.md',
+      }),
+    ]);
+  });
 });
 
 describe('DirectoryRule', () => {

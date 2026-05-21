@@ -1,5 +1,5 @@
-import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, lstatSync, readdirSync, readFileSync, type Stats } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 const BMAD_FRONTMATTER_KEYS = ['project_name', 'user_name', 'sections_completed', 'source'];
 const MARKDOWN_EXTENSIONS = new Set(['.md']);
@@ -11,6 +11,7 @@ const PACKAGE_JSON_DEPENDENCY_FIELDS = [
 ] as const;
 const SKIPPED_DIRECTORIES = new Set(['.git', 'coverage', 'dist', 'node_modules']);
 const MAX_FRONTMATTER_FILES = 64;
+const YAML_FRONTMATTER_PATTERN = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
 export const BMAD_DETECTION_THRESHOLD = 2;
 
@@ -61,7 +62,7 @@ function hasBmadSkillsDirectory(projectRoot: string): boolean {
         return false;
       }
 
-      return readdirSync(skillsPath).some((entryName) => entryName.startsWith('bmad-'));
+      return safeReadDirectory(skillsPath).some((entryName) => entryName.startsWith('bmad-'));
     },
   );
 }
@@ -121,14 +122,24 @@ function collectMarkdownCandidates(projectRoot: string, maxFiles: number): strin
       continue;
     }
 
-    const stats = lstatSync(currentPath);
+    const stats = safeLstatSync(currentPath);
+
+    if (stats === null) {
+      continue;
+    }
 
     if (stats.isSymbolicLink()) {
       continue;
     }
 
     if (stats.isDirectory()) {
-      const entryNames = readdirSync(currentPath).sort().reverse();
+      const entryNames = safeReadDirectory(currentPath)
+        .sort((left, right) => compareFrontmatterCandidatePriority(
+          projectRoot,
+          join(currentPath, left),
+          join(currentPath, right),
+        ))
+        .reverse();
 
       for (const entryName of entryNames) {
         if (SKIPPED_DIRECTORIES.has(entryName)) {
@@ -141,7 +152,7 @@ function collectMarkdownCandidates(projectRoot: string, maxFiles: number): strin
       continue;
     }
 
-    if (MARKDOWN_EXTENSIONS.has(currentPath.slice(currentPath.lastIndexOf('.')).toLowerCase())) {
+    if (MARKDOWN_EXTENSIONS.has(getFileExtension(currentPath))) {
       results.push(currentPath);
     }
   }
@@ -150,17 +161,51 @@ function collectMarkdownCandidates(projectRoot: string, maxFiles: number): strin
 }
 
 function extractYamlFrontmatter(content: string): string | null {
-  if (!content.startsWith('---\n')) {
-    return null;
+  return YAML_FRONTMATTER_PATTERN.exec(content)?.[1] ?? null;
+}
+
+function compareFrontmatterCandidatePriority(projectRoot: string, leftPath: string, rightPath: string): number {
+  return getFrontmatterCandidatePriority(projectRoot, leftPath) - getFrontmatterCandidatePriority(projectRoot, rightPath)
+    || leftPath.localeCompare(rightPath);
+}
+
+function getFrontmatterCandidatePriority(projectRoot: string, candidatePath: string): number {
+  const relativePath = relative(projectRoot, candidatePath).replaceAll('\\', '/');
+
+  if (relativePath === '_bmad-output' || relativePath.startsWith('_bmad-output/')) {
+    return 0;
   }
 
-  const closingIndex = content.indexOf('\n---', 4);
-
-  if (closingIndex === -1) {
-    return null;
+  if (relativePath === 'docs' || relativePath.startsWith('docs/')) {
+    return 1;
   }
 
-  return content.slice(4, closingIndex);
+  if (!relativePath.includes('/') && MARKDOWN_EXTENSIONS.has(getFileExtension(relativePath))) {
+    return 2;
+  }
+
+  return 3;
+}
+
+function safeLstatSync(pathValue: string): Stats | null {
+  try {
+    return lstatSync(pathValue);
+  } catch {
+    return null;
+  }
+}
+
+function safeReadDirectory(pathValue: string): string[] {
+  try {
+    return readdirSync(pathValue).sort();
+  } catch {
+    return [];
+  }
+}
+
+function getFileExtension(pathValue: string): string {
+  const extensionStart = pathValue.lastIndexOf('.');
+  return extensionStart >= 0 ? pathValue.slice(extensionStart).toLowerCase() : '';
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {

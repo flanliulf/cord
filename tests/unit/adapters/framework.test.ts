@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -180,6 +180,33 @@ describe('GenericFrameworkAdapter', () => {
       'notes/design.md',
       'notes/private/secret.md',
     ]);
+  });
+
+  it.runIf(process.platform !== 'win32')('skips unreadable directories while discovering markdown documents', () => {
+    const adapter = new GenericFrameworkAdapter();
+    const projectRoot = createFixtureProject();
+    const unreadableDirectory = join(projectRoot, 'docs', 'unreadable');
+    createdRoots.push(projectRoot);
+    mkdirSync(unreadableDirectory, { recursive: true });
+    writeFileSync(join(unreadableDirectory, 'hidden.md'), '# hidden');
+    chmodSync(unreadableDirectory, 0o000);
+
+    try {
+      const filePaths = adapter.discoverDocuments(
+        projectRoot,
+        adapter.getScanPaths({}),
+        adapter.getExcludePaths({}),
+      );
+
+      expect(toRelativePaths(projectRoot, filePaths)).toEqual([
+        'README.md',
+        'docs/guide.md',
+        'notes/design.md',
+        'notes/private/secret.md',
+      ]);
+    } finally {
+      chmodSync(unreadableDirectory, 0o700);
+    }
   });
 });
 

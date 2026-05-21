@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readdirSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, type Stats } from 'node:fs';
 import { extname, relative, resolve } from 'node:path';
 import type { CordConfig } from '../../types/index.js';
 import type { DocTypeDefinition, IFrameworkAdapter, PresetRule } from './interfaces.js';
@@ -81,14 +81,18 @@ export abstract class AbstractFrameworkAdapter implements IFrameworkAdapter {
       return;
     }
 
-    const entryStats = lstatSync(currentPath);
+    const entryStats = safeLstatSync(currentPath);
+
+    if (entryStats === null) {
+      return;
+    }
 
     if (entryStats.isSymbolicLink()) {
       return;
     }
 
     if (entryStats.isDirectory()) {
-      for (const entryName of readdirSync(currentPath).sort()) {
+      for (const entryName of safeReadDirectory(currentPath)) {
         this.collectMarkdownFiles(
           projectRoot,
           resolve(currentPath, entryName),
@@ -103,6 +107,22 @@ export abstract class AbstractFrameworkAdapter implements IFrameworkAdapter {
     if (entryStats.isFile() && extname(currentPath).toLowerCase() === '.md') {
       discoveredFiles.add(resolve(currentPath));
     }
+  }
+}
+
+function safeLstatSync(pathValue: string): Stats | null {
+  try {
+    return lstatSync(pathValue);
+  } catch {
+    return null;
+  }
+}
+
+function safeReadDirectory(pathValue: string): string[] {
+  try {
+    return readdirSync(pathValue).sort();
+  } catch {
+    return [];
   }
 }
 
