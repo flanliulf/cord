@@ -4,7 +4,7 @@ user_name: 'Fancyliu'
 date: '2026-04-09'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
 status: 'complete'
-rule_count: 56
+rule_count: 62
 optimized_for_llm: true
 ---
 
@@ -161,6 +161,8 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - `GenericFrameworkAdapter` 作为兜底（无预设规则，仅基础 frontmatter 扫描）
 - `BmadFrameworkAdapter` 作为参考实现（18 种文档类型，v0.1 仅实现 Markdown 16 种，YAML 2 种延至 v0.2；5 层检测；详见 Story 2.3）
 - 新增框架适配**不得修改核心模块源码**（NFR8）
+- 框架适配器的文档发现属于 best-effort discovery：单个路径的 `lstat` / `readdir` 原生 fs 异常不得炸掉整个扫描，必须跳过当前路径并由上层扫描流程继续处理；当前不得为此引入异步 discovery API 破坏 `IFrameworkAdapter` 契约
+- BMAD 自动检测同样按 best-effort 处理局部 fs 异常：skills 路径不可读、候选目录遍历失败、文件读取失败均不得让框架检测整体抛出原生异常
 
 **IDE 适配器模式（Epic 5）：**
 - `IIdeAdapter` 接口 → 4 种 IDE 适配器（Claude Code / Cursor / VS Code Copilot / Codex CLI）
@@ -185,7 +187,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - 所有命令支持 `--json` 标志输出 JSON 格式
 - 错误输出使用 chalk 着色 + CordError 的 suggestion 字段
 
-**CLI 入口文件约束（CR-CLI-01/02/03/04，来源：Story 1-2、2-5 CR 历史）：**
+**CLI 入口文件约束（CR-CLI-01/02/03/04/05，来源：Story 1-2、2-5 CR 历史）：**
 
 - **禁止**在 `src/cli/index.ts` 等入口模块的顶层直接执行 `program.parse()`；所有 `parse()` / `process.exit()` 调用必须封装在函数内，并由 entrypoint 守卫保护（CR-CLI-02）
 - **若 Commander 树中存在任何 `async` action，`runCli()` 必须为 `async` 并使用 `await program.parseAsync(process.argv)`；entrypoint 守卫必须以 `void runCli().catch(reportUnhandledCliError)` 或等效方式兜底未捕获异步错误**（CR-CLI-04）
@@ -205,6 +207,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
   ⚠️ 禁止使用 `` `file://${process.argv[1]}` `` 或无判空的 `pathToFileURL(process.argv[1]).href`
 - **CLI helper 函数**（如 `applyVerboseFlag`）必须抽到独立的无副作用模块（如 `src/cli/verbose.ts`），测试直接导入 helper，不导入入口文件（CR-BP-01）
 - **禁止依赖 Commander `preAction` 处理全局选项**（如 `--verbose`），除非已注册至少一个 `.action()`；无 action 时改用 `parse()` 之后 `program.opts()` 同步处理（CR-CLI-03）
+- **`--verbose` / debug 级别必须在 async action 执行前生效**：真实入口应在 `parseAsync` 前处理 root-level `-v` / `--verbose` 或使用可靠的 pre-action 机制，并保留入口级 action 内 debug 输出回归测试（CR-CLI-05）
 
 **Query / CLI 边界约束（CR-QUERY-01/02/03，来源：Story 3-1 CR 历史）：**
 
@@ -236,6 +239,22 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
   - 若需要上报 cleanup failure，只能作为附加诊断信息，不能替换主流程错误
   - 回归测试至少覆盖：成功路径 cleanup 抛错仍保持 exitCode 0 和原输出；失败路径 cleanup 抛错仍保留原始业务错误
 
+**导出快照可靠性规则（CR-EXPORT-01/02/03，来源：TODO-029/030/031 治理）：**
+
+- **CR-EXPORT-01：JSON 快照排序必须使用显式二进制字符串比较**
+  - `documents` 与 `relations` 的稳定排序禁止依赖默认 `localeCompare()`；必须使用 `<` / `>` 等 locale-independent binary comparator，避免不同 Node / ICU / locale 环境生成无意义 git diff
+  - 回归测试至少覆盖大小写、数字段和非 ASCII 路径/ID 的排序稳定性
+
+- **CR-EXPORT-02：快照写入必须使用同目录临时文件 + 原子 rename**
+  - 导出写入必须先写目标文件同级临时文件，再 `rename()` 到最终路径；临时写失败时必须保留既有快照，并 best-effort 清理临时文件
+  - 已存在的输出文件允许被原子替换；禁止用“拒绝覆盖”替代导出命令的 git 审阅快照刷新语义
+  - 回归测试至少覆盖：已有快照被原子覆盖、临时写失败时旧快照仍保留
+
+- **CR-EXPORT-03：导出输出路径必须同时做词法边界与物理边界校验**
+  - CLI `--output snapshots/` 或以路径分隔符结尾的目录形态输入，必须解析为 `snapshots/cord-snapshot.json`
+  - CLI 层必须在 `serviceFactory()` 前拒绝 project-root 词法外逃逸，包括 POSIX `../...`、win32 跨盘符、win32 UNC 跨 root；若 `relative(projectRoot, input)` 结果仍是绝对路径，视为 project-root 外
+  - 对已存在的输出祖先目录，CLI 还必须通过 `realpath` 校验物理位置，拒绝指向 project-root 外的 symlink 目录；测试至少覆盖 win32 UNC projectRoot 内部路径、目录形态输出和 symlink 物理逃逸
+
 **Query / Traversal 语义规则（CR-QUERY-05/06/07，CR-PERF-01，来源：Story 3-2、3-3 CR 历史）：**
 
 - **CR-QUERY-05：图遍历必须分离“可扩展边”与“可输出边”**
@@ -260,6 +279,7 @@ import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.j
 - **CR-PERF-01：性能 AC 必须让规模差异进入被测热路径，必要时补真实仓储路径验证**
   - 性能回归/扩展性测试必须证明数据规模变化会改变实际访问的节点、边或底层查询成本；禁止只扩大图总量却仍测量常数大小局部子图
   - 若内存仓储、预建索引或 mock 无法代表真实查询成本，必须补至少一条真实 repository 路径验证，覆盖实际 `getRelationsByDocId`、索引或 IO 行为
+  - 主单元测试优先使用确定性证据（如访问计数、SQLite `EXPLAIN QUERY PLAN` / 索引命中）证明热路径；环境敏感的 wall-clock / p95 benchmark 应移出 release-blocking 单元套件或仅作为可选 benchmark
   - 环境敏感但不影响运行时正确性的 benchmark 抖动可作为 CR TODO 跟踪，但不得替代当前 Story 的热路径验证
 
 ### Repository 层开发规则（来源：Story 1-4、2-5 CR 历史）
@@ -337,6 +357,24 @@ const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 
 - 对同一业务键的候选关系，必须先比较业务来源优先级（如 `manual > framework_preset > auto_scan`），仅在同来源内再比较 `confidence` 或其他次级启发式
 - 禁止让前置裁剪与最终持久化使用两套不同的优先级规则；若最终写入依赖 `getRelationSourcePriority()`，前置 dedupe 必须复用同一函数或等价实现
 - 同批次冲突测试必须覆盖“低优先级候选 confidence 更高”的逆向场景，确保业务优先级不会在进入最终写入逻辑前被提前截断
+
+**CR-SCAN-04：框架/BMAD 文件发现的局部 fs 异常必须非致命**
+- 适用范围：`AbstractFrameworkAdapter.discoverDocuments()`、BMAD detector skills/frontmatter 候选遍历
+- `lstatSync()` / `readdirSync()` / `readFileSync()` 这类局部路径异常只能导致当前路径或当前文件被跳过；不得让权限错误、删除竞态、不可读目录或“文件伪装成目录”直接中断整个框架检测/文档发现
+- 当前 `IFrameworkAdapter.discoverDocuments()` 仍保持同步接口；禁止为处理局部异常顺手升级为 async discovery API，异步化属于独立接口级 Story
+- 回归测试至少覆盖：framework discovery 跳过不可读目录、BMAD skills 路径不可读不抛、BMAD frontmatter 候选目录不可读不抛
+
+**CR-SCAN-05：Markdown 链接规则必须通用过滤非文件 URI scheme**
+- Markdown link 自动关系只接受本地/项目内路径引用；凡匹配 URI scheme（如 `http:`, `https:`, `mailto:`, `tel:`, `file:`, `vscode:`, 自定义 `custom+scheme:`）的引用必须跳过
+- 禁止只维护 `http://` / `https://` 白名单式过滤；回归测试必须覆盖 URI 文本恰好能匹配本地文件名时仍不生成关系
+
+**CR-SCAN-06：BMAD frontmatter 检测只接受独立分隔符行**
+- BMAD detector 的 YAML frontmatter 仅在开头 `---` 行和后续独立 `---` 结束行之间提取，必须支持 LF 与 CRLF
+- `---not-a-delimiter`、尾随文本或非独立结束标记不得被当作合法 frontmatter 结束点，避免误报 `bmad-frontmatter` 信号
+
+**CR-SCAN-07：BMAD frontmatter 候选必须优先扫描高价值路径**
+- BMAD detector 受 `MAX_FRONTMATTER_FILES` 等预算约束时，frontmatter 候选遍历必须优先检查 `_bmad-output/`、`docs/`、项目根 Markdown 等高价值路径，再检查任意深层路径
+- 回归测试必须覆盖：根目录存在超过预算的 Markdown 噪声文件时，`docs/` 或 `_bmad-output/` 中的 BMAD frontmatter 仍可被检测到
 
 ### 测试规则
 

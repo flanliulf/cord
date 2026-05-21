@@ -91,7 +91,7 @@
 - **实现要点：**
   - `src/utils/logger.ts` 提供统一 Logger
   - 四个级别：`debug`（默认隐藏）、`info`、`warn`、`error`
-  - `CORD_DEBUG=1` 或 `--verbose` 启用 debug 级别输出
+  - `CORD_DEBUG=1` 或 `--verbose` 启用 debug 级别输出；CLI `--verbose` 必须在 async Commander action 执行前生效，避免 action 内 `logger.debug()` 被吞掉
   - MCP Server 模式下日志输出到 stderr（避免污染 stdout 的 JSON-RPC 通信）
 
 ## Project Structure & Module Organization
@@ -259,7 +259,7 @@ src/
 
   ## D11. 多跳查询遍历语义与性能验收必须分离输出过滤、避免无关坏边解析，并命中真实热路径
 
-  - **决策：** 所有基于关系图的多跳查询必须把“可扩展边”与“可输出边”分离建模；当一条边既不输出也不继续扩展时，必须在解析端点前跳过。若结果契约是“受影响文档集合”而非通用关系列表，必须直接建模定向传播语义，在扩展前应用状态/置信度/方向约束，并按文档去重且排除 source self。Impact 的 relationType 级传播方向必须由显式矩阵定义；v0.1 所有内置 relationType 均按 source -> target 传播，且仅 `status='active'` 可传播。涉及扩展性 AC 的性能测试必须证明规模差异进入被测热路径；若内存索引、fixture 或 mock 无法代表真实查询成本，必须补真实 repository 路径验证。
+  - **决策：** 所有基于关系图的多跳查询必须把“可扩展边”与“可输出边”分离建模；当一条边既不输出也不继续扩展时，必须在解析端点前跳过。若结果契约是“受影响文档集合”而非通用关系列表，必须直接建模定向传播语义，在扩展前应用状态/置信度/方向约束，并按文档去重且排除 source self。Impact 的 relationType 级传播方向必须由显式矩阵定义；v0.1 所有内置 relationType 均按 source -> target 传播，且仅 `status='active'` 可传播。涉及扩展性 AC 的性能测试必须证明规模差异进入被测热路径；若内存索引、fixture 或 mock 无法代表真实查询成本，必须补真实 repository 路径验证；主单元套件优先采用访问计数、查询计划或索引命中等确定性证据，环境敏感的 wall-clock / p95 benchmark 不作为 release-blocking 单元断言。
   - **理由：** 把输出过滤直接用于 BFS / DFS 裁剪，会漏报经非匹配中间边可达的深层结果；对无关边过早解析端点，会让坏数据阻断本应成功的过滤查询；若把受影响文档分析实现为“通用双向查询 + 后过滤”，会误报上游文档、放大低置信路径、副作用性地把 source self 回写进结果，并让文档计数失真；只扩大图总量却不改变实际访问局部子图，会对性能 AC 产生假阳性。
   - **影响范围：** `QueryService`、`ImpactService`、后续关系图遍历服务、查询与性能回归测试策略
   - **实现要点：**
@@ -271,6 +271,7 @@ src/
     - 测试必须成对覆盖“经非匹配中间边仍可命中深层匹配关系”与“非匹配缺失端点边不阻断过滤查询”
     - impact / affected-doc 回归测试还必须覆盖：反向边不误报、低置信桥接边不继续扩展、自环/回源环不回写源文档、多路径命中同一文档只计一次
     - 性能验收必须至少有一条用例让规模差异进入实际热路径；必要时增加真实 repository 路径验证，而不只依赖内存索引 benchmark
+    - 对主单元套件，优先用 bounded repository read 计数、SQLite `EXPLAIN QUERY PLAN` / 索引命中等确定性证据替代易抖动的 p95 比例断言
     - 环境敏感但不影响运行时正确性的 benchmark 抖动可记录为 CR TODO，不得替代热路径验证
   - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-QUERY-05`、`CR-QUERY-06`、`CR-QUERY-07`、`CR-PERF-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P36`、`P37`、`P38`、`P39` 互为镜像（Rule Document Registry 同步已完成）
 
@@ -299,3 +300,30 @@ src/
   - `sync_docs.reason` 直接取 `AnalyzeImpactResult.suggestedAction`，`action` 仅由 `updateStrategy` 推导
   - schema 回归测试必须冻结已有 4 个 Tool 的 input/output JSON Schema，避免 Story 5.2 继续扩展时破坏既有合同
 - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-MCP-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P44` 互为镜像（Rule Document Registry 同步已完成）
+
+## D14. JSON 快照导出必须稳定可审阅、原子写入，并同时约束词法与物理输出边界
+
+- **决策：** JSON 快照中的 `documents` 与 `relations` 稳定排序必须使用显式二进制字符串比较，禁止依赖默认 `localeCompare()`；快照写入必须采用目标文件同目录临时文件 + 原子 `rename()`，允许原子替换既有输出并在临时写失败时保留旧快照；CLI `--output` 的目录形态输入（如 `snapshots/`）解析为 `snapshots/cord-snapshot.json`，并且输出路径必须在 `serviceFactory()` 前同时通过 project-root 词法边界校验与已存在祖先目录的 `realpath` 物理边界校验。
+- **理由：** JSON 快照用于 git 审阅，locale-sensitive 排序会在不同 Node / ICU / locale 环境制造无意义 diff；直接写最终文件可能在写入失败或中断时破坏既有快照；仅靠词法 `resolve()` / `relative()` 不能覆盖 win32 跨盘符、UNC 跨 root 或 symlink 指向项目外的物理逃逸。
+- **影响范围：** `ExportService`、`cord export` CLI、导出快照测试、跨平台路径边界测试
+- **实现要点：**
+  - 排序 comparator 使用 `<` / `>` 等 locale-independent binary compare；回归测试覆盖大小写、数字段和非 ASCII 路径/ID
+  - 写入流程先写同目录临时文件，再 `rename()` 到最终输出；catch 路径 best-effort 删除临时文件，临时写失败时旧快照仍保留
+  - 已存在的输出文件允许被原子替换，禁止用拒绝覆盖改变快照刷新语义
+  - 目录形态 `--output`（以 `/` 或 `\` 结尾）追加默认文件名 `cord-snapshot.json`
+  - CLI 层在 service 初始化前拒绝 POSIX `../...`、win32 跨盘符与 win32 UNC 跨 root；若 `relative(projectRoot, input)` 结果仍是绝对路径，必须判定为 project-root 外
+  - 对已存在输出祖先目录执行 `realpath` 物理边界检查，拒绝 symlink 指向 project-root 外；测试覆盖 win32 UNC projectRoot 内部路径、目录形态输出和 symlink 物理逃逸
+- **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-EXPORT-01`、`CR-EXPORT-02`、`CR-EXPORT-03` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P10` JSON 快照导出规则互为镜像（Rule Document Registry 同步已完成）
+
+## D15. Scanner / Adapter 的局部发现异常与链接语义必须收敛为 best-effort 契约
+
+- **决策：** 框架适配器与 BMAD detector 的文件发现/自动检测均采用 best-effort discovery：单个路径的 `lstatSync()`、`readdirSync()`、`readFileSync()` 异常只能跳过当前路径或文件，不得让权限错误、删除竞态、不可读目录或“文件伪装成目录”中断整个扫描/检测；`IFrameworkAdapter.discoverDocuments()` 保持同步接口，异步化留给独立接口级 Story。Markdown link 自动关系只接受本地/项目内路径引用，所有 URI scheme 一律跳过。BMAD frontmatter 检测只接受开头 `---` 行与后续独立 `---` 结束行，支持 LF / CRLF，拒绝 `---not-a-delimiter` 与尾随文本；frontmatter 候选受预算约束时必须优先扫描 `_bmad-output/`、`docs/`、项目根 Markdown 等高价值路径。
+- **理由：** CORD 扫描面向真实仓库，权限、竞态和局部坏路径不应让整次框架检测失败；但把同步 discovery 顺手改成 async 会扩大接口 blast radius。Markdown URI 若只过滤 http/https，会把 `mailto:`、`file:` 等非文件引用误当作本地关系。BMAD frontmatter 若用子串查找结束标记，会把普通正文误报成 BMAD 信号。
+- **影响范围：** `AbstractFrameworkAdapter`、BMAD detector、Markdown link scan rule、framework/scanner 单元测试
+- **实现要点：**
+  - framework discovery 和 BMAD detector 对局部 `lstat` / `readdir` / `readFile` 异常执行跳过当前路径/文件策略
+  - 不为本决策改变 `IFrameworkAdapter.discoverDocuments()` 的同步签名；异步发现能力必须单独设计和验收
+  - Markdown link 使用通用 URI scheme 判定，跳过 `mailto:`, `tel:`, `file:`, `vscode:`, 自定义 scheme 等非文件 URI
+  - BMAD frontmatter 结束标记必须是独立 `---` 行，并兼容 LF / CRLF；反例测试覆盖 `---not-a-delimiter` 和尾随文本
+  - BMAD frontmatter 候选遍历必须在预算耗尽前优先覆盖 `_bmad-output/`、`docs/`、项目根 Markdown；回归测试覆盖根目录 Markdown 噪声超过预算时仍能检测高价值路径
+- **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-SCAN-04`、`CR-SCAN-05`、`CR-SCAN-06`、`CR-SCAN-07` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P45`、`P46`、`P47`、`P48` 互为镜像（Rule Document Registry 同步已完成）

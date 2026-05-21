@@ -57,14 +57,23 @@ describe('example framework scan integration', () => {
     const repo = new SqliteGraphRepository(join(projectRoot, '.cord', 'cord.db'));
     const service = new ScanService(repo);
 
-    const result = await service.scan({ projectRoot, rebuild: true, force: true });
+    try {
+      const result = await service.scan({ projectRoot, rebuild: true, force: true });
+      const relationCountAfterFirstScan = repo.getRelationCount();
 
-    expect(result.documentsFound).toBeGreaterThan(0);
-    expect(result.relationsDiscovered).toBeGreaterThanOrEqual(1);
-    expect(repo.getAllDocuments().some((doc) => doc.docType === 'example-spec')).toBe(true);
-    expect(repo.getAllRelations().some((relation) => relation.source === 'framework_preset')).toBe(true);
+      expect(result.documentsFound).toBeGreaterThan(0);
+      expect(result.relationsDiscovered).toBeGreaterThanOrEqual(1);
+      expect(repo.getAllDocuments().some((doc) => doc.docType === 'example-spec')).toBe(true);
+      expect(repo.getAllRelations().some((relation) => relation.source === 'framework_preset')).toBe(true);
 
-    service.close();
+      const repeatedResult = await service.scan({ projectRoot });
+
+      expect(repeatedResult.documentsFound).toBe(0);
+      expect(repeatedResult.relationsDiscovered).toBe(0);
+      expect(repo.getRelationCount()).toBe(relationCountAfterFirstScan);
+    } finally {
+      service.close();
+    }
   });
 });
 ```

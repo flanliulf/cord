@@ -6,21 +6,25 @@
 
 | 状态 | 数量 |
 | ------ | ------ |
-| Open | 16 |
+| Open | 0 |
 | In Progress | 0 |
-| Resolved | 20 |
+| Resolved | 36 |
 | **合计** | **36** |
 
 ---
 
 ## Open Items
 
+无。
+
+## Resolved Items
+
 ---
 
 ### TODO-005
 
 - **标题**：`--verbose` 在 async CLI action 内生效过晚，action 内 `logger.debug` 会被吞掉
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P3（择机处理）
 - **类别**：tech-debt
 - **来源**：Story 1-2 / Round 3 / 2026-04-26（发现 #2；R3~R5 评估轮次均维持降级） + Story 2-5 / Round 4 / 2026-05-09（非阻塞复核确认）
@@ -28,111 +32,49 @@
   - `src/cli/index.ts`
   - `src/cli/verbose.ts`
   - `tests/unit/cli/index.test.ts`
-- **问题描述**：`runCli()` 现已改为 `await program.parseAsync(process.argv)`，但 `applyVerboseFlag(program.opts(), process.env)` 仍在 async action 完成后才生效。因此通过 `--verbose` 打开的 debug 级别不会覆盖 action 执行期间的 `logger.debug()` 调用，真实子命令路径中的排障日志会被吞掉。`CORD_DEBUG=1` 路径不受影响，因为 logger 初始化时已读取环境变量。Story 2-5 round 4 已在真实 `cord scan` async action 语义下再次确认这是同一类非阻塞问题，因此不再新增重复 TODO。
-- **建议时机**：下次触及 CLI 根选项处理或调试体验增强的 Story 时一并处理；可在 parse 前预解析 root-level `--verbose`，或在确认 Commander action 注册稳定后使用 root `preAction` 提前启用 verbose，并补入口级 action 内 debug 行为回归测试
-- **解决记录**：—
-
----
-
-### TODO-017
-
-- **标题**：Framework 扫描原生 fs 异常缺少结构化错误包装
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 2-1 / Round 2 / 2026-05-07（R1-#2；Round 2 评估维持非阻塞）
-- **涉及文件**：
-  - `src/adapters/framework/abstract-base.ts`
-- **问题描述**：`discoverDocuments()` 的递归扫描在 `src/adapters/framework/abstract-base.ts:84` 和 `src/adapters/framework/abstract-base.ts:91` 直接调用 `lstatSync()` / `readdirSync()`。当扫描期间发生权限错误、文件消失或目录状态竞态时，`ENOENT` / `EACCES` 等原生异常会直接逃逸到上层，当前没有统一转换为可诊断的 `CordError` / `AdapterError` 语义，后续接入 ScanService 后会削弱错误分级和诊断稳定性。
-- **建议时机**：在 ScanService 接入或统一错误策略落地的 Story 中一并处理，明确“入口失败即中止”与“单路径失败跳过并告警”的边界，并补对应回归测试。
-- **解决记录**：—
+- **问题描述**：`runCli()` 曾在 `await program.parseAsync(process.argv)` 完成后才调用 `applyVerboseFlag(program.opts(), process.env)`，导致 `--verbose` 无法覆盖 async action 执行期间的 `logger.debug()` 调用。
+- **处理方式**：`runCli()` 在 `parseAsync` 前预扫描 root-level `-v` / `--verbose` 并启用 debug，parse 完成后仍保留 `program.opts()` 兜底；补充真实 Commander async action 内 `logger.debug` 输出回归测试。
+- **解决记录**：2026-05-21 backlog 清零完成。验证：`npm test -- tests/unit/cli/index.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
 
 ---
 
 ### TODO-018
 
 - **标题**：Framework 文档发现同步递归存在事件循环阻塞风险
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P2（Epic 内处理）
 - **类别**：tech-debt
 - **来源**：Story 2-1 / Round 2 / 2026-05-07（R1-#3；Round 2 评估维持非阻塞）
 - **涉及文件**：
   - `src/adapters/framework/abstract-base.ts`
   - `src/adapters/framework/interfaces.ts`
-- **问题描述**：`src/adapters/framework/interfaces.ts:59` 将 `discoverDocuments()` 约束为同步返回 `string[]`，实现层在 `src/adapters/framework/abstract-base.ts:41` 也同步递归遍历目录。对深层或大规模目录树，这种同步 `lstatSync()` / `readdirSync()` 扫描会阻塞 CLI / MCP 所在的 Node.js 事件循环；当前不阻塞 2-1 交付，但会成为后续冷启动扫描和性能治理的上限。
-- **建议时机**：在 ScanService 冷启动/增量扫描编排或性能治理 Story 中统一处理，评估异步发现 API、分批遍历、目录规模保护和进度反馈策略。
-- **解决记录**：—
-
----
-
-### TODO-019
-
-- **标题**：Markdown 链接规则补齐通用 URI scheme 过滤
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 2-2 / Round 1-2 / 2026-05-07（R1-#2；Round 2 评估维持非阻塞）
-- **涉及文件**：
-  - `src/scanner/rules/markdown-link-rule.ts`
-  - `tests/unit/scanner/rules.test.ts`
-- **问题描述**：`src/scanner/rules/markdown-link-rule.ts` 中的 `sanitizeReference()` 当前只显式过滤 `http://` 和 `https://`，`mailto:`、`tel:`、`file:` 等其他 URI scheme 仍会继续进入路径解析分支。`tests/unit/scanner/rules.test.ts` 目前只通过 `mailto:test@example.com` 的间接 fixture 证明“当前未产生关系”，没有把“非文件 URI scheme 一律跳过”固化为显式规则契约；如果后续出现唯一后缀匹配，可能引入噪声关系。
-- **建议时机**：下次触及 scanner 规则或 Epic 2 内继续补强 `markdown-link-rule` 时，统一引入通用 URI scheme 过滤，并补 `mailto:`、`tel:`、`file:` 等定向回归测试。
-- **解决记录**：—
-
----
-
-### TODO-020
-
-- **标题**：BMAD 检测器补局部文件系统容错与异常路径测试
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
-- **涉及文件**：
-  - `src/adapters/framework/bmad/detector.ts`
-  - `tests/unit/adapters/framework/bmad/detector.test.ts`
-- **问题描述**：`src/adapters/framework/bmad/detector.ts` 中 `hasBmadSkillsDirectory()` 和 `collectMarkdownCandidates()` 仍直接调用 `readdirSync()` / `lstatSync()`；当 skills 目录不可读、路径在遍历期间被删除或发生权限/竞态变化时，BMAD 检测可能直接抛出原生文件系统异常，而不是将该路径视为未命中并继续检测。当前 `tests/unit/adapters/framework/bmad/detector.test.ts` 也未覆盖这类异常路径。
-- **建议时机**：下次触及 `src/adapters/framework/bmad/detector.ts` 或执行 Epic 2 扫描健壮性补强 Story 时，一并加入局部 `try/catch`、不可读路径跳过策略和异常路径回归测试。
-- **解决记录**：—
-
----
-
-### TODO-021
-
-- **标题**：BMAD frontmatter 结束标记解析收窄为行级匹配
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
-- **涉及文件**：
-  - `src/adapters/framework/bmad/detector.ts`
-  - `tests/unit/adapters/framework/bmad/detector.test.ts`
-- **问题描述**：`src/adapters/framework/bmad/detector.ts` 中 `extractYamlFrontmatter()` 仍通过 `content.indexOf('\n---', 4)` 查找结束标记，没有保证结束分隔符独占一行；`---not-a-delimiter`、尾随文本或 CRLF 边界仍可能被误当作合法 frontmatter 结束点，进而制造 `bmad-frontmatter` 误检信号。对应测试也尚未覆盖这些反例。
-- **建议时机**：下次触及 BMAD detector 的 frontmatter 解析逻辑时，改为只接受独立 `---` 行作为结束标记，并补 `---not-a-delimiter`、尾随文本、CRLF 等反例测试。
-- **解决记录**：—
+  - `_bmad-output/implementation-artifacts/cr-rules/v0.2-performance-and-output-plan.md`
+- **问题描述**：同步 `discoverDocuments()` 对深层或大规模目录树存在事件循环阻塞风险；直接改成 async 会扩大 v0.1 接口 blast radius。
+- **处理方式**：保持 v0.1 同步接口，将 async / batched discovery 作为 v0.2 接口级迁移规划，明确 batching、目录预算、取消/进度 hooks 与兼容策略。
+- **解决记录**：2026-05-21 批次 8 规划收敛完成；详见 `v0.2-performance-and-output-plan.md`。
 
 ---
 
 ### TODO-022
 
 - **标题**：BMAD frontmatter 检测采用高价值路径优先或分层预算
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P2（Epic 内处理）
 - **类别**：tech-debt
 - **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
 - **涉及文件**：
   - `src/adapters/framework/bmad/detector.ts`
   - `tests/unit/adapters/framework/bmad/detector.test.ts`
-- **问题描述**：`src/adapters/framework/bmad/detector.ts` 仍将 `MAX_FRONTMATTER_FILES` 固定为 64，且达到上限后停止 Markdown 候选遍历。对于大型仓库，如果真正带有 BMAD frontmatter 的文件排序靠后，而仓库只有另一个 BMAD 信号，自动检测可能因预算截断而出现 false negative；当前测试也未覆盖“超过 64 个 Markdown 候选且有效文件靠后”的场景。
-- **建议时机**：下次优化 BMAD detector 检测质量或处理大型仓库扫描策略时，引入 `_bmad-output/`、`docs/`、项目根核心文档等高价值路径优先策略，或改为分层预算，并补充超过 64 个候选文件的回归测试。
-- **解决记录**：—
+- **问题描述**：`MAX_FRONTMATTER_FILES` 固定预算可能先被根目录 Markdown 噪声耗尽，导致 `docs/` 或 `_bmad-output/` 中的 BMAD frontmatter 漏检。
+- **处理方式**：BMAD frontmatter 候选按 `_bmad-output/`、`docs/`、项目根 Markdown、其他路径分层优先扫描；补充超过 64 个根目录 Markdown 时仍检测 `docs/context.md` 的回归测试。
+- **解决记录**：2026-05-21 批次 8 完成。验证：`npm test -- tests/unit/services/query-service.test.ts tests/unit/adapters/framework/bmad/detector.test.ts tests/unit/docs/adapter-contributor-docs.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
 
 ---
 
 ### TODO-023
 
 - **标题**：无变更快速返回仍在判定前全量计算 contentHash
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P2（Epic 内处理）
 - **类别**：tech-debt
 - **来源**：Story 2-6 / Round 1-2 / 2026-05-09（R1 发现 #2；R2 评估维持非阻塞）
@@ -140,31 +82,47 @@
   - `src/services/scan-service.ts`
   - `tests/integration/cli/scan.test.ts`
   - `tests/unit/services/scan-service.test.ts`
-- **问题描述**：`src/services/scan-service.ts` 的无变更快速返回路径仍会在判定前对所有发现文档执行 `stat + readFile + sha256`，导致耗时与文档数量和文件大小线性相关。当前 `tests/integration/cli/scan.test.ts` 的 `< 100ms` 断言仅覆盖 2 个 Markdown 文档的小样本，`tests/unit/services/scan-service.test.ts` 也只验证 pipeline 不再执行，尚未锁定大样本场景下的读取规模与性能口径。Story 2-6 v0.1 已接受这一实现边界，因此当前不阻塞交付，但仍应作为 v0.2 的性能治理 TODO 跟踪。
-- **建议时机**：下次触及 ScanService 无变更快返、v0.2 懒 hash 优化或增量扫描性能治理 Story 时，与大样本性能/行为测试口径补强一并处理。
-- **解决记录**：—
+  - `_bmad-output/implementation-artifacts/cr-rules/v0.2-performance-and-output-plan.md`
+- **问题描述**：无变更快速返回仍需提前对所有文档执行 `stat + readFile + sha256`，大仓库下存在线性成本上限。
+- **处理方式**：纳入 v0.2 lazy-hash 性能治理计划：先比较 stored sync state 与 file stat，仅对候选变化文件计算 hash，并用大样本 unchanged fixture / benchmark 验证。
+- **解决记录**：2026-05-21 批次 8 规划收敛完成；详见 `v0.2-performance-and-output-plan.md`。
 
 ---
 
 ### TODO-024
 
 - **标题**：SQLite p95 比例性能测试稳健性补强
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P2（Epic 内处理）
 - **类别**：test-gap
 - **来源**：Story 3-2 / Round 2-3 / 2026-05-11（R2-TODO-1；R3 评估维持非阻塞）
 - **涉及文件**：
   - `tests/unit/services/query-service.test.ts`
-- **问题描述**：`tests/unit/services/query-service.test.ts` 中基于 SQLite repository 的 200→2000 文档 p95 比例断言当前仍受环境抖动影响，CI 机器性能、IO 波动或 SQLite query planner 差异都可能导致偶发不稳定。该问题当前不影响 Story 3.2 的 AC5 / NFR7 验收，但会削弱长期性能回归测试的稳定性；后续宜补 `EXPLAIN QUERY PLAN` / 索引命中断言，或迁移到独立 benchmark 流程。
-- **建议时机**：下次触及 QueryService / SQLite repository 性能验证，或处理 CI benchmark 稳定性治理时一并处理。
-- **解决记录**：—
+- **问题描述**：SQLite 200→2000 文档 p95 比例断言受环境、IO、query planner 波动影响，导致 `test:coverage` 偶发失败。
+- **处理方式**：移除 flaky wall-clock 比例断言，改为确定性验证：in-memory 三跳 traversal 的 repository read 次数被 frontier 约束，SQLite `EXPLAIN QUERY PLAN` 同时命中 source / target 索引。可选 wall-clock benchmark 纳入 v0.2 性能治理计划。
+- **解决记录**：2026-05-21 批次 8 完成。验证：`npm test -- tests/unit/services/query-service.test.ts tests/unit/adapters/framework/bmad/detector.test.ts tests/unit/docs/adapter-contributor-docs.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
+
+---
+
+### TODO-025
+
+- **标题**：SQLite 测试 helper 失败路径清理加固
+- **状态**：resolved
+- **优先级**：P3（择机处理）
+- **类别**：tech-debt
+- **来源**：Story 3-2 / Round 3 / 2026-05-11（R3-TODO-1）
+- **涉及文件**：
+  - `tests/unit/services/query-service.test.ts`
+- **问题描述**：SQLite 测试 helper 在 seed 完成后才注册 disposable，seed 中途抛错时临时目录和 repository 可能无法进入 afterEach 清理路径。
+- **处理方式**：helper 创建 repository 后立即注册 disposable；seed 失败时从 disposable 列表移除、关闭 repository、删除临时目录并重新抛错；补充 forced seed failure 回归测试。
+- **解决记录**：2026-05-21 批次 8 完成。验证：`npm test -- tests/unit/services/query-service.test.ts tests/unit/adapters/framework/bmad/detector.test.ts tests/unit/docs/adapter-contributor-docs.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
 
 ---
 
 ### TODO-027
 
 - **标题**：Impact 多跳结果补完整路径解释
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P3（择机处理）
 - **类别**：other
 - **来源**：Story 3-3 / Round 2-3 / 2026-05-11~2026-05-12（R2-TODO-2；R3 维持非阻塞）
@@ -172,48 +130,143 @@
   - `src/services/impact-service.ts`
   - `src/cli/commands/impact.ts`
   - `tests/unit/cli/commands/impact.test.ts`
-- **问题描述**：当前 impact 输出只暴露受影响文档、关系类型、传播行为类型、建议动作、严重度和 hopDistance，不包含完整传播路径或中间节点链路。该实现满足 Story 3-3 AC，但当结果来自二跳/三跳传播时，用户和后续消费者仍难以判断“为什么命中该文档”，不利于人工复核、问题排查和后续输出能力扩展。
-- **建议时机**：下次触及 impact 输出 DTO、CLI 表格或 MCP analyze-impact 输出增强时一并处理。
-- **解决记录**：—
+  - `_bmad-output/implementation-artifacts/cr-rules/v0.2-performance-and-output-plan.md`
+- **问题描述**：当前 impact 输出缺少完整传播路径或中间节点链路，二跳/三跳结果不易人工复核。
+- **处理方式**：不在 v0.1 批次中改变 DTO；纳入 v0.2 backwards-compatible 输出增强设计，规划 relation chain、中间 document path、hop metadata 与多路径候选优先级。
+- **解决记录**：2026-05-21 批次 8 规划收敛完成；详见 `v0.2-performance-and-output-plan.md`。
+
+---
+
+### TODO-035
+
+- **标题**：贡献指南集成测试模板补重复扫描断言
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：test-gap
+- **来源**：Story 6-1 / Round 1-2 / 2026-05-19（R1 发现 #1；R2 维持 P2 defer）
+- **涉及文件**：
+  - `docs/contributing.md`
+- **问题描述**：贡献指南可复制模板只执行一次 scan，缺少重复扫描不新增文档/关系的断言。
+- **处理方式**：模板新增第二次 `service.scan({ projectRoot })`，断言 `documentsFound`、`relationsDiscovered` 为 0，且 relation count 不变。
+- **解决记录**：2026-05-21 批次 8 完成。验证：`npm test -- tests/unit/services/query-service.test.ts tests/unit/adapters/framework/bmad/detector.test.ts tests/unit/docs/adapter-contributor-docs.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
+
+---
+
+### TODO-036
+
+- **标题**：贡献指南 SQLite 测试模板失败路径关闭连接
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 6-1 / Round 1-2 / 2026-05-19（R1 发现 #2；R2 维持 P2 defer）
+- **涉及文件**：
+  - `docs/contributing.md`
+- **问题描述**：贡献指南 SQLite 模板在断言失败时可能跳过 `service.close()`，留下连接和临时目录清理噪音。
+- **处理方式**：模板改为 `try { ... } finally { service.close(); }` 包裹 scan 与断言，确保失败路径也关闭 SQLite 连接。
+- **解决记录**：2026-05-21 批次 8 完成。验证：`npm test -- tests/unit/services/query-service.test.ts tests/unit/adapters/framework/bmad/detector.test.ts tests/unit/docs/adapter-contributor-docs.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
+
+---
+
+### TODO-017
+
+- **标题**：Framework 扫描原生 fs 异常缺少结构化错误包装
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-1 / Round 2 / 2026-05-07（R1-#2；Round 2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/abstract-base.ts`
+  - `tests/unit/adapters/framework.test.ts`
+- **问题描述**：`discoverDocuments()` 的递归扫描曾直接调用 `lstatSync()` / `readdirSync()`。当扫描期间发生权限错误、文件消失或目录状态竞态时，`ENOENT` / `EACCES` 等原生异常会直接逃逸到上层，削弱错误分级和诊断稳定性。
+- **处理方式**：裁决 framework discovery 的局部 fs 异常为 best-effort skip 策略，不升级同步 `IFrameworkAdapter.discoverDocuments()` 接口；`AbstractFrameworkAdapter` 对单路径 `lstat` / `readdir` 异常跳过当前路径，并补不可读目录回归测试。
+- **解决记录**：2026-05-20 Scanner / Adapter 小修完成。验证：`npm test -- tests/unit/adapters/framework.test.ts tests/unit/scanner/rules.test.ts tests/unit/adapters/framework/bmad/detector.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
+
+---
+
+### TODO-019
+
+- **标题**：Markdown 链接规则补齐通用 URI scheme 过滤
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-2 / Round 1-2 / 2026-05-07（R1-#2；Round 2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/scanner/rules/markdown-link-rule.ts`
+  - `tests/unit/scanner/rules.test.ts`
+- **问题描述**：`MarkdownLinkRule` 曾只显式过滤 `http://` 和 `https://`，`mailto:`、`tel:`、`file:` 等其他 URI scheme 仍会继续进入路径解析分支；如果后续出现唯一后缀匹配，可能引入噪声关系。
+- **处理方式**：`sanitizeReference()` 改为通用 URI scheme 检测，跳过所有非文件 URI；补充 `mailto:` / `tel:` / `file:` / 自定义 scheme 即使对应本地文件名也不生成关系的回归测试，同时保留普通含冒号文件名相对路径可解析。
+- **解决记录**：2026-05-20 Scanner / Adapter 小修完成。验证：`npm test -- tests/unit/adapters/framework.test.ts tests/unit/scanner/rules.test.ts tests/unit/adapters/framework/bmad/detector.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
+
+---
+
+### TODO-020
+
+- **标题**：BMAD 检测器补局部文件系统容错与异常路径测试
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/bmad/detector.ts`
+  - `tests/unit/adapters/framework/bmad/detector.test.ts`
+- **问题描述**：`hasBmadSkillsDirectory()` 和 `collectMarkdownCandidates()` 曾直接调用 `readdirSync()` / `lstatSync()`；当 skills 目录不可读、路径在遍历期间被删除或发生权限/竞态变化时，BMAD 检测可能直接抛出原生文件系统异常。
+- **处理方式**：BMAD detector 对 skills 目录和 Markdown 候选遍历采用 best-effort skip 策略，局部 `lstat` / `readdir` 异常只跳过当前路径；补充 skills 路径是文件、候选目录不可读等异常路径测试。
+- **解决记录**：2026-05-20 Scanner / Adapter 小修完成。验证：`npm test -- tests/unit/adapters/framework.test.ts tests/unit/scanner/rules.test.ts tests/unit/adapters/framework/bmad/detector.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
+
+---
+
+### TODO-021
+
+- **标题**：BMAD frontmatter 结束标记解析收窄为行级匹配
+- **状态**：resolved
+- **优先级**：P2（Epic 内处理）
+- **类别**：tech-debt
+- **来源**：Story 2-3 / Round 1-2 / 2026-05-08（R1 发现；R2 评估维持非阻塞）
+- **涉及文件**：
+  - `src/adapters/framework/bmad/detector.ts`
+  - `tests/unit/adapters/framework/bmad/detector.test.ts`
+- **问题描述**：`extractYamlFrontmatter()` 曾通过 `content.indexOf('\n---', 4)` 查找结束标记，没有保证结束分隔符独占一行；`---not-a-delimiter`、尾随文本或 CRLF 边界仍可能被误当作合法 frontmatter 结束点，进而制造 `bmad-frontmatter` 误检信号。
+- **处理方式**：frontmatter 提取改为行级分隔符匹配，仅接受开头独立 `---` 与后续独立 `---` 结束行，并兼容 LF / CRLF；补充 `---not-a-delimiter` 反例与 CRLF 正例测试。
+- **解决记录**：2026-05-20 Scanner / Adapter 小修完成。验证：`npm test -- tests/unit/adapters/framework.test.ts tests/unit/scanner/rules.test.ts tests/unit/adapters/framework/bmad/detector.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
 
 ---
 
 ### TODO-029
 
 - **标题**：导出快照排序稳定性加固
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P2（Epic 内处理）
 - **类别**：tech-debt
 - **来源**：Story 3-4 / Round 1-4 / 2026-05-12~2026-05-13（R1 发现 #3；R2-R4 维持非阻塞）
 - **涉及文件**：
   - `src/services/export-service.ts`
   - `tests/unit/services/export-service.test.ts`
-- **问题描述**：`src/services/export-service.ts` 当前仍使用未固定 locale/options 的 `localeCompare()` 对 `documents` 和 `relations` 排序；`tests/unit/services/export-service.test.ts` 也只覆盖简单 ASCII 路径和 ID，尚未锁定大小写、数字段与非 ASCII 输入。该问题不会改变导出内容本身，但会让同一图谱在不同 Node/ICU/locale 环境下生成无意义 diff，削弱 git 审阅快照的稳定性。
-- **建议时机**：下次触及 `ExportService` 排序逻辑、导出快照稳定性或 git 审阅体验增强时一并处理，优先改为显式二进制字符串比较或固定 `localeCompare` 配置，并补对应回归测试。
-- **解决记录**：—
+- **问题描述**：`src/services/export-service.ts` 曾使用未固定 locale/options 的 `localeCompare()` 对 `documents` 和 `relations` 排序；`tests/unit/services/export-service.test.ts` 也只覆盖简单 ASCII 路径和 ID，尚未锁定大小写、数字段与非 ASCII 输入。该问题不会改变导出内容本身，但会让同一图谱在不同 Node/ICU/locale 环境下生成无意义 diff，削弱 git 审阅快照的稳定性。
+- **处理方式**：`ExportService` 改为使用 `<` / `>` 显式二进制字符串比较排序 documents 与 relations，避免 locale-sensitive diff；补充大小写、数字段和非 ASCII 路径/ID 排序回归测试。
+- **解决记录**：2026-05-20 批次 6 导出可靠性治理完成。验证：`npm test -- tests/unit/services/export-service.test.ts tests/unit/cli/commands/export.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
 
 ---
 
 ### TODO-030
 
 - **标题**：快照写入原子性与覆盖语义加固
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P2（Epic 内处理）
 - **类别**：tech-debt
 - **来源**：Story 3-4 / Round 1-4 / 2026-05-12~2026-05-13（R1 defer；R2-R4 维持非阻塞）
 - **涉及文件**：
   - `src/services/export-service.ts`
   - `tests/unit/services/export-service.test.ts`
-- **问题描述**：`src/services/export-service.ts` 当前直接覆盖写入目标文件，缺少原子写入保护，也没有把“已有目标文件时是否允许覆盖、如何覆盖”的行为固化为明确测试契约。当前实现满足 Story 3-4 主路径，但在异常中断或后续扩展输出策略时，容易出现半写入文件、覆盖语义漂移或回归测试盲区。
-- **建议时机**：下次触及导出文件写入、覆盖策略或文件系统可靠性增强时一并处理，可结合临时文件 + rename 的原子写入方案，并补“覆盖允许 / 覆盖冲突 / 写入中断”语义测试。
-- **解决记录**：—
+- **问题描述**：`src/services/export-service.ts` 曾直接覆盖写入目标文件，缺少原子写入保护，也没有把“已有目标文件时是否允许覆盖、如何覆盖”的行为固化为明确测试契约。当前实现满足 Story 3-4 主路径，但在异常中断或后续扩展输出策略时，容易出现半写入文件、覆盖语义漂移或回归测试盲区。
+- **处理方式**：导出写入改为目标同目录临时文件 + `rename()` 原子替换；已存在快照允许被原子覆盖，临时写失败时保留旧快照并 best-effort 清理临时文件；补充覆盖成功与临时写失败保留旧文件测试。
+- **解决记录**：2026-05-20 批次 6 导出可靠性治理完成。验证：`npm test -- tests/unit/services/export-service.test.ts tests/unit/cli/commands/export.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
 
 ---
 
 ### TODO-031
 
 - **标题**：导出路径边界剩余硬化
-- **状态**：open
+- **状态**：resolved
 - **优先级**：P2（Epic 内处理）
 - **类别**：tech-debt
 - **来源**：Story 3-4 / Round 2-4 / 2026-05-13（R2 defer；R3-R4 维持非阻塞）
@@ -221,57 +274,8 @@
   - `src/cli/commands/export.ts`
   - `tests/unit/cli/commands/export.test.ts`
 - **问题描述**：Story 3-4 已补齐 POSIX 项目外路径与 win32 跨盘符/UNC 的词法边界校验，但 CR 仍保留三类非阻塞硬化点：symlink 物理逃逸场景、UNC `projectRoot` 组合场景，以及 `--output snapshots/` 这类目录形态输入的明确语义与回归测试。当前入口层已覆盖主要交付门禁，但这些剩余边界若长期不固化，后续继续演进导出路径逻辑时容易再次引入文件系统边界漂移。
-- **建议时机**：下次触及 `cord export --output` 路径归一化、文件系统安全边界或输出 UX 语义时一并处理，结合 realpath/symlink 场景与 UNC projectRoot 测试统一补齐。
-- **解决记录**：—
-
----
-
-### TODO-035
-
-- **标题**：贡献指南集成测试模板补重复扫描断言
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：test-gap
-- **来源**：Story 6-1 / Round 1-2 / 2026-05-19（R1 发现 #1；R2 维持 P2 defer）
-- **涉及文件**：
-  - `docs/contributing.md`
-- **问题描述**：`docs/contributing.md` 的集成测试指南已声明“重复扫描不会破坏已有图谱”，但可复制模板只执行一次 `service.scan({ projectRoot, rebuild: true, force: true })`，没有第二次扫描或重复关系断言。贡献者照抄模板时容易漏掉增量/重复扫描安全性验证，降低集成测试模板完整性。
-- **建议时机**：下次触及贡献指南、适配器集成测试模板或测试示例质量增强时，在模板中补第二次 `service.scan({ projectRoot })` 及关系不重复断言，或追加独立“重复扫描断言”片段。
-- **解决记录**：—
-
----
-
-### TODO-036
-
-- **标题**：贡献指南 SQLite 测试模板失败路径关闭连接
-- **状态**：open
-- **优先级**：P2（Epic 内处理）
-- **类别**：tech-debt
-- **来源**：Story 6-1 / Round 1-2 / 2026-05-19（R1 发现 #2；R2 维持 P2 defer）
-- **涉及文件**：
-  - `docs/contributing.md`
-- **问题描述**：`docs/contributing.md` 的集成测试模板创建 `SqliteGraphRepository` 和 `ScanService` 后，仅在所有断言之后调用 `service.close()`；如果任一断言失败，SQLite 连接不会关闭，可能在部分平台或失败场景中造成临时目录清理噪音。
-- **建议时机**：下次触及贡献指南或集成测试模板时，将示例改为 `try { ... } finally { service.close(); }`，或在 `afterEach` 中集中关闭 service 实例后再删除临时目录。
-- **解决记录**：—
-
----
-
-### TODO-025
-
-- **标题**：SQLite 测试 helper 失败路径清理加固
-- **状态**：open
-- **优先级**：P3（择机处理）
-- **类别**：tech-debt
-- **来源**：Story 3-2 / Round 3 / 2026-05-11（R3-TODO-1）
-- **涉及文件**：
-  - `tests/unit/services/query-service.test.ts`
-- **问题描述**：`tests/unit/services/query-service.test.ts` 中的 SQLite 测试 helper 在 seed 完成后才把 disposable 注册进 `sqliteDisposables`；若 seed 中途抛错，临时目录和 repository 可能无法进入 `afterEach` 清理路径。该问题只影响测试失败路径下的资源回收，不影响 Story 3.2 的运行时行为或当前验收结果，但会让后续失败路径测试更脆弱。
-- **建议时机**：下次触及 SQLite 测试 helper、QueryService 测试基建，或补充失败路径回归测试时一并处理。
-- **解决记录**：—
-
----
-
-## Resolved Items
+- **处理方式**：CLI `--output` 对目录形态输入追加默认 `cord-snapshot.json`；保留 POSIX/win32 词法边界检查，并新增已存在输出祖先目录的 `realpath` 物理边界检查，拒绝 symlink 指向 project-root 外；补充 win32 UNC projectRoot 内部路径、目录形态输出和 symlink 物理逃逸回归测试。
+- **解决记录**：2026-05-20 批次 6 导出可靠性治理完成。验证：`npm test -- tests/unit/services/export-service.test.ts tests/unit/cli/commands/export.test.ts`、`npm run type-check -- --pretty false`、`npm run lint` 通过。
 
 ---
 
