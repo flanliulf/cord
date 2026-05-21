@@ -1,7 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SqliteGraphRepository, type IGraphRepository, type SyncState } from '../../../src/repositories/index.js';
 import { QueryService } from '../../../src/services/query-service.js';
@@ -155,6 +156,22 @@ class InMemoryQueryRepository implements IGraphRepository {
   }
 }
 
+class CountingQueryRepository extends InMemoryQueryRepository {
+  documentByIdReads = 0;
+
+  relationByDocIdReads = 0;
+
+  override getDocumentById(id: string): DocumentNode | null {
+    this.documentByIdReads += 1;
+    return super.getDocumentById(id);
+  }
+
+  override getRelationsByDocId(docId: string, direction: 'source' | 'target' | 'both' = 'both'): RelationEdge[] {
+    this.relationByDocIdReads += 1;
+    return super.getRelationsByDocId(docId, direction);
+  }
+}
+
 function createDocument(id: string, path: string): DocumentNode {
   return {
     id,
@@ -261,7 +278,7 @@ function createMultiHopService(): QueryService {
   return new QueryService(new InMemoryQueryRepository(documents, relations));
 }
 
-function createLinearGraphService(documentCount: number): QueryService {
+function createLinearGraphRepository(documentCount: number): InMemoryQueryRepository {
   const documents = Array.from({ length: documentCount }, (_, index) =>
     createDocument(`doc-${index}`, `docs/${index}.md`),
   );
@@ -274,74 +291,69 @@ function createLinearGraphService(documentCount: number): QueryService {
     }),
   );
 
-  return new QueryService(new InMemoryQueryRepository(documents, relations));
+  return new InMemoryQueryRepository(documents, relations);
 }
 
-function createSqliteLinearGraphService(documentCount: number): QueryService {
+function createCountingLinearGraphRepository(documentCount: number): CountingQueryRepository {
+  const repository = createLinearGraphRepository(documentCount);
+  return new CountingQueryRepository(repository.getAllDocuments(), repository.getAllRelations());
+}
+
+function createSqliteLinearGraphService(
+  documentCount: number,
+  options: {
+    afterRepositoryCreated?: (root: string, repository: SqliteGraphRepository) => void;
+    beforeSeedingRelations?: () => void;
+  } = {},
+): QueryService {
   const root = mkdtempSync(join(tmpdir(), 'cord-query-service-'));
   const repository = new SqliteGraphRepository(join(root, 'cord.db'));
-  const documents = repository.transaction(() => Array.from({ length: documentCount }, (_, index) =>
-    repository.addDocument({
-      path: `docs/${index}.md`,
-      title: `Doc ${index}`,
-      docType: 'story',
-      metadata: {},
-    })));
+  const disposable = { repository, root };
+  sqliteDisposables.push(disposable);
+  options.afterRepositoryCreated?.(root, repository);
 
-  repository.transaction(() => {
-    for (let index = 0; index < documents.length - 1; index += 1) {
-      const sourceDocument = documents[index];
-      const targetDocument = documents[index + 1];
+  try {
+    const documents = repository.transaction(() => Array.from({ length: documentCount }, (_, index) =>
+      repository.addDocument({
+        path: `docs/${index}.md`,
+        title: `Doc ${index}`,
+        docType: 'story',
+        metadata: {},
+      })));
 
-      if (sourceDocument === undefined || targetDocument === undefined) {
-        continue;
+    options.beforeSeedingRelations?.();
+
+    repository.transaction(() => {
+      for (let index = 0; index < documents.length - 1; index += 1) {
+        const sourceDocument = documents[index];
+        const targetDocument = documents[index + 1];
+
+        if (sourceDocument === undefined || targetDocument === undefined) {
+          continue;
+        }
+
+        repository.addRelation({
+          sourceDocId: sourceDocument.id,
+          targetDocId: targetDocument.id,
+          relationType: RELATION_TYPES.REFERENCES,
+          confidence: 0.8,
+          source: 'auto_scan',
+          status: 'active',
+        });
       }
+    });
 
-      repository.addRelation({
-        sourceDocId: sourceDocument.id,
-        targetDocId: targetDocument.id,
-        relationType: RELATION_TYPES.REFERENCES,
-        confidence: 0.8,
-        source: 'auto_scan',
-        status: 'active',
-      });
+    return new QueryService(repository);
+  } catch (error) {
+    sqliteDisposables.splice(sqliteDisposables.indexOf(disposable), 1);
+    try {
+      repository.close();
+    } catch {
+      // ignore cleanup failure after fixture seeding failure
     }
-  });
-
-  sqliteDisposables.push({ repository, root });
-  return new QueryService(repository);
-}
-
-function measureBatchP95(
-  service: QueryService,
-  input: { docPath: string; depth: number },
-  options: { batchSize?: number; warmupIterations?: number; sampleCount?: number } = {},
-): number {
-  const batchSize = options.batchSize ?? 25;
-  const warmupIterations = options.warmupIterations ?? 20;
-  const sampleCount = options.sampleCount ?? 200;
-
-  for (let iteration = 0; iteration < warmupIterations; iteration += 1) {
-    for (let batchIndex = 0; batchIndex < batchSize; batchIndex += 1) {
-      service.query(input);
-    }
+    rmSync(root, { recursive: true, force: true });
+    throw error;
   }
-
-  const durations: number[] = [];
-
-  for (let iteration = 0; iteration < sampleCount; iteration += 1) {
-    const start = performance.now();
-
-    for (let batchIndex = 0; batchIndex < batchSize; batchIndex += 1) {
-      service.query(input);
-    }
-
-    durations.push(performance.now() - start);
-  }
-
-  durations.sort((left, right) => left - right);
-  const p95Index = Math.ceil(durations.length * 0.95) - 1;
-  return durations[p95Index] ?? Number.POSITIVE_INFINITY;
 }
 
 describe('QueryService', () => {
@@ -667,31 +679,56 @@ describe('QueryService', () => {
     expect(p95).toBeLessThan(5);
   });
 
-  it('keeps three-hop traversal performance within 10% on indexed in-memory adjacency lookup', () => {
-    const smallGraphService = createLinearGraphService(200);
-    const largeGraphService = createLinearGraphService(2000);
+  it('keeps three-hop traversal bounded to the visited frontier on indexed in-memory adjacency lookup', () => {
+    const repository = createCountingLinearGraphRepository(2000);
+    const service = new QueryService(repository);
 
-    const smallGraphP95 = measureBatchP95(smallGraphService, { docPath: 'docs/0.md', depth: 3 });
-    const largeGraphP95 = measureBatchP95(largeGraphService, { docPath: 'docs/0.md', depth: 3 });
+    const result = service.query({ docPath: 'docs/0.md', depth: 3 });
 
-    expect(largeGraphP95).toBeLessThanOrEqual(smallGraphP95 * 1.1);
+    expect(result.totalCount).toBe(3);
+    expect(repository.relationByDocIdReads).toBe(3);
+    expect(repository.documentByIdReads).toBe(3);
   });
 
-  it('keeps three-hop traversal performance within 10% on SQLite repository when scaling from 200 to 2000 documents', () => {
-    const smallGraphService = createSqliteLinearGraphService(200);
-    const largeGraphService = createSqliteLinearGraphService(2000);
+  it('uses SQLite indexes for both directions of relation adjacency lookup', () => {
+    let root = '';
+    const service = createSqliteLinearGraphService(10, {
+      afterRepositoryCreated: (createdRoot) => {
+        root = createdRoot;
+      },
+    });
+    const db = new Database(join(root, 'cord.db'), { readonly: true });
 
-    const smallGraphP95 = measureBatchP95(
-      smallGraphService,
-      { docPath: 'docs/0.md', depth: 3 },
-      { batchSize: 200, warmupIterations: 10, sampleCount: 80 },
-    );
-    const largeGraphP95 = measureBatchP95(
-      largeGraphService,
-      { docPath: 'docs/0.md', depth: 3 },
-      { batchSize: 200, warmupIterations: 10, sampleCount: 80 },
-    );
+    try {
+      const planRows = db
+        .prepare<[string, string], { detail: string }>(
+          'EXPLAIN QUERY PLAN SELECT * FROM relations WHERE source_doc_id = ? OR target_doc_id = ?',
+        )
+        .all('doc-1', 'doc-1');
+      const planDetails = planRows.map((row) => row.detail).join('\n');
 
-    expect(largeGraphP95).toBeLessThanOrEqual(smallGraphP95 * 1.1);
+      expect(planDetails).toContain('idx_relations_source_doc_id');
+      expect(planDetails).toContain('idx_relations_target_doc_id');
+    } finally {
+      db.close();
+      service.close();
+    }
+  });
+
+  it('cleans SQLite fixture resources if seeding fails before service creation', () => {
+    let failedRoot = '';
+
+    expect(() => createSqliteLinearGraphService(10, {
+      afterRepositoryCreated: (createdRoot) => {
+        failedRoot = createdRoot;
+      },
+      beforeSeedingRelations: () => {
+        throw new Error('forced seed failure');
+      },
+    })).toThrow('forced seed failure');
+
+    expect(failedRoot).not.toBe('');
+    expect(existsSync(failedRoot)).toBe(false);
+    expect(sqliteDisposables.some((disposable) => disposable.root === failedRoot)).toBe(false);
   });
 });
