@@ -125,6 +125,8 @@ npx cord query docs/getting-started.md --type sync_required
 npx cord query docs/getting-started.md --include-deprecated
 ```
 
+如果需要修正自动扫描结果，可以在 AI IDE 中调用 MCP Tool 手动添加、删除或标记 deprecated 关系；具体 schema 和示例见 [MCP Tools 参考](mcp-tools-reference.md)。
+
 ## 6. 查看当前状态
 
 ```bash

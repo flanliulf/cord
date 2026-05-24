@@ -368,6 +368,10 @@ JSON 示例：
 | `1`    | 运行时错误或用户取消。         |
 | `2`    | 配置、参数或 schema 验证错误。 |
 
+## 仅通过 MCP 提供的功能
+
+关系管理当前通过 MCP Tools 暴露，CLI 没有对应子命令。如果需要手动修正文档图谱，请在 AI IDE 中调用 [MCP Tools 参考](mcp-tools-reference.md) 中的 `add_relation`、`remove_relation` 或 `deprecate_relation`。
+
 ## 路径规则
 
 `query`、`impact` 和 `export --output` 会先清理空白，再把路径归一化为 project-relative POSIX 路径。空路径、项目根目录外路径、`..` 或 `../...` 形式都会被拒绝并返回 `ConfigError`。
