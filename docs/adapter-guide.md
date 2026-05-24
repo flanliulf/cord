@@ -1,32 +1,34 @@
-# 框架适配器开发指南
+# Framework Adapter Guide
 
-本指南面向希望为 CORD 增加新框架支持的贡献者。目标是在不修改核心扫描、查询和影响分析模块的前提下，用一个最小适配模块完成：文档类型注册、至少 1 条预设关系规则、以及集成测试验证。
+[English](adapter-guide.md) | [简体中文](adapter-guide.zh.md)
 
-## 适配器模型
+This guide is for contributors who want to add support for a new documentation framework in CORD. The goal is to build a minimal adapter module without modifying core scanning, querying, or impact analysis code. A minimal adapter includes document type registration, at least one preset relationship rule, and integration-test validation.
 
-CORD 的框架适配层由三部分组成：
+## Adapter Model
 
-1. `IFrameworkAdapter`：所有适配器必须实现的统一接口。
-2. `AbstractFrameworkAdapter`：推荐继承的基类，提供默认扫描路径、排除路径合并和 Markdown 文件发现逻辑。
-3. 具体适配器：例如 BMAD 的 `BmadFrameworkAdapter`，或兜底的 `GenericFrameworkAdapter`。
+CORD's framework adapter layer has three parts:
 
-新增框架时，只在 `src/adapters/framework/<framework-name>/` 下放置框架专属文件，并在 `src/adapters/framework/index.ts` 注册适配器。不要改动 `src/scanner/**`、`src/services/query-service.ts`、`src/services/impact-service.ts` 等核心模块。
+1. `IFrameworkAdapter`: the shared interface every adapter implements.
+2. `AbstractFrameworkAdapter`: the recommended base class. It provides default scan path handling, exclude path merging, and Markdown file discovery.
+3. Concrete adapters: for example `BmadFrameworkAdapter`, or the fallback `GenericFrameworkAdapter`.
 
-## IFrameworkAdapter API
+When adding a framework, place framework-specific files under `src/adapters/framework/<framework-name>/`, then register the adapter in `src/adapters/framework/index.ts`. Do not modify core modules such as `src/scanner/**`, `src/services/query-service.ts`, or `src/services/impact-service.ts`.
 
-接口定义位于 `src/adapters/framework/interfaces.ts`。
+## `IFrameworkAdapter` API
 
-| 成员 | 类型 | 作用 | 最小实现建议 |
-|------|------|------|--------------|
-| `readonly name` | `string` | 适配器唯一名称，也是 `config.framework` 的匹配值 | 使用小写 kebab 或单词名，例如 `bmad`、`generic` |
-| `detectFramework(projectRoot)` | `(projectRoot: string) => boolean` | 自动检测当前项目是否属于该框架 | 检查配置文件、目录结构、依赖或 frontmatter 信号 |
-| `getDocumentTypes()` | `() => DocTypeDefinition[]` | 声明该框架可识别的文档类型 | 从单独的 `doc-types.ts` 导出常量 |
-| `getPresetRules()` | `() => PresetRule[]` | 声明框架内置关系规则 | 从单独的 `preset-rules.ts` 导出常量 |
-| `getScanPaths(config)` | `(config: CordConfig) => string[]` | 给出默认扫描路径，并允许用户配置覆盖 | 通常继承 `AbstractFrameworkAdapter` 默认实现 |
-| `getExcludePaths(config)` | `(config: CordConfig) => string[]` | 给出默认排除路径，并合并用户配置 | 通常继承 `AbstractFrameworkAdapter` 默认实现 |
-| `discoverDocuments(projectRoot, scanPaths, excludePaths)` | `(projectRoot: string, scanPaths: string[], excludePaths: string[]) => string[]` | 发现最终参与扫描的 Markdown 文件 | 通常继承 `AbstractFrameworkAdapter` 默认实现 |
+The interface is defined in `src/adapters/framework/interfaces.ts`.
 
-相关数据结构：
+| Member                                                    | Type                                                                             | Purpose                                                           | Minimal implementation guidance                                                   |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `readonly name`                                           | `string`                                                                         | Unique adapter name and matching value for `config.framework`     | Use lowercase kebab-case or a single lowercase word, such as `bmad` or `generic`. |
+| `detectFramework(projectRoot)`                            | `(projectRoot: string) => boolean`                                               | Auto-detect whether the current project belongs to this framework | Check config files, directory structure, dependencies, or frontmatter signals.    |
+| `getDocumentTypes()`                                      | `() => DocTypeDefinition[]`                                                      | Declare document types recognized by this framework               | Export constants from a separate `doc-types.ts`.                                  |
+| `getPresetRules()`                                        | `() => PresetRule[]`                                                             | Declare built-in framework relationship rules                     | Export constants from a separate `preset-rules.ts`.                               |
+| `getScanPaths(config)`                                    | `(config: CordConfig) => string[]`                                               | Provide default scan paths and allow user configuration override  | Usually inherit the default implementation from `AbstractFrameworkAdapter`.       |
+| `getExcludePaths(config)`                                 | `(config: CordConfig) => string[]`                                               | Provide default exclude paths and merge user configuration        | Usually inherit the default implementation from `AbstractFrameworkAdapter`.       |
+| `discoverDocuments(projectRoot, scanPaths, excludePaths)` | `(projectRoot: string, scanPaths: string[], excludePaths: string[]) => string[]` | Discover final Markdown files to scan                             | Usually inherit the default implementation from `AbstractFrameworkAdapter`.       |
+
+Related data structures:
 
 ```ts
 interface DocTypeDefinition {
@@ -43,17 +45,17 @@ interface PresetRule {
 }
 ```
 
-## AbstractFrameworkAdapter 基类
+## `AbstractFrameworkAdapter` Base Class
 
-`AbstractFrameworkAdapter` 位于 `src/adapters/framework/abstract-base.ts`。它已经处理了适配器最容易写错的通用逻辑：
+`AbstractFrameworkAdapter` lives in `src/adapters/framework/abstract-base.ts`. It already handles common logic that is easy to get wrong:
 
-- 去重和清理扫描路径。
-- 合并默认排除路径与用户配置。
-- 递归发现 Markdown 文件。
-- 跳过符号链接。
-- 将文件结果排序，保证测试和扫描结果稳定。
+- Deduplicate and clean scan paths.
+- Merge default exclude paths with user configuration.
+- Recursively discover Markdown files.
+- Skip symlinks.
+- Sort file results for stable tests and scan output.
 
-推荐每个新适配器继承它，只重写以下方法：
+Each new adapter should usually inherit it and override only these methods:
 
 ```ts
 protected override getDefaultScanPaths(): string[] {
@@ -65,26 +67,26 @@ protected override getDefaultExcludePaths(): string[] {
 }
 ```
 
-只有当框架需要扫描非 Markdown 文件，或有特殊文件发现规则时，才考虑重写 `discoverDocuments()`。
+Override `discoverDocuments()` only when the framework must scan non-Markdown files or has special discovery rules.
 
-## 激活链与选择顺序
+## Activation Chain And Selection Order
 
-适配器激活链从注册表开始，由 `resolveAdapter(config, projectRoot)` 统一选择。
+Adapter activation starts in the registry and is selected by `resolveAdapter(config, projectRoot)`.
 
-1. 在 `src/adapters/framework/index.ts` 中导入并注册适配器。注册表顺序很重要，`GenericFrameworkAdapter` 必须始终放在最后。
-2. `resolveAdapter(config, projectRoot)` 先检查 `config.framework`。
-3. 如果 `config.framework` 有值，CORD 只按名称查找显式指定的适配器。找不到时抛出 `ConfigError`，不会继续自动检测。
-4. 如果未设置 `config.framework`，CORD 按注册表顺序调用每个适配器的 `detectFramework()`。
-5. 第一个返回 `true` 的适配器被选中。
-6. `GenericFrameworkAdapter` 的 `detectFramework()` 恒定返回 `true`，因此作为最后兜底。
+1. Import and register the adapter in `src/adapters/framework/index.ts`. Registry order matters. `GenericFrameworkAdapter` must always be last.
+2. `resolveAdapter(config, projectRoot)` checks `config.framework` first.
+3. If `config.framework` is set, CORD searches only for an adapter with that name. If none exists, it throws `ConfigError` and does not continue with auto-detection.
+4. If `config.framework` is unset, CORD calls `detectFramework()` on each adapter in registry order.
+5. The first adapter returning `true` is selected.
+6. `GenericFrameworkAdapter.detectFramework()` always returns `true`, so it is the final fallback.
 
-这意味着 `config.framework` 的覆盖优先级最高；自动检测只在没有显式配置时发生。
+This means `config.framework` has the highest priority. Auto-detection only runs when no explicit framework is configured.
 
-## 从零创建最小适配模块
+## Create A Minimal Adapter From Scratch
 
-下面以 `example` 框架为例。
+The examples below use an `example` framework.
 
-### 1. 创建目录
+### 1. Create The Directory
 
 ```text
 src/adapters/framework/example/
@@ -93,7 +95,7 @@ src/adapters/framework/example/
   preset-rules.ts
 ```
 
-### 2. 文档类型注册
+### 2. Register Document Types
 
 ```ts
 // src/adapters/framework/example/doc-types.ts
@@ -113,9 +115,9 @@ export const EXAMPLE_DOCUMENT_TYPES: DocTypeDefinition[] = [
 ];
 ```
 
-`name` 是 CORD 图谱中的文档类型值；`patterns` 只用于候选文件分类，不应扩大扫描范围；扫描范围由 `getScanPaths()` 和配置共同决定。
+`name` is the document type value stored in the CORD graph. `patterns` classify candidate files; they should not expand scan scope. Scan scope is controlled by `getScanPaths()` and user configuration.
 
-### 3. 编写 1 条预设规则
+### 3. Add One Preset Rule
 
 ```ts
 // src/adapters/framework/example/preset-rules.ts
@@ -132,9 +134,9 @@ export const EXAMPLE_PRESET_RULES: PresetRule[] = [
 ];
 ```
 
-预设规则适合表达框架内稳定、可重复推导的关系。`confidence` 建议不低于 `0.9`，避免把弱约定伪装成强关系。
+Preset rules should represent stable and repeatable framework relationships. A confidence of at least `0.9` is recommended to avoid presenting weak conventions as strong relationships.
 
-### 4. 实现适配器
+### 4. Implement The Adapter
 
 ```ts
 // src/adapters/framework/example/adapter.ts
@@ -173,9 +175,9 @@ export class ExampleFrameworkAdapter extends AbstractFrameworkAdapter {
 }
 ```
 
-### 5. 注册适配器
+### 5. Register The Adapter
 
-在 `src/adapters/framework/index.ts` 中注册：
+Register it in `src/adapters/framework/index.ts`:
 
 ```ts
 import { ExampleFrameworkAdapter } from './example/adapter.js';
@@ -189,30 +191,30 @@ export const frameworkAdapters: IFrameworkAdapter[] = [
 ];
 ```
 
-保持 `GenericFrameworkAdapter` 在最后。如果你的适配器检测条件很宽，应放在更具体的适配器之后。
+Keep `GenericFrameworkAdapter` last. If your adapter has broad detection conditions, place it after more specific adapters.
 
-## 4 小时最小可用路径
+## 4-Hour Minimal Path
 
-按下面顺序推进，通常可以在 4 小时内交付最小可用适配模块：
+This sequence usually produces a minimal usable adapter within 4 hours:
 
-| 时间盒 | 目标 | 完成标准 |
-|--------|------|----------|
-| 0-30 分钟 | 阅读本指南和 BMAD 参考实现 | 能说明 `resolveAdapter(config, projectRoot)` 的选择顺序 |
-| 30-90 分钟 | 创建适配器目录和 `adapter.ts` | `detectFramework()` 能命中一份本地 fixture |
-| 90-150 分钟 | 注册文档类型 | 至少 1 个 `DocTypeDefinition` 能分类 fixture 文档 |
-| 150-210 分钟 | 添加预设规则 | 至少 1 条 `PresetRule` 在扫描后生成关系 |
-| 210-240 分钟 | 编写并运行集成测试 | `npm run test` 通过，核心源码路径无修改 |
+| Timebox         | Goal                                                  | Completion standard                                                    |
+| --------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| 0-30 minutes    | Read this guide and the BMAD reference implementation | You can explain `resolveAdapter(config, projectRoot)` selection order. |
+| 30-90 minutes   | Create adapter directory and `adapter.ts`             | `detectFramework()` matches a local fixture.                           |
+| 90-150 minutes  | Register document types                               | At least one `DocTypeDefinition` classifies fixture documents.         |
+| 150-210 minutes | Add preset rules                                      | At least one `PresetRule` creates a relationship after scanning.       |
+| 210-240 minutes | Write and run integration tests                       | `npm run test` passes and core source paths have no modifications.     |
 
-验收时请确认：文档类型注册完成、至少 1 条预设规则生效、集成测试通过、核心模块没有被改动。
+For acceptance, confirm: document types are registered, at least one preset rule works, integration tests pass, and core modules were not modified.
 
-## 自检清单
+## Self-Check
 
-- [ ] 新适配器实现 `IFrameworkAdapter`，优先继承 `AbstractFrameworkAdapter`。
-- [ ] 已在 `src/adapters/framework/index.ts` 注册，且 `GenericFrameworkAdapter` 仍在最后。
-- [ ] `config.framework` 显式指定时能选择新适配器。
-- [ ] 未显式配置时，`detectFramework()` 可自动检测。
-- [ ] 包含至少 1 个 `DocTypeDefinition`。
-- [ ] 包含至少 1 条 `PresetRule`。
-- [ ] 有集成测试覆盖扫描结果。
-- [ ] `npm run test` 通过。
-- [ ] `src/scanner/**`、`src/services/query-service.ts`、`src/services/impact-service.ts` 无修改。
+- [ ] The new adapter implements `IFrameworkAdapter`, preferably by extending `AbstractFrameworkAdapter`.
+- [ ] It is registered in `src/adapters/framework/index.ts`, and `GenericFrameworkAdapter` remains last.
+- [ ] Explicit `config.framework` can select the new adapter.
+- [ ] `detectFramework()` can auto-detect when no explicit framework is configured.
+- [ ] It includes at least one `DocTypeDefinition`.
+- [ ] It includes at least one `PresetRule`.
+- [ ] Integration tests cover scan results.
+- [ ] `npm run test` passes.
+- [ ] `src/scanner/**`, `src/services/query-service.ts`, and `src/services/impact-service.ts` are unchanged.

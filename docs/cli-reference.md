@@ -1,66 +1,68 @@
-# CLI 参考
+# CLI Reference
 
-CORD CLI 命令名使用 kebab-case，当前顶层命令为 `cord`。所有命令的业务错误会返回结构化错误信息和建议；支持 JSON 输出的命令会在 `--json` 模式下输出机器可读 JSON。
+[English](cli-reference.md) | [简体中文](cli-reference.zh.md)
 
-## 全局用法
+CORD CLI command names use kebab-case. The current top-level command is `cord`. Business errors return structured error information and suggestions. Commands that support JSON output emit machine-readable JSON when `--json` is used.
+
+## Global Usage
 
 ```bash
 cord [global-options] <command> [command-options]
 ```
 
-全局选项：
+Global options:
 
-| 选项            | 说明           |
-| --------------- | -------------- |
-| `-V, --version` | 输出当前版本。 |
-| `-h, --help`    | 输出帮助信息。 |
-| `-v, --verbose` | 启用调试输出。 |
+| Option          | Description            |
+| --------------- | ---------------------- |
+| `-V, --version` | Print current version. |
+| `-h, --help`    | Print help.            |
+| `-v, --verbose` | Enable debug output.   |
 
-当前版本：`0.1.0`。
+Current version: `0.1.0`.
 
 ## `cord init`
 
-一键初始化当前项目的 CORD 配置、IDE 集成与数据目录。
+Initialize CORD configuration, IDE integration, and the data directory for the current project.
 
-### 用法
+### Usage
 
 ```bash
 cord init [options]
 ```
 
-### 参数
+### Arguments
 
-无位置参数。
+No positional arguments.
 
-### 选项
+### Options
 
-| 选项                | 说明                                                                           |
-| ------------------- | ------------------------------------------------------------------------------ |
-| `--ide <name>`      | 显式指定 IDE。可选值：`claude-code`、`cursor`、`vscode-copilot`、`codex-cli`。 |
-| `--format <format>` | 配置文件格式。可选值：`yaml`、`json`。默认 `yaml`。                            |
-| `--json`            | 输出机器可读 JSON，并跳过交互向导。                                            |
+| Option              | Description                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `--ide <name>`      | Explicit IDE. Valid values: `claude-code`, `cursor`, `vscode-copilot`, `codex-cli`. |
+| `--format <format>` | Configuration file format. Valid values: `yaml`, `json`. Default: `yaml`.           |
+| `--json`            | Output machine-readable JSON and skip the interactive wizard.                       |
 
-### 示例
+### Examples
 
 ```bash
 cord init --ide vscode-copilot
 ```
 
-示例输出：
+Example output:
 
 ```text
-✅ CORD 初始化完成
+✅ CORD initialized
 IDE: vscode-copilot
-框架: bmad
-配置文件: /path/to/project/cord.config.yaml
-数据目录: /path/to/project/.cord
-生成/更新文件:
+Framework: bmad
+Config file: /path/to/project/cord.config.yaml
+Data directory: /path/to/project/.cord
+Generated/updated files:
 - .github/copilot-instructions.md
 - .vscode/mcp.json
 - AGENTS.md
 ```
 
-JSON 示例：
+JSON example:
 
 ```bash
 cord init --ide cursor --format json --json
@@ -79,43 +81,43 @@ cord init --ide cursor --format json --json
 
 ## `cord scan`
 
-扫描项目文档并构建关系图谱。
+Scan project documents and build the relationship graph.
 
-### 用法
+### Usage
 
 ```bash
 cord scan [options]
 ```
 
-### 参数
+### Arguments
 
-无位置参数。扫描范围来自 `cord.config.yaml` 或 `cord.config.json`；没有配置文件时使用默认配置。
+No positional arguments. The scan scope comes from `cord.config.yaml` or `cord.config.json`; if no config file exists, default configuration is used.
 
-### 选项
+### Options
 
-| 选项        | 说明                                                            |
-| ----------- | --------------------------------------------------------------- |
-| `--rebuild` | 完全重建图谱。                                                  |
-| `--force`   | 与 `--rebuild` 一起使用，跳过 manual 关系确认。单独使用会报错。 |
-| `--json`    | JSON 格式输出。                                                 |
+| Option      | Description                                                                          |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `--rebuild` | Fully rebuild the graph.                                                             |
+| `--force`   | Use with `--rebuild` to skip manual relationship confirmation. Errors if used alone. |
+| `--json`    | Output JSON.                                                                         |
 
-### 示例
+### Examples
 
 ```bash
 cord scan --rebuild --force
 ```
 
-示例输出：
+Example output:
 
 ```text
-扫描完成
-文档数: 42
-关系数: 96
-耗时: 128ms
-警告: 0
+Scan complete
+Documents: 42
+Relations: 96
+Duration: 128ms
+Warnings: 0
 ```
 
-JSON 示例：
+JSON example:
 
 ```bash
 cord scan --json
@@ -127,48 +129,48 @@ cord scan --json
 
 ## `cord query`
 
-查询指定文档的关联关系，支持 1 到 3 跳遍历。
+Query relationships for a document, with 1 to 3 hops of traversal.
 
-### 用法
+### Usage
 
 ```bash
 cord query <doc> [options]
 ```
 
-### 参数
+### Arguments
 
-| 参数    | 说明                                                                           |
-| ------- | ------------------------------------------------------------------------------ |
-| `<doc>` | 待查询文档路径。必须位于项目根目录内，会归一化为 project-relative POSIX 路径。 |
+| Argument | Description                                                                                                    |
+| -------- | -------------------------------------------------------------------------------------------------------------- |
+| `<doc>`  | Document path to query. It must be inside the project root and is normalized to a project-relative POSIX path. |
 
-### 选项
+### Options
 
-| 选项                    | 说明                              |
-| ----------------------- | --------------------------------- |
-| `--type <relationType>` | 按关系类型过滤。                  |
-| `--depth <depth>`       | 遍历深度，范围 1 到 3，默认 1。   |
-| `--include-deprecated`  | 包含 `status=deprecated` 的关系。 |
-| `--json`                | JSON 格式输出。                   |
+| Option                  | Description                                     |
+| ----------------------- | ----------------------------------------------- |
+| `--type <relationType>` | Filter by relationship type.                    |
+| `--depth <depth>`       | Traversal depth from 1 to 3. Default: `1`.      |
+| `--include-deprecated`  | Include relationships with `status=deprecated`. |
+| `--json`                | Output JSON.                                    |
 
-关系类型可选值：`sync_required`、`context_for`、`lifecycle_bound`、`contains`、`must_consistent`、`sync_suggested`、`derived_from`、`deprecated`、`references`。
+Relationship type values: `sync_required`, `context_for`, `lifecycle_bound`, `contains`, `must_consistent`, `sync_suggested`, `derived_from`, `deprecated`, `references`.
 
-### 示例
+### Examples
 
 ```bash
 cord query docs/getting-started.md --depth 2 --type references
 ```
 
-示例输出：
+Example output:
 
 ```text
 relationId | targetPath               | relationType | confidence | source    | status | hopDistance
 -----------+--------------------------+--------------+------------+-----------+--------+------------
 rel_01     | docs/cli-reference.md    | references   | 0.82       | auto_scan | active | 1
 rel_02     | docs/configuration.md    | references   | 0.76       | manual    | active | 2
-总数: 2
+Total: 2
 ```
 
-JSON 示例：
+JSON example:
 
 ```json
 {
@@ -189,44 +191,44 @@ JSON 示例：
 
 ## `cord impact`
 
-分析指定文档变更的影响范围。
+Analyze which documents are affected by a document change.
 
-### 用法
+### Usage
 
 ```bash
 cord impact <doc> [options]
 ```
 
-### 参数
+### Arguments
 
-| 参数    | 说明                                                                               |
-| ------- | ---------------------------------------------------------------------------------- |
-| `<doc>` | 发生变更的文档路径。必须位于项目根目录内，会归一化为 project-relative POSIX 路径。 |
+| Argument | Description                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------- |
+| `<doc>`  | Changed document path. It must be inside the project root and is normalized to a project-relative POSIX path. |
 
-### 选项
+### Options
 
-| 选项                             | 说明                                                                                   |
-| -------------------------------- | -------------------------------------------------------------------------------------- |
-| `--confidence-threshold <value>` | 最低置信度阈值，范围 0.0 到 1.0。未传时使用配置中的 `confidenceThreshold`，默认 0.50。 |
-| `--json`                         | JSON 格式输出。                                                                        |
+| Option                           | Description                                                                                                      |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `--confidence-threshold <value>` | Minimum confidence threshold from 0.0 to 1.0. If omitted, uses `confidenceThreshold` from config; default: 0.50. |
+| `--json`                         | Output JSON.                                                                                                     |
 
-### 示例
+### Examples
 
 ```bash
 cord impact docs/prd.md --confidence-threshold 0.7
 ```
 
-示例输出：
+Example output:
 
 ```text
-docPath                  | relationType  | propagationType | suggestedAction | updateStrategy | severity | confidence | hopDistance
--------------------------+---------------+-----------------+-----------------+----------------+----------+------------+------------
-docs/architecture.md     | sync_required | sync_required   | 同步更新相关文档 | auto           | high     | 0.93       | 1
-docs/epics/epic-1.md     | derived_from  | derived_from    | 审阅派生内容     | suggest        | medium   | 0.78       | 2
-总数: 2
+docPath                  | relationType  | propagationType | suggestedAction       | updateStrategy | severity | confidence | hopDistance
+-------------------------+---------------+-----------------+-----------------------+----------------+----------+------------+------------
+docs/architecture.md     | sync_required | sync_required   | Sync related document | auto           | high     | 0.93       | 1
+docs/epics/epic-1.md     | derived_from  | derived_from    | Review derived docs   | suggest        | medium   | 0.78       | 2
+Total: 2
 ```
 
-JSON 示例：
+JSON example:
 
 ```json
 {
@@ -235,7 +237,7 @@ JSON 示例：
       "docPath": "docs/architecture.md",
       "relationType": "sync_required",
       "propagationType": "sync_required",
-      "suggestedAction": "同步更新相关文档",
+      "suggestedAction": "Sync related document",
       "updateStrategy": "auto",
       "severity": "high",
       "confidence": 0.93,
@@ -248,42 +250,42 @@ JSON 示例：
 
 ## `cord export`
 
-导出完整关系图谱为 JSON 快照文件。
+Export the complete relationship graph as a JSON snapshot file.
 
-### 用法
+### Usage
 
 ```bash
 cord export [options]
 ```
 
-### 参数
+### Arguments
 
-无位置参数。
+No positional arguments.
 
-### 选项
+### Options
 
-| 选项              | 说明                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| `--output <path>` | 导出文件路径，默认为项目根目录下的 `cord-snapshot.json`。路径必须位于项目根目录内。 |
-| `--json`          | JSON 格式输出。                                                                     |
+| Option            | Description                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `--output <path>` | Export file path. Defaults to `cord-snapshot.json` in the project root. The path must stay inside the project root. |
+| `--json`          | Output JSON.                                                                                                        |
 
-### 示例
+### Examples
 
 ```bash
 cord export --output snapshots/graph.json
 ```
 
-示例输出：
+Example output:
 
 ```text
-导出成功
-文件: snapshots/graph.json
+Export complete
+File: snapshots/graph.json
 schemaVersion: 1.0
-文档: 42
-关系: 96
+Documents: 42
+Relations: 96
 ```
 
-JSON 示例：
+JSON example:
 
 ```json
 {
@@ -294,52 +296,52 @@ JSON 示例：
 
 ## `cord status`
 
-查看当前项目的 CORD 配置状态与图谱健康信息。该命令是只读命令；当 `.cord/cord.db` 不存在时返回未初始化状态，不会为了读取而创建数据库。
+Show current CORD configuration status and graph health. This is a read-only command. If `.cord/cord.db` does not exist, it returns uninitialized status and does not create a database just for reading.
 
-### 用法
+### Usage
 
 ```bash
 cord status [options]
 ```
 
-### 参数
+### Arguments
 
-无位置参数。
+No positional arguments.
 
-### 选项
+### Options
 
-| 选项     | 说明            |
-| -------- | --------------- |
-| `--json` | JSON 格式输出。 |
+| Option   | Description  |
+| -------- | ------------ |
+| `--json` | Output JSON. |
 
-### 示例
+### Examples
 
 ```bash
 cord status
 ```
 
-示例输出：
+Example output:
 
 ```text
-CORD 状态概览
-图谱健康
-文档数: 42
-关系总数: 96
-按类型分布: references=30, sync_required=18
-最后扫描: 2026-05-19T12:00:00.000Z
-迁移版本: 2
-过时关系: 0
-孤立节点: 3
-悬空关系: 0
-配置状态
-配置文件: /path/to/project/cord.config.yaml
+CORD status overview
+Graph health
+Documents: 42
+Relations: 96
+By type: references=30, sync_required=18
+Last scan: 2026-05-19T12:00:00.000Z
+Migration version: 2
+Stale relations: 0
+Orphaned nodes: 3
+Dangling edges: 0
+Configuration
+Config file: /path/to/project/cord.config.yaml
 framework: bmad
 scanPaths: _bmad-output, docs
 excludePaths: src/, node_modules/, .git/, dist/, _bmad/
 confidenceThreshold: 0.50
 ```
 
-JSON 示例：
+JSON example:
 
 ```json
 {
@@ -360,18 +362,18 @@ JSON 示例：
 }
 ```
 
-## 退出码
+## Exit Codes
 
-| 退出码 | 含义                           |
-| ------ | ------------------------------ |
-| `0`    | 成功。                         |
-| `1`    | 运行时错误或用户取消。         |
-| `2`    | 配置、参数或 schema 验证错误。 |
+| Exit code | Meaning                                              |
+| --------- | ---------------------------------------------------- |
+| `0`       | Success.                                             |
+| `1`       | Runtime error or user cancellation.                  |
+| `2`       | Configuration, argument, or schema validation error. |
 
-## 仅通过 MCP 提供的功能
+## MCP-Only Capabilities
 
-关系管理当前通过 MCP Tools 暴露，CLI 没有对应子命令。如果需要手动修正文档图谱，请在 AI IDE 中调用 [MCP Tools 参考](mcp-tools-reference.md) 中的 `add_relation`、`remove_relation` 或 `deprecate_relation`。
+Relationship management is currently exposed through MCP Tools. There are no matching CLI subcommands. To manually correct the document graph, call `add_relation`, `remove_relation`, or `deprecate_relation` from the [MCP Tools Reference](mcp-tools-reference.md) in an AI IDE.
 
-## 路径规则
+## Path Rules
 
-`query`、`impact` 和 `export --output` 会先清理空白，再把路径归一化为 project-relative POSIX 路径。空路径、项目根目录外路径、`..` 或 `../...` 形式都会被拒绝并返回 `ConfigError`。
+`query`, `impact`, and `export --output` trim whitespace first, then normalize paths to project-relative POSIX paths. Empty paths, paths outside the project root, `..`, and `../...` are rejected with `ConfigError`.

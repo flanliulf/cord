@@ -9,6 +9,7 @@ function readRepoFile(relativePath: string): string {
 describe('framework adapter contributor docs', () => {
   it('documents the IFrameworkAdapter API and adapter activation chain', () => {
     const content = readRepoFile('docs/adapter-guide.md');
+    const zhContent = readRepoFile('docs/adapter-guide.zh.md');
 
     expect(content).toContain('IFrameworkAdapter');
     expect(content).toContain('AbstractFrameworkAdapter');
@@ -17,21 +18,27 @@ describe('framework adapter contributor docs', () => {
     expect(content).toContain('config.framework');
     expect(content).toContain('detectFramework()');
     expect(content).toContain('GenericFrameworkAdapter');
-    expect(content).toContain('文档类型注册');
-    expect(content).toContain('预设规则');
+    expect(content).toContain('Register Document Types');
+    expect(content).toContain('Preset Rule');
+    expect(zhContent).toContain('文档类型注册');
+    expect(zhContent).toContain('预设规则');
   });
 
   it('documents integration test templates, PR norms, and review flow', () => {
     const content = readRepoFile('docs/contributing.md');
+    const zhContent = readRepoFile('docs/contributing.zh.md');
 
-    expect(content).toContain('集成测试模板');
+    expect(content).toContain('Integration Test Template');
     expect(content).toContain('tests/integration');
     expect(content).toContain('npm run test');
-    expect(content).toContain('PR 规范');
-    expect(content).toContain('审阅流程');
+    expect(content).toContain('PR Requirements');
+    expect(content).toContain('Review Flow');
     expect(content).toContain('src/scanner/**');
     expect(content).toContain('src/services/query-service.ts');
     expect(content).toContain('src/services/impact-service.ts');
+    expect(zhContent).toContain('集成测试模板');
+    expect(zhContent).toContain('PR 规范');
+    expect(zhContent).toContain('审阅流程');
   });
 
   it('keeps BMAD adapter source comments as a contributor reference implementation', () => {

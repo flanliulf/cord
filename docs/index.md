@@ -1,104 +1,72 @@
-# Project Documentation Index
+# CORD Documentation Index
 
-**项目：** CORD  
-**生成日期：** 2026-05-21  
-**扫描模式：** DP Deep Scan  
-**项目类型：** monolith，TypeScript npm package，主类型 CLI，兼具 library 与 MCP server 能力
+[English](index.md) | [简体中文](index.zh.md)
 
-## Project Overview
+This index helps different readers find the right document quickly. If you are using CORD for the first time, start with [Getting Started](getting-started.md). If you are preparing a PR, start with the [Contributing Guide](contributing.md).
 
-- **Type:** 单体开发者工具仓库
-- **Primary Language:** TypeScript
-- **Runtime:** Node.js >= 20
-- **Architecture:** CLI + MCP 双入口，共享 Service 层，本地 SQLite 图谱存储
-- **Primary Data Store:** `.cord/cord.db`
-- **Main Entry Points:** `src/cli/index.ts`, `src/mcp/server.ts`, `src/index.ts`
+## User Documentation
 
-## Quick Reference
+| Goal                               | Document                                      | Description                                                                   |
+| ---------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------- |
+| Install and run the first workflow | [Getting Started](getting-started.md)         | Installation, initialization, scanning, and first impact analysis.            |
+| Look up CLI commands               | [CLI Reference](cli-reference.md)             | 6 CLI commands, options, JSON output, and exit codes.                         |
+| Connect an AI IDE                  | [MCP Tools Reference](mcp-tools-reference.md) | 7 MCP Tools, input/output schemas, and call examples.                         |
+| Adjust configuration               | [Configuration Reference](configuration.md)   | `cord.config.yaml/json`, scan paths, IDEs, frameworks, and update strategies. |
 
-| 主题              | 入口                                               |
-| ----------------- | -------------------------------------------------- |
-| 项目总览          | [project-overview.md](project-overview.md)         |
-| 架构说明          | [architecture.md](architecture.md)                 |
-| 源码树            | [source-tree-analysis.md](source-tree-analysis.md) |
-| 模块清单          | [component-inventory.md](component-inventory.md)   |
-| 数据模型          | [data-models.md](data-models.md)                   |
-| 开发指南          | [development-guide.md](development-guide.md)       |
-| CLI 用户参考      | [cli-reference.md](cli-reference.md)               |
-| MCP Tool 用户参考 | [mcp-tools-reference.md](mcp-tools-reference.md)   |
-| 配置参考          | [configuration.md](configuration.md)               |
-| 框架适配器开发    | [adapter-guide.md](adapter-guide.md)               |
+## Contributor Documentation
 
-## Generated Documentation
+| Goal                                       | Document                                    | Description                                                                     |
+| ------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------- |
+| Prepare a code, docs, or test contribution | [Contributing Guide](contributing.md)       | Local setup, validation commands, PR requirements, and review flow.             |
+| Add a framework adapter                    | [Framework Adapter Guide](adapter-guide.md) | Adapter API, registration flow, minimal implementation path, and test guidance. |
+| Develop and troubleshoot locally           | [Development Guide](development-guide.md)   | Build, test, local CLI/MCP validation, and common troubleshooting.              |
 
-- [Project Overview](project-overview.md)
-- [Architecture](architecture.md)
-- [Source Tree Analysis](source-tree-analysis.md)
-- [Component Inventory](component-inventory.md)
-- [Data Models](data-models.md)
-- [Development Guide](development-guide.md)
+## Project Understanding
 
-## Existing User Documentation
+These documents are useful for maintainers and deeper contributors who need to understand CORD internals.
 
-- [Getting Started](getting-started.md) - 安装、初始化、扫描、影响分析和状态查看。
-- [CLI Reference](cli-reference.md) - 6 个 CLI 命令、参数、JSON 输出和退出码。
-- [MCP Tools Reference](mcp-tools-reference.md) - 7 个 MCP Tool、input/output schema 和调用示例。
-- [Configuration Reference](configuration.md) - `cord.config.yaml/json` 配置项、IDE 和框架配置。
-- [Adapter Guide](adapter-guide.md) - 新增框架适配器的接口、步骤和测试建议。
-- [Contributing Guide](contributing.md) - 贡献流程、测试要求和文档更新规则。
+| Topic               | Document                                           |
+| ------------------- | -------------------------------------------------- |
+| Project overview    | [project-overview.md](project-overview.md)         |
+| Architecture        | [architecture.md](architecture.md)                 |
+| Source tree         | [source-tree-analysis.md](source-tree-analysis.md) |
+| Component inventory | [component-inventory.md](component-inventory.md)   |
+| Data models         | [data-models.md](data-models.md)                   |
 
-## Existing Planning and Implementation Artifacts
+## Common Reading Paths
 
-- [\_bmad-output/project-context.md](../_bmad-output/project-context.md) - AI agent 主规则文件。
-- [\_bmad-output/planning-artifacts/prd.md](../_bmad-output/planning-artifacts/prd.md) - 产品需求文档。
-- [\_bmad-output/planning-artifacts/architecture/00-index.md](../_bmad-output/planning-artifacts/architecture/00-index.md) - 架构决策文档索引。
-- [\_bmad-output/planning-artifacts/epics/index.md](../_bmad-output/planning-artifacts/epics/index.md) - Epic 规划索引。
-- [\_bmad-output/implementation-artifacts/sprint-status.yaml](../_bmad-output/implementation-artifacts/sprint-status.yaml) - Story 与 Epic 状态追踪。
-- [\_bmad-output/implementation-artifacts/stories/](../_bmad-output/implementation-artifacts/stories/) - 已实现 Story 规格。
-- [\_bmad-output/implementation-artifacts/code-reviews/](../_bmad-output/implementation-artifacts/code-reviews/) - CR 记录。
-- [\_bmad-output/implementation-artifacts/retrospectives/](../_bmad-output/implementation-artifacts/retrospectives/) - Epic 回顾。
+### I Want To Start Using CORD
 
-## Main Reading Paths
+1. [Getting Started](getting-started.md)
+2. [CLI Reference](cli-reference.md)
+3. [Configuration Reference](configuration.md)
 
-### 新人理解项目
+### I Want An AI IDE To Use CORD
 
-1. [project-overview.md](project-overview.md)
-2. [architecture.md](architecture.md)
-3. [source-tree-analysis.md](source-tree-analysis.md)
-4. [development-guide.md](development-guide.md)
+1. [Getting Started](getting-started.md)
+2. [MCP Tools Reference](mcp-tools-reference.md)
+3. [Configuration Reference](configuration.md#ide-configuration-templates)
 
-### 修改 CLI 行为
+### I Want To Contribute A Framework Adapter
 
-1. [architecture.md](architecture.md#cli)
-2. [component-inventory.md](component-inventory.md#cli-模块)
-3. [cli-reference.md](cli-reference.md)
-4. `tests/unit/cli/` 与 `tests/integration/cli/`
+1. [Contributing Guide](contributing.md)
+2. [Framework Adapter Guide](adapter-guide.md)
+3. [Development Guide](development-guide.md)
 
-### 修改 MCP 或 IDE 集成
+### I Want To Change CLI, MCP, Or Storage Behavior
 
-1. [architecture.md](architecture.md#mcp-server)
-2. [component-inventory.md](component-inventory.md#mcp-模块)
-3. [mcp-tools-reference.md](mcp-tools-reference.md)
-4. `tests/unit/mcp/` 与 `tests/integration/mcp/`
+1. [Architecture](architecture.md)
+2. [Component Inventory](component-inventory.md)
+3. Synchronize the corresponding user reference: CLI changes update [CLI Reference](cli-reference.md), MCP changes update [MCP Tools Reference](mcp-tools-reference.md), and configuration changes update [Configuration Reference](configuration.md).
 
-### 修改存储或查询行为
+## Maintainer Internal Materials
 
-1. [data-models.md](data-models.md)
-2. [architecture.md](architecture.md#数据架构)
-3. `src/repositories/`
-4. `src/services/query-service.ts`、`src/services/impact-service.ts`
+`_bmad-output/` stores process artifacts such as the PRD, architectural decisions, epics, stories, code reviews, and retrospectives. They are useful for maintainers tracing decisions, but they are not required for normal CORD usage.
 
-### 修改扫描或框架适配器
+- [AI agent primary rule file](../_bmad-output/project-context.md)
+- [PRD](../_bmad-output/planning-artifacts/prd.md)
+- [Architecture decision index](../_bmad-output/planning-artifacts/architecture/00-index.md)
+- [Epic planning index](../_bmad-output/planning-artifacts/epics/index.md)
+- [Sprint status](../_bmad-output/implementation-artifacts/sprint-status.yaml)
 
-1. [architecture.md](architecture.md#扫描架构)
-2. [component-inventory.md](component-inventory.md#scanner-模块)
-3. [adapter-guide.md](adapter-guide.md)
-4. `src/scanner/` 与 `src/adapters/framework/`
-
-## Getting Started
-
-安装和首次使用请从 [getting-started.md](getting-started.md) 开始。开发本仓库请从 [development-guide.md](development-guide.md) 开始。
-
-## Workflow State
-
-DP 扫描状态保存在 [project-scan-report.json](project-scan-report.json)。
+DP scan state is stored in [project-scan-report.json](project-scan-report.json).

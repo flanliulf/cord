@@ -1,29 +1,76 @@
-# 贡献指南
+# Contributing Guide
 
-本文说明 CORD 贡献者在提交框架适配器、文档和测试时应遵守的流程。框架适配器贡献的核心原则是：通过适配层扩展能力，不修改扫描、查询和影响分析核心模块。
+[English](contributing.md) | [简体中文](contributing.zh.md)
 
-## 开发前检查
+This guide explains how to contribute code, documentation, tests, and framework adapters to CORD. Before starting, identify the goal of your change: fixing an existing issue, improving documentation, extending CLI/MCP behavior, or adding a framework adapter.
 
-开始前请确认：
+The core rule for framework adapter contributions is: extend through the adapter layer, without modifying the core scanner, query service, or impact service.
 
-- 使用 Node.js 20 LTS 或更高版本。
-- 已安装依赖：`npm install`。
-- 新框架能力可以通过 `src/adapters/framework/<framework-name>/` 表达。
-- 不需要修改 `src/scanner/**`、`src/services/query-service.ts`、`src/services/impact-service.ts`。
+## Before You Start
 
-## 集成测试编写指南
+Confirm the following:
 
-框架适配器必须有集成测试证明它能在真实扫描路径中工作。优先放在 `tests/integration/cli/` 或 `tests/integration/`，并使用 `tests/fixtures/sample-projects/` 下的 fixture 项目。
+- You are using Node.js 20 LTS or later.
+- Dependencies are installed with `npm install`.
+- You have read the user-facing docs related to your change:
+  - CLI changes: read [CLI Reference](cli-reference.md).
+  - MCP Tool changes: read [MCP Tools Reference](mcp-tools-reference.md).
+  - Configuration changes: read [Configuration Reference](configuration.md).
+  - Framework adapter changes: read [Framework Adapter Guide](adapter-guide.md).
 
-集成测试至少覆盖：
+## Contribution Types
 
-- `resolveAdapter(config, projectRoot)` 能选择目标适配器。
-- 扫描后目标文档类型被识别。
-- 至少 1 条预设规则生成关系。
-- 重复扫描不会破坏已有图谱。
-- 测试不依赖开发者本机绝对路径。
+| Type              | Common changes                                          | Required documentation checks                                                                          |
+| ----------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Docs              | README, getting started, references, contribution guide | Links are valid; examples match actual CLI/MCP behavior.                                               |
+| CLI               | `src/cli/**`, CLI output, exit codes                    | [CLI Reference](cli-reference.md), tests, and JSON output examples.                                    |
+| MCP               | `src/mcp/**`, tool schema, structured output            | [MCP Tools Reference](mcp-tools-reference.md), schema names, and examples.                             |
+| Configuration     | `cord.config.*` parsing, defaults, IDE templates        | [Configuration Reference](configuration.md), getting-started initialization notes.                     |
+| Framework adapter | `src/adapters/framework/<framework-name>/`              | [Framework Adapter Guide](adapter-guide.md), integration tests, and core no-modification confirmation. |
 
-### 集成测试模板
+## Local Development Flow
+
+1. Install dependencies: `npm install`.
+2. Before editing, read the relevant docs and tests to confirm behavior ownership.
+3. Change code, tests, and docs in small steps. User-visible behavior changes must update user docs.
+4. Run validation commands that match the change scope.
+5. In the PR, describe the purpose, test results, and documentation synchronization.
+
+Common commands are listed in [Development Guide](development-guide.md).
+
+## Documentation Synchronization Rules
+
+User-visible behavior changes must update the corresponding docs:
+
+- New or changed CLI command, option, or exit code: update [CLI Reference](cli-reference.md).
+- New or changed MCP Tool, field, schema, or example: update [MCP Tools Reference](mcp-tools-reference.md).
+- Changed configuration field, default, scan boundary, or IDE template: update [Configuration Reference](configuration.md).
+- Changed first-run path: update [Getting Started](getting-started.md) and [README](../README.md).
+- Changed contribution flow or test requirement: update this guide and related development docs.
+
+Documentation examples should prefer copyable commands and project-relative paths. Avoid examples that depend on a developer's local absolute path.
+
+## Framework Adapter Contribution Boundary
+
+Before adding framework capability, confirm:
+
+- The new framework can be expressed through `src/adapters/framework/<framework-name>/`.
+- You do not need to modify `src/scanner/**`, `src/services/query-service.ts`, or `src/services/impact-service.ts`.
+- You can provide at least one fixture project and one verifiable preset relationship.
+
+## Integration Test Guide
+
+Framework adapters must include integration tests proving that they work in realistic scan paths. Prefer `tests/integration/cli/` or `tests/integration/`, using fixture projects under `tests/fixtures/sample-projects/`.
+
+Integration tests should cover at least:
+
+- `resolveAdapter(config, projectRoot)` selects the target adapter.
+- Target document types are recognized after scanning.
+- At least one preset rule creates a relationship.
+- Repeated scans do not break the existing graph.
+- Tests do not depend on developer-local absolute paths.
+
+### Integration Test Template
 
 ```ts
 import { cpSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
@@ -64,7 +111,9 @@ describe('example framework scan integration', () => {
       expect(result.documentsFound).toBeGreaterThan(0);
       expect(result.relationsDiscovered).toBeGreaterThanOrEqual(1);
       expect(repo.getAllDocuments().some((doc) => doc.docType === 'example-spec')).toBe(true);
-      expect(repo.getAllRelations().some((relation) => relation.source === 'framework_preset')).toBe(true);
+      expect(
+        repo.getAllRelations().some((relation) => relation.source === 'framework_preset'),
+      ).toBe(true);
 
       const repeatedResult = await service.scan({ projectRoot });
 
@@ -78,53 +127,102 @@ describe('example framework scan integration', () => {
 });
 ```
 
-模板中的 `example-project` 应替换为你的 fixture 名称，`example-spec` 应替换为你的文档类型名称。
+Replace `example-project` with your fixture name and `example-spec` with your document type name.
 
-## 验证命令
+## Validation Commands
 
-提交前至少运行：
+Before submitting, run the commands that match the change scope. Documentation changes should at least run format checks; code changes should at least run tests.
+
+General validation:
 
 ```bash
+npm run format:check
+npm run type-check
 npm run test
+```
+
+Framework adapter contributions must also confirm that core modules were not modified:
+
+```bash
 git diff -- src/scanner src/services/query-service.ts src/services/impact-service.ts
 ```
 
-第二条命令必须没有输出。若出现 diff，说明本次适配器贡献越过了扩展边界，应回到适配层重新设计。
+The second command must produce no output. If it does, the adapter contribution crossed the extension boundary and should be redesigned at the adapter layer.
 
-如果改动包含格式或类型层面的调整，也建议运行：
+For release or packaging changes, also run:
 
 ```bash
 npm run lint
-npm run type-check
+npm run build
+npm run smoke:bin
+npm run pack:check
 ```
 
-## PR 规范
+## PR Requirements
 
-PR 描述应包含：
+PR descriptions should include:
 
-- 变更目的：新增哪个框架、解决什么贡献者或用户问题。
-- 适配器名称：对应 `config.framework` 的值。
-- 文档类型清单：新增或调整的 `DocTypeDefinition`。
-- 预设规则清单：新增或调整的 `PresetRule`，包含关系类型和置信度。
-- 测试说明：列出运行过的命令和结果。
-- 核心零修改确认：说明 `src/scanner/**`、`src/services/query-service.ts`、`src/services/impact-service.ts` 无源码修改。
+- Purpose: what user, contributor, or maintainer problem the change solves.
+- Scope: CLI, MCP, configuration, documentation, framework adapter, or internal implementation.
+- Documentation synchronization: which user docs were updated or confirmed as not needed.
+- Test notes: commands run and results.
 
-建议提交粒度：
+Framework adapter PRs should also include:
+
+- Adapter name: the value used by `config.framework`.
+- Document type list: added or changed `DocTypeDefinition` values.
+- Preset rule list: added or changed `PresetRule` values, including relationship type and confidence.
+- Core no-modification confirmation: `src/scanner/**`, `src/services/query-service.ts`, and `src/services/impact-service.ts` were not modified.
+
+Suggested commit granularity:
 
 - `feat(adapter): add <framework> framework adapter`
 - `test(adapter): cover <framework> scan integration`
 - `docs(adapter): document <framework> usage notes`
+- `docs(readme): clarify public documentation entry points`
+- `fix(cli): reject invalid project paths before service init`
 
-## 审阅流程
+## Common Minimal PR Checklists
 
-维护者审阅时会按以下顺序检查：
+### Docs-Only PR
 
-1. 扩展边界：适配器是否只通过 `src/adapters/framework/**` 扩展能力。
-2. 激活链：注册顺序是否正确，`GenericFrameworkAdapter` 是否仍为最后兜底。
-3. 检测逻辑：`detectFramework()` 是否足够明确，避免误判普通项目。
-4. 数据声明：文档类型和预设规则是否稳定、可解释、可测试。
-5. 测试覆盖：是否有 fixture 和集成测试证明扫描结果。
-6. 回归风险：`npm run test` 是否通过，核心路径 diff 是否为空。
-7. 文档体验：贡献者是否能按 `docs/adapter-guide.md` 在 4 小时内完成最小可用适配模块。
+- Explain the reader problem solved by the documentation change.
+- Check all new or updated local links.
+- Run `npm run format:check`.
+- If README, Getting Started, Contributing, or reference docs changed, explain whether related entry points were synchronized.
 
-审阅可能要求补充 fixture、收紧检测信号、拆分过宽的文档类型，或降低不稳定预设规则的置信度。非阻塞建议可以作为后续 issue，但影响核心边界、测试可靠性或用户配置语义的问题必须在合并前解决。
+### CLI Bugfix PR
+
+- Describe the command, options, and expected exit code that trigger the bug.
+- Add or update CLI unit or integration tests.
+- Update affected command output, options, or exit codes in [CLI Reference](cli-reference.md).
+- Run `npm run type-check`, `npm run test`, and, when needed, `npm run lint`.
+
+### MCP Schema PR
+
+- Describe the added or changed tool, input/output fields, and compatibility impact.
+- Update tests related to `src/mcp/tools/schemas.ts`.
+- Update schema tables and call examples in [MCP Tools Reference](mcp-tools-reference.md).
+- Run `npm run type-check` and `npm run test`.
+
+## Review Flow
+
+Maintainers review in this order:
+
+1. User impact: the behavior change is clear, necessary, and compatible.
+2. Contract consistency: CLI/MCP/config/schema and docs are synchronized.
+3. Test coverage: success paths, error paths, and key boundaries are covered.
+4. Regression risk: validation commands pass and unrelated changes are avoided.
+5. Documentation experience: new users or contributors can complete the task from the docs.
+
+Framework adapter PRs are also reviewed for:
+
+1. Extension boundary: the adapter extends only through `src/adapters/framework/**`.
+2. Activation chain: registration order is correct and `GenericFrameworkAdapter` remains the final fallback.
+3. Detection logic: `detectFramework()` is specific enough to avoid false positives in ordinary projects.
+4. Data declarations: document types and preset rules are stable, explainable, and testable.
+5. Test coverage: fixture and integration tests prove scan results.
+6. Core path diff: `src/scanner/**`, `src/services/query-service.ts`, and `src/services/impact-service.ts` remain unchanged.
+7. Documentation experience: a contributor can follow `docs/adapter-guide.md` to finish a minimal adapter within 4 hours.
+
+Reviews may ask for more fixtures, narrower detection signals, smaller document type boundaries, or lower confidence for unstable preset rules. Non-blocking suggestions can become follow-up issues, but issues affecting core boundaries, test reliability, or user configuration semantics must be fixed before merge.

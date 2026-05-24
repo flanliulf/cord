@@ -1,15 +1,23 @@
 # CORD
 
+[English](README.md) | [简体中文](README.zh.md)
+
 [![npm version](https://img.shields.io/npm/v/cord.svg)](https://www.npmjs.com/package/cord)
 [![CI](https://github.com/fancyliu/cord/actions/workflows/ci.yml/badge.svg)](https://github.com/fancyliu/cord/actions/workflows/ci.yml)
 [![coverage](https://img.shields.io/badge/coverage-80%25%2B-brightgreen.svg)](./coverage/coverage-summary.json)
 [![GitHub stars](https://img.shields.io/github/stars/fancyliu/cord?style=social)](https://github.com/fancyliu/cord/stargazers)
 
-CORD 是面向 AI 辅助开发的文档关系图谱引擎，用确定性的关系扫描、查询与影响分析，帮助需求、架构、Epic、Story 和用户文档在持续演进中保持一致。
+CORD is a document relationship graph engine for AI-assisted development. It uses deterministic scanning, querying, and impact analysis to keep requirements, architecture, epics, stories, and user documentation aligned as they evolve.
 
-核心理念是：确定性优于推理性。CORD 不要求 AI 猜哪些文档可能受影响，而是先把文档关系写入本地图谱，再让 CLI 或 MCP Tool 基于同一套结构化契约回答问题。
+The core idea is: deterministic beats inferential. CORD does not ask AI to guess which documents might be affected. It first writes document relationships into a local graph, then lets the CLI or MCP Tools answer questions from the same structured contract.
 
-## 快速开始
+## Who It Is For
+
+- Teams maintaining layered documentation such as requirements, architecture, epics, stories, and user docs.
+- Developers who want AI IDEs to query upstream and downstream document context before and after edits.
+- Framework maintainers who want to add scanning rules and preset relationships for their own documentation framework.
+
+## Quick Start
 
 ```bash
 npm install -D cord
@@ -18,57 +26,72 @@ npx cord scan --rebuild --force
 npx cord impact docs/getting-started.md
 ```
 
-从安装到首次影响分析的完整说明见 [docs/getting-started.md](docs/getting-started.md)。
+Replace `docs/getting-started.md` with the Markdown document path that changed in your project.
 
-## 核心功能
+For the full first-run walkthrough, see [docs/getting-started.md](docs/getting-started.md).
 
-- 扫描 Markdown 文档并构建本地 SQLite 关系图谱。
-- 查询单文档的 1 到 3 跳关联关系，支持按关系类型和 deprecated 状态过滤。
-- 分析文档变更影响范围，返回建议动作、严重度、更新策略和置信度。
-- 导出完整关系图谱 JSON 快照。
-- 通过 MCP Server 为 AI IDE 暴露 7 个结构化 Tool。
-- 通过 MCP Tool 支持手动添加、删除和标记 deprecated 关系，便于修正文档图谱。
-- 支持框架适配器，当前内置 BMAD 和 Generic 适配器。
+## Basic Workflow
 
-## IDE 支持矩阵
+1. `cord init` creates project configuration, IDE MCP configuration, and the local data directory.
+2. `cord scan` scans Markdown documents and writes the graph to `.cord/cord.db`.
+3. `cord query` or MCP `query_relations` checks upstream and downstream relationships before edits.
+4. `cord impact` or MCP `analyze_impact` analyzes the synchronization scope after edits.
+5. When needed, MCP `add_relation`, `remove_relation`, and `deprecate_relation` correct the document graph.
 
-AI IDE 集成通过 MCP Tools 使用关系查询、影响分析和关系修正能力；CLI 主要覆盖初始化、扫描、查询、影响分析、导出和状态查看。
+## Features
 
-| IDE             | 初始化参数             | 生成内容                                                                   |
-| --------------- | ---------------------- | -------------------------------------------------------------------------- |
-| Claude Code     | `--ide claude-code`    | `.claude/settings.json`、规则文件、PostToolUse Hook、CORD Skills           |
-| Cursor          | `--ide cursor`         | `.cursor/mcp.json`、`.cursor/rules/cord-relations.mdc`                     |
-| VS Code Copilot | `--ide vscode-copilot` | `.vscode/mcp.json`、`.github/copilot-instructions.md`、`AGENTS.md` CORD 段 |
-| Codex CLI       | `--ide codex-cli`      | `AGENTS.md` CORD 段                                                        |
+- Scan Markdown documents and build a local SQLite relationship graph.
+- Query 1 to 3 hops of relationships for a document, with relation type and deprecated-status filters.
+- Analyze the impact scope of document changes, including suggested action, severity, update strategy, and confidence.
+- Export a complete relationship graph JSON snapshot.
+- Expose 7 structured MCP Tools for AI IDEs.
+- Manually add, remove, or deprecate relationships through MCP Tools to correct the document graph.
+- Support framework adapters. Built-in adapters currently include BMAD and Generic.
 
-未传 `--ide` 时，`cord init` 会尝试自动检测当前项目中的 IDE 配置；检测到多个候选时，交互式终端会提示选择，非交互式场景建议显式传入 `--ide`。
+## IDE Support Matrix
 
-## 文档
+AI IDE integrations use MCP Tools for relationship queries, impact analysis, and relationship correction. The CLI covers initialization, scanning, querying, impact analysis, export, and status checks.
 
-- [快速开始](docs/getting-started.md)
-- [CLI 参考](docs/cli-reference.md)
-- [MCP Tools 参考](docs/mcp-tools-reference.md)
-- [配置参考](docs/configuration.md)
-- [框架适配器开发指南](docs/adapter-guide.md)
-- [贡献指南](docs/contributing.md)
+| IDE             | Init option            | Generated files                                                                  |
+| --------------- | ---------------------- | -------------------------------------------------------------------------------- |
+| Claude Code     | `--ide claude-code`    | `.claude/settings.json`, rule file, PostToolUse Hook, CORD Skills                |
+| Cursor          | `--ide cursor`         | `.cursor/mcp.json`, `.cursor/rules/cord-relations.mdc`                           |
+| VS Code Copilot | `--ide vscode-copilot` | `.vscode/mcp.json`, `.github/copilot-instructions.md`, CORD block in `AGENTS.md` |
+| Codex CLI       | `--ide codex-cli`      | CORD block in `AGENTS.md`                                                        |
 
-## 开发者安装
+If `--ide` is omitted, `cord init` attempts to detect IDE configuration in the current project. When multiple candidates are detected, interactive terminals prompt for a choice. In non-interactive environments, pass `--ide` explicitly.
+
+## Documentation
+
+| Goal                                                                             | Document                                           |
+| -------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Install, initialize, and run first impact analysis                               | [Getting Started](docs/getting-started.md)         |
+| Look up CLI commands, options, and exit codes                                    | [CLI Reference](docs/cli-reference.md)             |
+| Let an AI IDE call CORD                                                          | [MCP Tools Reference](docs/mcp-tools-reference.md) |
+| Configure scan paths, IDE integration, framework adapters, and update strategies | [Configuration Reference](docs/configuration.md)   |
+| Contribute code, docs, or tests                                                  | [Contributing Guide](docs/contributing.md)         |
+| Add a framework adapter                                                          | [Framework Adapter Guide](docs/adapter-guide.md)   |
+| Browse all public docs                                                           | [Documentation Index](docs/index.md)               |
+
+## Developing This Repository
 
 ```bash
 npm install
 npm run build
-npm test
+npm run test
 ```
 
-源码仓库中的 CLI 入口位于 `dist/cli/index.js`，构建后可用下面的方式本地验证：
+After building, the source checkout CLI entry point is available at `dist/cli/index.js`:
 
 ```bash
 node dist/cli/index.js status
 ```
 
-## 贡献
+## Contributing
 
-贡献文档、框架适配器或测试前，请先阅读 [docs/contributing.md](docs/contributing.md)。框架适配器贡献者还应阅读 [docs/adapter-guide.md](docs/adapter-guide.md)。
+Before contributing docs, framework adapters, or tests, read [docs/contributing.md](docs/contributing.md). Framework adapter contributors should also read [docs/adapter-guide.md](docs/adapter-guide.md).
+
+If you are unsure where a change belongs, start from [docs/index.md](docs/index.md), then describe the user or contributor docs you synchronized in the PR.
 
 ## License
 

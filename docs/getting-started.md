@@ -1,161 +1,175 @@
-# 快速开始
+# Getting Started
 
-本指南帮助你在 5 分钟内完成 CORD 初始化、图谱扫描和首次影响分析。CORD 会在项目本地创建 `.cord/cord.db`，用于保存文档节点、关系边和扫描状态。
+[English](getting-started.md) | [简体中文](getting-started.zh.md)
 
-## 前置条件
+This guide helps you initialize CORD, scan your document graph, and run the first impact analysis in about 5 minutes. CORD creates `.cord/cord.db` in your project to store document nodes, relationship edges, and scan state.
 
-- Node.js 20 LTS 或更高版本。
-- 一个包含 Markdown 文档的项目。
-- 任选一种支持方式：CLI 直接使用，或通过 AI IDE 的 MCP 集成调用。
+After completing this guide, you will have:
 
-## 1. 安装
+- A `cord.config.yaml` or `cord.config.json` file.
+- A local graph database at `.cord/cord.db`.
+- A reproducible document impact analysis result.
+- If you choose an IDE, MCP configuration or instruction files that your AI IDE can use.
 
-在项目根目录安装 CORD：
+## Prerequisites
+
+- Node.js 20 LTS or later.
+- A project containing Markdown documents.
+- Either direct CLI usage or an AI IDE that can call CORD through MCP integration.
+
+## 1. Install
+
+Install CORD in your project root:
 
 ```bash
 npm install -D cord
 ```
 
-如果你正在使用本仓库源码体验，请先安装依赖并构建：
+If you are developing or validating from this CORD source checkout, install dependencies and build first:
 
 ```bash
 npm install
 npm run build
 ```
 
-源码构建后的命令示例可用 `node dist/cli/index.js` 代替 `npx cord`。
+After building from source, replace `npx cord` in examples with `node dist/cli/index.js`.
 
-## 2. 初始化项目
+## 2. Initialize The Project
 
-选择当前项目使用的 AI IDE：
+Choose the AI IDE used by the current project. This example targets VS Code Copilot:
 
 ```bash
 npx cord init --ide vscode-copilot
 ```
 
-常用 IDE 参数：
+Common IDE options:
 
-| IDE             | 参数                   |
+| IDE             | Option                 |
 | --------------- | ---------------------- |
 | Claude Code     | `--ide claude-code`    |
 | Cursor          | `--ide cursor`         |
 | VS Code Copilot | `--ide vscode-copilot` |
 | Codex CLI       | `--ide codex-cli`      |
 
-默认会生成 `cord.config.yaml` 和 `.cord/` 数据目录。若你偏好 JSON 配置：
+By default, CORD generates `cord.config.yaml` and a `.cord/` data directory. If you prefer JSON configuration:
 
 ```bash
 npx cord init --ide vscode-copilot --format json
 ```
 
-典型输出：
+If `--ide` is omitted, CORD attempts to detect IDE configuration in the current project. In non-interactive environments, pass `--ide` explicitly for stable initialization.
+
+Typical output:
 
 ```text
-✅ CORD 初始化完成
+✅ CORD initialized
 IDE: vscode-copilot
-框架: bmad
-配置文件: /path/to/project/cord.config.yaml
-数据目录: /path/to/project/.cord
-生成/更新文件:
+Framework: bmad
+Config file: /path/to/project/cord.config.yaml
+Data directory: /path/to/project/.cord
+Generated/updated files:
 - .github/copilot-instructions.md
 - .vscode/mcp.json
 - AGENTS.md
 ```
 
-## 3. 扫描文档图谱
+## 3. Scan The Document Graph
 
-首次使用建议执行一次完整重建：
+Scanning reads `scanPaths` and `excludePaths` from configuration, discovers Markdown documents, and writes them to the local graph.
+
+For the first run, perform a full rebuild:
 
 ```bash
 npx cord scan --rebuild --force
 ```
 
-典型输出：
+Typical output:
 
 ```text
-扫描完成
-文档数: 42
-关系数: 96
-耗时: 128ms
-警告: 0
+Scan complete
+Documents: 42
+Relations: 96
+Duration: 128ms
+Warnings: 0
 ```
 
-后续日常使用可以直接运行增量扫描：
+For daily use after the first scan, run an incremental scan:
 
 ```bash
 npx cord scan
 ```
 
-## 4. 首次影响分析
+## 4. Run First Impact Analysis
 
-当你修改了某个文档，运行：
+After changing a document, run impact analysis. This example uses `docs/getting-started.md`; replace it with the Markdown document path that changed in your project:
 
 ```bash
 npx cord impact docs/getting-started.md
 ```
 
-典型输出：
+Typical output:
 
 ```text
 docPath                      | relationType  | propagationType | suggestedAction       | updateStrategy | severity | confidence | hopDistance
 -----------------------------+---------------+-----------------+-----------------------+----------------+----------+------------+------------
-docs/cli-reference.md        | sync_required | sync_required   | 同步更新相关文档       | auto           | high     | 0.95       | 1
-docs/configuration.md        | references    | references      | 审阅是否需要同步       | suggest        | medium   | 0.72       | 1
-总数: 2
+docs/cli-reference.md        | sync_required | sync_required   | Sync related document | auto           | high     | 0.95       | 1
+docs/configuration.md        | references    | references      | Review for sync need  | suggest        | medium   | 0.72       | 1
+Total: 2
 ```
 
-如果你更适合把结果交给脚本或 AI IDE 处理，添加 `--json`：
+If you want to pass the result to a script or AI IDE, add `--json`:
 
 ```bash
 npx cord impact docs/getting-started.md --json
 ```
 
-## 5. 查询文档关系
+## 5. Query Document Relationships
 
-影响分析回答“我改了这个文档，哪些文档受影响”；关系查询回答“这个文档当前连到哪些文档”。
+Impact analysis answers "I changed this document; which documents are affected?" Relationship query answers "Which documents is this document currently connected to?"
 
 ```bash
 npx cord query docs/getting-started.md --depth 2
 ```
 
-常用过滤：
+Common filters:
 
 ```bash
 npx cord query docs/getting-started.md --type sync_required
 npx cord query docs/getting-started.md --include-deprecated
 ```
 
-如果需要修正自动扫描结果，可以在 AI IDE 中调用 MCP Tool 手动添加、删除或标记 deprecated 关系；具体 schema 和示例见 [MCP Tools 参考](mcp-tools-reference.md)。
+If you need to correct automatically scanned results, call MCP Tools from an AI IDE to manually add, remove, or deprecate relationships. See [MCP Tools Reference](mcp-tools-reference.md) for schemas and examples.
 
-## 6. 查看当前状态
+## 6. Check Current Status
 
 ```bash
 npx cord status
 ```
 
-典型输出：
+Typical output:
 
 ```text
-CORD 状态概览
-图谱健康
-文档数: 42
-关系总数: 96
-按类型分布: references=30, sync_required=18
-最后扫描: 2026-05-19T12:00:00.000Z
-迁移版本: 2
-过时关系: 0
-孤立节点: 3
-悬空关系: 0
-配置状态
-配置文件: /path/to/project/cord.config.yaml
+CORD status overview
+Graph health
+Documents: 42
+Relations: 96
+By type: references=30, sync_required=18
+Last scan: 2026-05-19T12:00:00.000Z
+Migration version: 2
+Stale relations: 0
+Orphaned nodes: 3
+Dangling edges: 0
+Configuration
+Config file: /path/to/project/cord.config.yaml
 framework: bmad
 scanPaths: _bmad-output, docs
 excludePaths: src/, node_modules/, .git/, dist/, _bmad/
 confidenceThreshold: 0.50
 ```
 
-## 下一步
+## Next Steps
 
-- 需要完整 CLI 参数时，阅读 [CLI 参考](cli-reference.md)。
-- 需要让 AI IDE 调用 CORD 时，阅读 [MCP Tools 参考](mcp-tools-reference.md)。
-- 需要调整扫描路径、框架适配或更新策略时，阅读 [配置参考](configuration.md)。
+- For complete CLI options, read [CLI Reference](cli-reference.md).
+- To let an AI IDE call CORD, read [MCP Tools Reference](mcp-tools-reference.md).
+- To adjust scan paths, framework adapters, or update strategies, read [Configuration Reference](configuration.md).
+- To contribute code, docs, or tests, read [Contributing Guide](contributing.md).

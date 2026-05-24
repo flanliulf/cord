@@ -1,57 +1,59 @@
-# MCP Tools 参考
+# MCP Tools Reference
 
-CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参数字段使用 camelCase。所有 inputSchema 和 outputSchema 都在 `src/mcp/tools/schemas.ts` 中以命名 Zod schema 定义，并导出对应 JSON Schema；核心 Tool 的输出语义与 CLI `--json` / Service DTO 保持一致。
+[English](mcp-tools-reference.md) | [简体中文](mcp-tools-reference.zh.md)
 
-## 工具总览
+CORD MCP Server exposes 7 tools over stdio. Tool names use snake_case, and argument fields use camelCase. All `inputSchema` and `outputSchema` definitions are named Zod schemas in `src/mcp/tools/schemas.ts` and are exported as JSON Schema. Core tool output semantics stay aligned with CLI `--json` output and Service DTOs.
 
-| Tool                 | inputSchema              | outputSchema              | 读写属性 | 典型用途                                |
-| -------------------- | ------------------------ | ------------------------- | -------- | --------------------------------------- |
-| `analyze_impact`     | `AnalyzeImpactInput`     | `AnalyzeImpactResult`     | 只读     | 文档变更后判断影响范围。                |
-| `query_relations`    | `QueryRelationsInput`    | `QueryRelationsResult`    | 只读     | 编辑前查看上下游关系。                  |
-| `init_graph`         | `InitGraphInput`         | `InitGraphResult`         | 写入     | 初始化或重建本地图谱。                  |
-| `sync_docs`          | `SyncDocsInput`          | `SyncDocsResult`          | 只读     | 基于单文档变更生成同步建议。            |
-| `add_relation`       | `AddRelationInput`       | `AddRelationResult`       | 写入     | 手动添加一条文档关系。                  |
-| `remove_relation`    | `RemoveRelationInput`    | `RemoveRelationResult`    | 写入     | 按 `relationId` 物理删除关系。          |
-| `deprecate_relation` | `DeprecateRelationInput` | `DeprecateRelationResult` | 写入     | 按 `relationId` 标记关系为 deprecated。 |
+## Tool Overview
 
-关系类型枚举：`sync_required`、`context_for`、`lifecycle_bound`、`contains`、`must_consistent`、`sync_suggested`、`derived_from`、`deprecated`、`references`。
+| Tool                 | inputSchema              | outputSchema              | Access | Typical use                                                         |
+| -------------------- | ------------------------ | ------------------------- | ------ | ------------------------------------------------------------------- |
+| `analyze_impact`     | `AnalyzeImpactInput`     | `AnalyzeImpactResult`     | Read   | Determine affected documents after a change.                        |
+| `query_relations`    | `QueryRelationsInput`    | `QueryRelationsResult`    | Read   | Inspect upstream and downstream relationships before editing.       |
+| `init_graph`         | `InitGraphInput`         | `InitGraphResult`         | Write  | Initialize or rebuild the local graph.                              |
+| `sync_docs`          | `SyncDocsInput`          | `SyncDocsResult`          | Read   | Generate synchronization suggestions from a single document change. |
+| `add_relation`       | `AddRelationInput`       | `AddRelationResult`       | Write  | Manually add one document relationship.                             |
+| `remove_relation`    | `RemoveRelationInput`    | `RemoveRelationResult`    | Write  | Physically delete a relationship by `relationId`.                   |
+| `deprecate_relation` | `DeprecateRelationInput` | `DeprecateRelationResult` | Write  | Mark a relationship as deprecated by `relationId`.                  |
 
-关系来源枚举：`auto_scan`、`manual`、`framework_preset`。
+Relationship type values: `sync_required`, `context_for`, `lifecycle_bound`, `contains`, `must_consistent`, `sync_suggested`, `derived_from`, `deprecated`, `references`.
 
-更新策略枚举：`auto`、`suggest`、`log_only`。
+Relationship source values: `auto_scan`, `manual`, `framework_preset`.
+
+Update strategy values: `auto`, `suggest`, `log_only`.
 
 ## `analyze_impact`
 
-分析指定文档变更会影响哪些文档。
+Analyze which documents are affected by a document change.
 
-### 使用场景
+### When To Use
 
-- AI IDE 保存需求、架构、Epic、Story 或用户文档后，调用此 Tool 获取影响范围。
-- 用户询问“我改了这个文件，还要同步哪些文件？”时调用。
+- An AI IDE saves a requirement, architecture, epic, story, or user document and needs the impact scope.
+- A user asks, "I changed this file. Which files should be synchronized?"
 
 ### `AnalyzeImpactInput`
 
-| 字段                  | 类型     | 必填 | 说明                                                |
-| --------------------- | -------- | ---- | --------------------------------------------------- |
-| `docPath`             | `string` | 是   | 待分析文档路径。必须位于项目根目录内。              |
-| `confidenceThreshold` | `number` | 否   | 最低置信度阈值，范围 0 到 1。未传时使用配置默认值。 |
+| Field                 | Type     | Required | Description                                                                        |
+| --------------------- | -------- | -------- | ---------------------------------------------------------------------------------- |
+| `docPath`             | `string` | Yes      | Document path to analyze. It must be inside the project root.                      |
+| `confidenceThreshold` | `number` | No       | Minimum confidence threshold from 0 to 1. If omitted, uses the configured default. |
 
 ### `AnalyzeImpactResult`
 
-| 字段                             | 类型                                                | 说明                  |
-| -------------------------------- | --------------------------------------------------- | --------------------- |
-| `impactedDocs`                   | `array`                                             | 受影响文档列表。      |
-| `impactedDocs[].docPath`         | `string`                                            | 受影响文档路径。      |
-| `impactedDocs[].relationType`    | `RelationType`                                      | 命中的关系类型。      |
-| `impactedDocs[].propagationType` | `RelationType`                                      | 传播类型。            |
-| `impactedDocs[].suggestedAction` | `string`                                            | 面向人的建议动作。    |
-| `impactedDocs[].updateStrategy`  | `UpdateStrategy`                                    | 面向机器的更新策略。  |
-| `impactedDocs[].severity`        | `critical \| high \| medium \| low \| info \| none` | 影响严重度。          |
-| `impactedDocs[].confidence`      | `number`                                            | 置信度。              |
-| `impactedDocs[].hopDistance`     | `number`                                            | 命中跳数，从 1 开始。 |
-| `totalCount`                     | `number`                                            | 命中总数。            |
+| Field                            | Type                                                | Description                     |
+| -------------------------------- | --------------------------------------------------- | ------------------------------- |
+| `impactedDocs`                   | `array`                                             | Affected document list.         |
+| `impactedDocs[].docPath`         | `string`                                            | Affected document path.         |
+| `impactedDocs[].relationType`    | `RelationType`                                      | Matched relationship type.      |
+| `impactedDocs[].propagationType` | `RelationType`                                      | Propagation type.               |
+| `impactedDocs[].suggestedAction` | `string`                                            | Human-facing suggested action.  |
+| `impactedDocs[].updateStrategy`  | `UpdateStrategy`                                    | Machine-facing update strategy. |
+| `impactedDocs[].severity`        | `critical \| high \| medium \| low \| info \| none` | Impact severity.                |
+| `impactedDocs[].confidence`      | `number`                                            | Confidence score.               |
+| `impactedDocs[].hopDistance`     | `number`                                            | Hit distance, starting at 1.    |
+| `totalCount`                     | `number`                                            | Total hits.                     |
 
-### 调用示例
+### Call Example
 
 ```json
 {
@@ -63,7 +65,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-返回示例：
+Response example:
 
 ```json
 {
@@ -72,7 +74,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
       "docPath": "docs/cli-reference.md",
       "relationType": "sync_required",
       "propagationType": "sync_required",
-      "suggestedAction": "同步更新相关文档",
+      "suggestedAction": "Sync related document",
       "updateStrategy": "auto",
       "severity": "high",
       "confidence": 0.93,
@@ -85,37 +87,37 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 
 ## `query_relations`
 
-查询指定文档的关联关系，支持 1 到 3 跳。
+Query relationships for a document, with 1 to 3 hops of traversal.
 
-### 使用场景
+### When To Use
 
-- 编辑文档前，先查看它的上下游文档。
-- 需要找到可传给 `remove_relation` 或 `deprecate_relation` 的关系句柄时调用。
+- Before editing a document, inspect its upstream and downstream context.
+- Find the relationship handle that can be passed to `remove_relation` or `deprecate_relation`.
 
 ### `QueryRelationsInput`
 
-| 字段                | 类型           | 必填 | 说明                                     |
-| ------------------- | -------------- | ---- | ---------------------------------------- |
-| `docPath`           | `string`       | 是   | 查询文档路径。必须位于项目根目录内。     |
-| `type`              | `RelationType` | 否   | 按关系类型过滤。                         |
-| `includeDeprecated` | `boolean`      | 否   | 是否包含 deprecated 关系。默认 `false`。 |
-| `depth`             | `number`       | 否   | 遍历深度，范围 1 到 3。默认 `1`。        |
+| Field               | Type           | Required | Description                                                    |
+| ------------------- | -------------- | -------- | -------------------------------------------------------------- |
+| `docPath`           | `string`       | Yes      | Document path to query. It must be inside the project root.    |
+| `type`              | `RelationType` | No       | Filter by relationship type.                                   |
+| `includeDeprecated` | `boolean`      | No       | Whether to include deprecated relationships. Default: `false`. |
+| `depth`             | `number`       | No       | Traversal depth from 1 to 3. Default: `1`.                     |
 
 ### `QueryRelationsResult`
 
-| 字段                       | 类型                                      | 说明                                                                 |
-| -------------------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| `relations`                | `array`                                   | 关系列表。                                                           |
-| `relations[].relationId`   | `string`                                  | 关系 ID。它是 `remove_relation` 和 `deprecate_relation` 的输入句柄。 |
-| `relations[].targetPath`   | `string`                                  | 目标文档路径。                                                       |
-| `relations[].relationType` | `RelationType`                            | 关系类型。                                                           |
-| `relations[].confidence`   | `number`                                  | 置信度。                                                             |
-| `relations[].source`       | `auto_scan \| manual \| framework_preset` | 关系来源。                                                           |
-| `relations[].status`       | `active \| deprecated`                    | 关系状态。                                                           |
-| `relations[].hopDistance`  | `number`                                  | 命中跳数，从 1 开始。                                                |
-| `totalCount`               | `number`                                  | 命中总数。                                                           |
+| Field                      | Type                                      | Description                                                                               |
+| -------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `relations`                | `array`                                   | Relationship list.                                                                        |
+| `relations[].relationId`   | `string`                                  | Relationship ID. This is the input handle for `remove_relation` and `deprecate_relation`. |
+| `relations[].targetPath`   | `string`                                  | Target document path.                                                                     |
+| `relations[].relationType` | `RelationType`                            | Relationship type.                                                                        |
+| `relations[].confidence`   | `number`                                  | Confidence score.                                                                         |
+| `relations[].source`       | `auto_scan \| manual \| framework_preset` | Relationship source.                                                                      |
+| `relations[].status`       | `active \| deprecated`                    | Relationship status.                                                                      |
+| `relations[].hopDistance`  | `number`                                  | Hit distance, starting at 1.                                                              |
+| `totalCount`               | `number`                                  | Total hits.                                                                               |
 
-### 调用示例
+### Call Example
 
 ```json
 {
@@ -129,7 +131,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-返回示例：
+Response example:
 
 ```json
 {
@@ -150,30 +152,30 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 
 ## `init_graph`
 
-初始化或重建当前项目的文档关系图谱。
+Initialize or rebuild the current project's document relationship graph.
 
-### 使用场景
+### When To Use
 
-- `.cord/cord.db` 不存在，其他 Tool 无法查询图谱时调用。
-- 用户要求 AI IDE 重新扫描所有文档时调用。
+- `.cord/cord.db` does not exist, so other tools cannot query the graph.
+- The user asks the AI IDE to rescan all documents.
 
 ### `InitGraphInput`
 
-| 字段      | 类型      | 必填 | 说明                                                                                 |
-| --------- | --------- | ---- | ------------------------------------------------------------------------------------ |
-| `rebuild` | `boolean` | 否   | 是否完全重建图谱。默认 `false`。                                                     |
-| `force`   | `boolean` | 否   | `rebuild=true` 时是否跳过 manual 关系确认。默认 `false`。`force=true` 不能单独使用。 |
+| Field     | Type      | Required | Description                                                                                                                 |
+| --------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `rebuild` | `boolean` | No       | Whether to fully rebuild the graph. Default: `false`.                                                                       |
+| `force`   | `boolean` | No       | When `rebuild=true`, whether to skip manual relationship confirmation. Default: `false`. `force=true` cannot be used alone. |
 
 ### `InitGraphResult`
 
-| 字段                  | 类型       | 说明                 |
-| --------------------- | ---------- | -------------------- |
-| `documentsFound`      | `number`   | 扫描到的文档数。     |
-| `relationsDiscovered` | `number`   | 发现或写入的关系数。 |
-| `warnings`            | `string[]` | 扫描警告列表。       |
-| `durationMs`          | `number`   | 扫描耗时，单位毫秒。 |
+| Field                 | Type       | Description                                    |
+| --------------------- | ---------- | ---------------------------------------------- |
+| `documentsFound`      | `number`   | Number of documents found.                     |
+| `relationsDiscovered` | `number`   | Number of relationships discovered or written. |
+| `warnings`            | `string[]` | Scan warnings.                                 |
+| `durationMs`          | `number`   | Scan duration in milliseconds.                 |
 
-### 调用示例
+### Call Example
 
 ```json
 {
@@ -185,7 +187,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-返回示例：
+Response example:
 
 ```json
 {
@@ -198,35 +200,35 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 
 ## `sync_docs`
 
-基于单个已变更文档提供只读同步建议，不执行任何文档写入。
+Provide read-only synchronization suggestions for a single changed document. It does not write any document content.
 
-### 使用场景
+### When To Use
 
-- `analyze_impact` 发现相关文档可能漂移后，AI IDE 需要得到面向执行的建议动作。
-- Hook 或 Skill 在保存某个文档后，需要知道下一步应更新、审阅还是仅记录。
+- After `analyze_impact` finds possibly drifting related documents, an AI IDE needs execution-oriented suggestions.
+- A hook or skill saved a document and needs to know whether to update, review, or only log related documents.
 
-### 单文档输入边界
+### Single-Document Input Boundary
 
-`sync_docs` 只接收一个 `filePath`。如果一次变更涉及多个文档，MCP Host 或 AI IDE 应按文件逐个调用 `sync_docs`，而不是把多个文件塞进一次调用。
+`sync_docs` accepts exactly one `filePath`. If one change touches multiple documents, the MCP host or AI IDE should call `sync_docs` once per file instead of passing multiple files in a single call.
 
 ### `SyncDocsInput`
 
-| 字段       | 类型     | 必填 | 说明                                         |
-| ---------- | -------- | ---- | -------------------------------------------- |
-| `filePath` | `string` | 是   | 已变更的单个文档路径。必须位于项目根目录内。 |
+| Field      | Type     | Required | Description                                                       |
+| ---------- | -------- | -------- | ----------------------------------------------------------------- |
+| `filePath` | `string` | Yes      | Changed single document path. It must be inside the project root. |
 
 ### `SyncDocsResult`
 
-| 字段                           | 类型                           | 说明                                             |
-| ------------------------------ | ------------------------------ | ------------------------------------------------ |
-| `suggestions`                  | `array`                        | 同步建议列表。                                   |
-| `suggestions[].targetPath`     | `string`                       | 建议处理的目标文档。                             |
-| `suggestions[].action`         | `update \| review \| log_only` | 从 `updateStrategy` 推导出的动作。               |
-| `suggestions[].updateStrategy` | `UpdateStrategy`               | 原始更新策略。                                   |
-| `suggestions[].reason`         | `string`                       | 建议原因，直接复用影响分析的 `suggestedAction`。 |
-| `affectedCount`                | `number`                       | 建议数量。                                       |
+| Field                          | Type                           | Description                                                                |
+| ------------------------------ | ------------------------------ | -------------------------------------------------------------------------- |
+| `suggestions`                  | `array`                        | Synchronization suggestions.                                               |
+| `suggestions[].targetPath`     | `string`                       | Target document to handle.                                                 |
+| `suggestions[].action`         | `update \| review \| log_only` | Action derived from `updateStrategy`.                                      |
+| `suggestions[].updateStrategy` | `UpdateStrategy`               | Original update strategy.                                                  |
+| `suggestions[].reason`         | `string`                       | Suggestion reason, directly reused from impact analysis `suggestedAction`. |
+| `affectedCount`                | `number`                       | Number of suggestions.                                                     |
 
-### 调用示例
+### Call Example
 
 ```json
 {
@@ -237,7 +239,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-返回示例：
+Response example:
 
 ```json
 {
@@ -246,7 +248,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
       "targetPath": "docs/cli-reference.md",
       "action": "review",
       "updateStrategy": "suggest",
-      "reason": "审阅是否需要同步"
+      "reason": "Review for sync need"
     }
   ],
   "affectedCount": 1
@@ -255,33 +257,33 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 
 ## `add_relation`
 
-添加一条手动文档关系。
+Add one manual document relationship.
 
-### 使用场景
+### When To Use
 
-- 用户发现自动扫描漏掉一条确定关系，让 AI IDE 手动补图谱。
-- 新文档刚创建，还没有被规则识别，但已经能确认它和某个文档存在关系。
+- A user finds a relationship that automatic scanning missed and asks the AI IDE to add it.
+- A new document has just been created and is not recognized by rules yet, but its relationship to another document is already known.
 
 ### `AddRelationInput`
 
-| 字段           | 类型           | 必填 | 说明                                 |
-| -------------- | -------------- | ---- | ------------------------------------ |
-| `sourcePath`   | `string`       | 是   | 源文档路径。必须位于项目根目录内。   |
-| `targetPath`   | `string`       | 是   | 目标文档路径。必须位于项目根目录内。 |
-| `relationType` | `RelationType` | 是   | 关系类型。                           |
+| Field          | Type           | Required | Description                                               |
+| -------------- | -------------- | -------- | --------------------------------------------------------- |
+| `sourcePath`   | `string`       | Yes      | Source document path. It must be inside the project root. |
+| `targetPath`   | `string`       | Yes      | Target document path. It must be inside the project root. |
+| `relationType` | `RelationType` | Yes      | Relationship type.                                        |
 
 ### `AddRelationResult`
 
-| 字段           | 类型           | 说明             |
-| -------------- | -------------- | ---------------- |
-| `relationId`   | `string`       | 新建关系 ID。    |
-| `sourcePath`   | `string`       | 源文档路径。     |
-| `targetPath`   | `string`       | 目标文档路径。   |
-| `relationType` | `RelationType` | 关系类型。       |
-| `source`       | `manual`       | 固定为手动来源。 |
-| `status`       | `active`       | 固定为活跃状态。 |
+| Field          | Type           | Description           |
+| -------------- | -------------- | --------------------- |
+| `relationId`   | `string`       | New relationship ID.  |
+| `sourcePath`   | `string`       | Source document path. |
+| `targetPath`   | `string`       | Target document path. |
+| `relationType` | `RelationType` | Relationship type.    |
+| `source`       | `manual`       | Fixed manual source.  |
+| `status`       | `active`       | Fixed active status.  |
 
-### 调用示例
+### Call Example
 
 ```json
 {
@@ -294,7 +296,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-返回示例：
+Response example:
 
 ```json
 {
@@ -309,27 +311,27 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 
 ## `remove_relation`
 
-按 `relationId` 物理删除一条关系。
+Physically delete a relationship by `relationId`.
 
-### 使用场景
+### When To Use
 
-- 用户确认某条关系是错误关系，且不需要保留历史状态。
-- AI IDE 先调用 `query_relations` 获取 `relationId`，再调用此 Tool 删除。
+- The user confirms a relationship is incorrect and does not need historical state.
+- The AI IDE calls `query_relations` to get `relationId`, then calls this tool to delete it.
 
 ### `RemoveRelationInput`
 
-| 字段         | 类型     | 必填 | 说明                                           |
-| ------------ | -------- | ---- | ---------------------------------------------- |
-| `relationId` | `string` | 是   | 要移除关系的 ID，来自 `query_relations` 输出。 |
+| Field        | Type     | Required | Description                                               |
+| ------------ | -------- | -------- | --------------------------------------------------------- |
+| `relationId` | `string` | Yes      | Relationship ID to remove, from `query_relations` output. |
 
 ### `RemoveRelationResult`
 
-| 字段         | 类型     | 说明                  |
-| ------------ | -------- | --------------------- |
-| `success`    | `true`   | 删除成功标记。        |
-| `relationId` | `string` | 已物理删除的关系 ID。 |
+| Field        | Type     | Description                         |
+| ------------ | -------- | ----------------------------------- |
+| `success`    | `true`   | Deletion success marker.            |
+| `relationId` | `string` | Physically deleted relationship ID. |
 
-### 调用示例
+### Call Example
 
 ```json
 {
@@ -340,7 +342,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-返回示例：
+Response example:
 
 ```json
 {
@@ -351,28 +353,28 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 
 ## `deprecate_relation`
 
-按 `relationId` 将一条关系标记为 deprecated。
+Mark a relationship as deprecated by `relationId`.
 
-### 使用场景
+### When To Use
 
-- 用户认为某条关系已经不再有效，但希望保留历史痕迹。
-- AI IDE 需要让普通查询默认不再返回该关系，同时允许 `includeDeprecated` 场景追溯。
+- The user believes a relationship is no longer valid but wants to preserve history.
+- The AI IDE needs normal queries to hide this relationship by default while still allowing `includeDeprecated` tracing.
 
 ### `DeprecateRelationInput`
 
-| 字段         | 类型     | 必填 | 说明                                                         |
-| ------------ | -------- | ---- | ------------------------------------------------------------ |
-| `relationId` | `string` | 是   | 要标记为 deprecated 的关系 ID，来自 `query_relations` 输出。 |
+| Field        | Type     | Required | Description                                                  |
+| ------------ | -------- | -------- | ------------------------------------------------------------ |
+| `relationId` | `string` | Yes      | Relationship ID to deprecate, from `query_relations` output. |
 
 ### `DeprecateRelationResult`
 
-| 字段           | 类型           | 说明                   |
-| -------------- | -------------- | ---------------------- |
-| `relationId`   | `string`       | 被标记的关系 ID。      |
-| `status`       | `deprecated`   | 固定为 deprecated。    |
-| `relationType` | `RelationType` | 原始关系类型保持不变。 |
+| Field          | Type           | Description                            |
+| -------------- | -------------- | -------------------------------------- |
+| `relationId`   | `string`       | Deprecated relationship ID.            |
+| `status`       | `deprecated`   | Fixed deprecated status.               |
+| `relationType` | `RelationType` | Original relationship type, unchanged. |
 
-### 调用示例
+### Call Example
 
 ```json
 {
@@ -383,7 +385,7 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-返回示例：
+Response example:
 
 ```json
 {
@@ -393,6 +395,6 @@ CORD MCP Server 通过 stdio 暴露 7 个 Tool。Tool 名使用 snake_case，参
 }
 ```
 
-## 路径与安全边界
+## Paths And Safety Boundaries
 
-所有路径型输入都会归一化为 project-relative POSIX 路径。空路径、项目根外路径、`..` 和 `../...` 会被拒绝。MCP Server 的 stdout 只用于 JSON-RPC 通信，日志和诊断输出走 stderr。
+All path inputs are normalized to project-relative POSIX paths. Empty paths, paths outside the project root, `..`, and `../...` are rejected. MCP Server stdout is reserved for JSON-RPC communication; logs and diagnostics go to stderr.
