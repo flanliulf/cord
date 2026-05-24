@@ -42,7 +42,7 @@
 
 | 维度 | 规则 | 示例 |
 |------|------|------|
-| Tool 名 | snake_case（意图驱动） | `analyze_impact`、`query_relations`、`sync_docs`、`init_graph` |
+| Tool 名 | snake_case（意图驱动） | `init_graph`、`query_relations`、`analyze_impact`、`sync_docs`、`add_relation`、`remove_relation`、`deprecate_relation` |
 | 参数名 | camelCase | `docPath`、`relationType`、`maxDepth` |
 
 ## Structure Patterns
@@ -504,7 +504,15 @@ repository.transaction(() => {
 - `analyze_impact` 必须保留 `severity` 与 `hopDistance`，不得退化为只剩建议文本
 - `init_graph` 必须直接镜像 `ScanResult` 字段名，包含 `durationMs`；禁止另起 `duration` 等别名
 - `sync_docs.reason` 直接复用 `AnalyzeImpactResult.suggestedAction`，`action` 仅由 `updateStrategy` 推导，避免平行定义第二套建议语义
-- 相关测试至少覆盖：MCP output 与 CLI JSON 的字段同构检查、schema 冻结检查、以及新增 Tool 时已有 4 个 Tool schema 不变
+- `add_relation` / `remove_relation` / `deprecate_relation` 必须镜像 `RelationService` 关系管理语义，保留稳定 relation id、relationType 与 status 输出
+- 相关测试至少覆盖：MCP output 与 CLI JSON 的字段同构检查、schema 冻结检查、以及新增 Tool 时既有 Tool schema 不变
+
+**P49. IDE hooks / skills 生成物必须镜像可执行 CLI/MCP 契约（CR-IDE-01）：**
+
+- IDE adapter / InitService 生成 hooks、skills、MCP 配置等本地文件时，生成内容必须来自当前可执行 CLI/MCP surface 与共享 schema；禁止维护一套与 `src/mcp/tools/schemas.ts`、CLI JSON DTO 脱节的静态说明
+- Claude Code 初始化需要同时生成 MCP 配置、post-edit hook 与 `cord-impact-analysis` / `cord-init-graph` / `cord-query-relations` / `cord-sync-docs` skills
+- hooks/skills 文案中的命令、字段、schema 引用必须与实际 MCP/CLI 契约保持一致
+- 回归测试必须覆盖生成文件列表、关键 schema 引用和 hook 可执行路径
 
 ## CLI 入口规则（来源：Story 1-2、2-5 CR 历史）
 

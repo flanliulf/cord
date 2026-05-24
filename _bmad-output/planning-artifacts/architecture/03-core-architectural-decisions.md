@@ -291,15 +291,27 @@ src/
 ## D13. MCP Tool 的共享 I/O 契约以 CLI JSON DTO 为最终真源
 
 - **决策：** 对同一业务能力同时暴露 CLI `--json` 与 MCP Tool 时，`src/mcp/tools/schemas.ts` 中的命名 Zod input/output schema 必须直接镜像现有 CLI JSON / Service DTO；MCP 层不得自行裁剪字段、改名或额外发明平行 DTO。
-- **理由：** Epic 5 的 NFR13 要求 CLI 与 MCP 对相同输入返回语义一致的输出。如果把 MCP Tool 当作“更轻量的包装”另起字段子集，会让 `query_relations` 的 `depth` / `hopDistance`、`analyze_impact` 的 `severity` / `hopDistance`、`init_graph` 的 `durationMs` 等既有契约再次漂移，并把 `sync_docs` 的建议语义拆成第二套不稳定映射。
-- **影响范围：** `src/mcp/tools/schemas.ts`、4 个核心 MCP Tools、CLI JSON 契约测试、后续 Story 5.2 新增 Tool 的 schema 冻结策略
+- **理由：** Epic 5 的 NFR13 要求 CLI 与 MCP 对相同输入返回语义一致的输出。如果把 MCP Tool 当作“更轻量的包装”另起字段子集，会让 `query_relations` 的 `depth` / `hopDistance`、`analyze_impact` 的 `severity` / `hopDistance`、`init_graph` 的 `durationMs` 等既有契约再次漂移，并把 `sync_docs` 的建议语义拆成第二套不稳定映射；Story 5.2 新增的关系管理 Tools 同样必须复用稳定 Service/DTO 契约。
+- **影响范围：** `src/mcp/tools/schemas.ts`、7 个 MCP Tools（`init_graph`、`query_relations`、`analyze_impact`、`sync_docs`、`add_relation`、`remove_relation`、`deprecate_relation`）、CLI JSON 契约测试、schema 冻结策略
 - **实现要点：**
   - `query_relations` 继续复用 `depth` 输入，并保留 `relationId`、`hopDistance` 输出
   - `analyze_impact` 保留 `severity`、`hopDistance`，不退化为纯文本建议列表
   - `init_graph` 直接镜像 `ScanResult`，输出字段名固定为 `durationMs`
   - `sync_docs.reason` 直接取 `AnalyzeImpactResult.suggestedAction`，`action` 仅由 `updateStrategy` 推导
-  - schema 回归测试必须冻结已有 4 个 Tool 的 input/output JSON Schema，避免 Story 5.2 继续扩展时破坏既有合同
+  - `add_relation` / `remove_relation` / `deprecate_relation` 直接镜像 `RelationService` 关系管理语义，保留稳定 relation id、relationType 与 status 输出
+  - schema 回归测试必须冻结既有 Tool 的 input/output JSON Schema，避免后续继续扩展时破坏既有合同
 - **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 `CR-MCP-01` 以及 `04-implementation-patterns-consistency-rules.md` 的 `P44` 互为镜像（Rule Document Registry 同步已完成）
+
+## D16. IDE 初始化生成的 hooks 与 skills 必须镜像可执行契约
+
+- **决策：** IDE adapter / InitService 生成 hooks、skills、MCP 配置等本地文件时，生成内容必须来自当前可执行 CLI/MCP surface 与共享 schema；不得维护一套与 `src/mcp/tools/schemas.ts`、CLI JSON DTO 脱节的静态说明。
+- **理由：** Epic 5.5 已把 Claude Code hooks 与 4 个 schema-linked skills 纳入初始化交付面。如果生成物和可执行工具漂移，用户会在 IDE 内看到过期命令、字段或建议语义，破坏 CORD 的零侵入初始化体验。
+- **影响范围：** `src/adapters/ide/*`、`src/adapters/ide/skills-generator.ts`、`src/services/init-service.ts`、Epic 5/6 flow 测试、用户文档。
+- **实现要点：**
+  - Claude Code 初始化需要同时生成 MCP 配置、post-edit hook 与 `cord-impact-analysis` / `cord-init-graph` / `cord-query-relations` / `cord-sync-docs` skills
+  - hooks/skills 文案中的命令、字段、schema 引用必须与实际 MCP/CLI 契约保持一致
+  - 回归测试必须覆盖生成文件列表、关键 schema 引用和 hook 可执行路径
+- **镜像同步：** 此决策与 `_bmad-output/project-context.md` 的 IDE/hook/skills 规则以及 `04-implementation-patterns-consistency-rules.md` 的 `P49` 互为镜像（Rule Document Registry 同步已完成）
 
 ## D14. JSON 快照导出必须稳定可审阅、原子写入，并同时约束词法与物理输出边界
 

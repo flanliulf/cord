@@ -1,10 +1,10 @@
 ---
 project_name: 'CORD'
 user_name: 'Fancyliu'
-date: '2026-04-09'
+date: '2026-05-24'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
 status: 'complete'
-rule_count: 62
+rule_count: 150
 optimized_for_llm: true
 ---
 
@@ -34,33 +34,36 @@ _此文件包含 AI Agent 在本项目中编写代码时必须遵守的关键规
 
 | 技术 | 用途 | 版本约束 |
 |------|------|---------|
-| Node.js | 运行时 | ≥ 20 LTS |
-| TypeScript | 开发语言 | 严格模式, ESNext target, NodeNext 模块解析 |
+| Node.js | 运行时 | `>=20`；tsup target 为 `node20` |
+| TypeScript | 开发语言 | `^5.8.3`；严格模式, ESNext target, NodeNext 模块解析 |
 | ESM | 模块系统 | `"type": "module"`, 所有 import 必须带 `.js` 后缀 |
+| tsup | 构建打包 | `^8.5.1`；ESM 输出；入口为 `src/index.ts`、`src/cli/index.ts`、`src/mcp/server.ts` |
 
 ### 核心运行时依赖
 
 | 依赖 | 用途 | 版本说明 |
 |------|------|---------|
-| commander | CLI 框架 | v14 |
-| @clack/prompts | 交互式向导 | cord init 专用 |
-| chalk | 终端着色 | v5+（纯 ESM，与项目 ESM-first 一致） |
-| better-sqlite3 | SQLite 存储 | 同步 API, WAL 模式, native addon |
-| @modelcontextprotocol/sdk | MCP Server | ⚠️ 注意包名（非 @anthropic-ai/mcp-sdk） |
-| zod | 数据验证 | v3.x（⚠️ 避免 v4，有破坏性变更） |
-| unified + remark-parse | Markdown AST | 纯 ESM |
-| remark-frontmatter + remark-gfm | remark 插件 | 纯 ESM |
-| gray-matter | Frontmatter 解析 | YAML 配置复用 |
+| commander | CLI 框架 | `^14.0.3` |
+| @clack/prompts | 交互式向导 | `^1.2.0`；`cord init` 专用 |
+| chalk | 终端着色 | `^5.4.1`；纯 ESM，与项目 ESM-first 一致 |
+| better-sqlite3 | SQLite 存储 | `^12.8.0`；同步 API, WAL 模式, native addon |
+| @modelcontextprotocol/sdk | MCP Server | `^1.29.0`；⚠️ 注意包名（非 @anthropic-ai/mcp-sdk） |
+| zod | 数据验证 | `^3.24.2`；⚠️ 锁定 v3，避免 v4 语义漂移 |
+| zod-to-json-schema | JSON Schema 生成 | `^3.25.2`；MCP schema 生成辅助 |
+| unified + remark-parse | Markdown AST | `^11.0.5` / `^11.0.0`；纯 ESM |
+| remark-frontmatter + remark-gfm | remark 插件 | `^5.0.0` / `^4.0.1`；纯 ESM |
+| gray-matter | Frontmatter 解析 | `^4.0.3`；YAML 配置复用 |
 
 ### 开发依赖
 
 | 依赖 | 用途 | 版本说明 |
 |------|------|---------|
-| tsup | 构建打包 | ESM 输出 |
-| vitest | 测试框架 | 兼容 Jest API |
-| eslint | 静态分析 | ⚠️ v10 仅支持 flat config（无 .eslintrc） |
-| prettier | 代码格式化 | — |
-| semantic-release | 自动版本管理 | npm provenance 从第一天启用 |
+| vitest | 测试框架 | `^4.1.3`；Node environment；V8 coverage |
+| eslint | 静态分析 | `^10.2.0`；⚠️ v10 仅支持 flat config（无 .eslintrc） |
+| typescript-eslint | TypeScript lint | `^8.58.1` |
+| prettier | 代码格式化 | `^3.8.1` |
+| semantic-release | 自动版本管理 | `^25.0.3`；npm provenance 从第一天启用 |
+| @semantic-release/git | Release commit | `^10.0.1`；必须包含 `package-lock.json` |
 
 ### 关键版本决策点
 
@@ -68,21 +71,23 @@ _此文件包含 AI Agent 在本项目中编写代码时必须遵守的关键规
 2. **ESLint ≥ v10** — 已移除 `.eslintrc` 支持，只能使用 flat config（`eslint.config.js`）
 3. **MCP SDK 包名** — `@modelcontextprotocol/sdk`（不是 `@anthropic-ai/mcp-sdk`）
 4. **chalk v5+** — 纯 ESM 模块，不支持 `require()`；架构文档原指定 picocolors，所有引用处需替换为 chalk
-5. **TypeScript 6.0** — 已发布，需评估与 NodeNext 解析的兼容性
+5. **TypeScript 版本** — 当前使用 `^5.8.3`；升级到新主版本前必须重新验证 NodeNext 解析、tsup dts 输出与测试编译
 
 ## 关键实现规则
 
 ### 语言特定规则（TypeScript / ESM）
 
-**ESM 模块要求：**
-- 所有 import 路径**必须带 `.js` 后缀**（即使源文件是 `.ts`）：`import { ScanService } from './scan-service.js'`
-- 使用 `node:` 前缀引用 Node.js 内置模块：`import { readFileSync } from 'node:fs'`
-- 禁止使用 `require()` / `module.exports`
-
-**TypeScript 严格模式：**
-- `strict: true` — 无隐式 any、严格 null 检查
-- 所有公共 API 方法必须有显式返回类型声明
-- 禁止使用 `any` 类型，用 `unknown` + 类型守卫代替
+- 项目是 ESM-first：所有相对 import 必须写运行时 `.js` 后缀，即使源文件是 `.ts`。
+- Node 内置模块必须使用 `node:` 前缀，例如 `node:fs`、`node:path`、`node:url`。
+- 禁止使用 `require()` / `module.exports`；chalk v5、unified、remark 依赖均按 ESM 使用。
+- TypeScript 严格模式开启：禁止 `any`，公共 API 与跨层方法必须声明显式返回类型。
+- schema 类型以 Zod v3 为准：对外验证入口必须通过 `validateWithCordError` 或等价包装，把 `ZodError` 转为 `CordError` 子类。
+- 含 `.default()` / `.transform()` 的 helper 泛型必须保留 input/output 差异，避免用会把 Input 固定为 Output 的窄泛型。
+- 互斥可选字符串字段必须使用 `trim().min(1).optional()` + `refine` 双重约束；空字符串不能被当成“未提供”绕过互斥校验。
+- Repository 层因 better-sqlite3 保持同步 API；Scanner、CLI action、MCP handler 保持 async。
+- 错误必须使用 `CordError` 子类并携带稳定 `code`、`suggestion`、结构化 context；Service 层不得 `console.log` 或 `process.exit`。
+- MCP Server stdout 专用于 JSON-RPC；所有日志、debug、诊断信息只能写 stderr。
+- 测试中构造缺字段对象时使用显式对象字面量，禁止 `_` 解构丢字段触发 lint。
 
 **Import 排序规范（P14）：**
 ```typescript
@@ -135,51 +140,18 @@ async scanDocuments(path: string, incremental: boolean): Promise<any>
 
 ### 框架特定规则（双入口架构 + 适配器模式）
 
-**双入口共享 Service 层（核心架构）：**
-```
-CLI (Commander.js)  ──→  Service 层  ←──  MCP Server (@modelcontextprotocol/sdk)
-         ↓                    ↓                    ↓
-    L3 薄壳层            L2 业务逻辑          L3 薄壳层
-```
-- CLI 和 MCP 入口**都是薄壳**：只负责参数解析 → 调用 Service → 格式化输出
-- **零业务逻辑**允许存在于 L3 入口层
-- 所有业务逻辑集中在 L2 Service 层
-
-**依赖注入模式（P7）：**
-```typescript
-// ✅ 构造函数注入接口
-class ScanService {
-  constructor(private readonly repo: IGraphRepository) {}
-}
-
-// ❌ 禁止直接 import 具体实现
-import { SqliteGraphRepository } from '../repositories/sqlite-graph-repository.js';
-```
-
-**框架适配器模式（Epic 2）：**
-- `IFrameworkAdapter` 接口 → `AbstractFrameworkAdapter` 基类 → 具体适配器
-- `GenericFrameworkAdapter` 作为兜底（无预设规则，仅基础 frontmatter 扫描）
-- `BmadFrameworkAdapter` 作为参考实现（18 种文档类型，v0.1 仅实现 Markdown 16 种，YAML 2 种延至 v0.2；5 层检测；详见 Story 2.3）
-- 新增框架适配**不得修改核心模块源码**（NFR8）
-- 框架适配器的文档发现属于 best-effort discovery：单个路径的 `lstat` / `readdir` 原生 fs 异常不得炸掉整个扫描，必须跳过当前路径并由上层扫描流程继续处理；当前不得为此引入异步 discovery API 破坏 `IFrameworkAdapter` 契约
-- BMAD 自动检测同样按 best-effort 处理局部 fs 异常：skills 路径不可读、候选目录遍历失败、文件读取失败均不得让框架检测整体抛出原生异常
-
-**IDE 适配器模式（Epic 5）：**
-- `IIdeAdapter` 接口 → 4 种 IDE 适配器（Claude Code / Cursor / VS Code Copilot / Codex CLI）
-- 零侵入策略：不修改 IDE 现有配置，只新增 CORD 相关文件；**例外**：`AGENTS.md` 为 NFR12 appendable 例外共享文件（Copilot + Codex CLI 共享），已存在时追加 CORD 专属注释段（<!-- CORD:START --> ... <!-- CORD:END -->），格式冲突时返回 `AGENTS_MD_CONFLICT` 结构化错误，不自动覆盖
-- `cord init` 自动检测 IDE 并选择适配器
-
-**MCP Server 关键约束：**
-- stdout **专用于 JSON-RPC 通信**，绝不输出日志
-- 所有日志 / 调试信息通过 `console.error()` → stderr
-- MCP Tool 名使用 snake_case：`analyze_impact`、`query_relations`
-- MCP Tool 参数使用 camelCase：`docPath`、`relationType`
-- `src/mcp/tools/schemas.ts` 中的命名 Zod input/output schema 是 CLI `--json` 与 MCP Tool 的共享契约源；**禁止**为 MCP 擅自删减现有 DTO 字段（CR-MCP-01）
-  - `query_relations` 必须保留 `depth` 输入与 `hopDistance` 输出
-  - `analyze_impact` 必须保留 `severity` 与 `hopDistance`
-  - `init_graph` 必须返回 `durationMs`（与 `ScanResult` / CLI JSON 同名）
-  - `sync_docs.reason` 直接复用 `AnalyzeImpactResult.suggestedAction`，`action` 仅由 `updateStrategy` 推导
-- SIGTERM 优雅退出处理
+- CLI 与 MCP 都是 L3 薄入口：只做参数解析、调用 Service、格式化输出；业务逻辑必须在 L2 Service。
+- L3 入口不得直接访问 Repository；L2 Service 只依赖 `IGraphRepository` 等接口，不 import 具体实现。
+- 跨层引用必须通过各层 `index.ts` 门面；禁止 CLI 直接引用 MCP 内部模块或 Repository 内部实现。
+- MCP Tool 的 input/output schema 以 `src/mcp/tools/schemas.ts` 命名 Zod schema 为共享契约源，必须镜像 CLI JSON / Service DTO，不得为 MCP 裁剪字段。
+- MCP Tool 名使用 snake_case，参数使用 camelCase；当前工具面覆盖 `init_graph`、`query_relations`、`analyze_impact`、`sync_docs`、`add_relation`、`remove_relation`、`deprecate_relation`。
+- `sync_docs.reason` 直接复用 `AnalyzeImpactResult.suggestedAction`，`action` 只能由 `updateStrategy` 推导，避免第二套建议语义。
+- Framework adapter 使用 `IFrameworkAdapter -> AbstractFrameworkAdapter -> 具体适配器`；新增适配器不得修改核心 scanner/service 源码。
+- Framework/BMAD discovery 是 best-effort：单个路径 `lstat/readdir/readFile` 异常只能跳过当前路径，不得中断整个扫描，也不得顺手把同步接口改成 async。
+- IDE adapter 使用 `IIdeAdapter`；`cord init` 零侵入写入 CORD 文件，不覆盖 IDE 既有配置。
+- `AGENTS.md` 是 Copilot + Codex CLI 共享指令文件，属于 NFR12 appendable 例外：不存在则创建，存在则只追加 `<!-- CORD:START -->...<!-- CORD:END -->` 段，冲突返回 `AGENTS_MD_CONFLICT`。
+- Claude Code 初始化需要同时生成 MCP 配置、hooks 与 4 个 schema-linked skills；hooks/skills 生成必须与实际 MCP/CLI schema 保持一致（CR-IDE-01）。
+- `cord init` 默认生成 YAML 配置，并保留 `updateStrategies` 示例；配置 schema 变更必须先裁决契约再实现。
 
 **CLI 关键约束：**
 - 命令名 kebab-case：`cord init`、`cord scan`、`cord impact`
@@ -378,257 +350,63 @@ const sql = readFileSync(join(fileURLToPath(import.meta.url), '..', '001.sql'), 
 
 ### 测试规则
 
-**测试框架与组织（P5）：**
-- 测试框架：**Vitest**（兼容 Jest API）
-- 独立 `tests/` 目录，镜像 `src/` 结构：
-```
-tests/
-├── unit/          # 镜像 src/ 结构
-│   ├── services/
-│   ├── repositories/
-│   ├── scanner/
-│   ├── adapters/
-│   └── utils/
-├── integration/   # 按场景组织
-│   ├── cli/
-│   ├── mcp/
-│   └── flows/
-└── fixtures/      # 统一测试数据
-    ├── sample-projects/  # 模拟项目目录结构（bmad-project/、generic-project/、empty-project/）
-    ├── documents/
-    └── configs/
-```
-
-**测试命名规范（P16）：**
-```typescript
-describe('ScanService', () => {
-  describe('scanDocuments', () => {
-    it('should discover frontmatter references as relations', () => {});
-    it('should skip unparseable documents and log warning', () => {});
-    it('should throw ScanError when project root is invalid', () => {});
-  });
-});
-```
-- describe: `类名` → `方法名`
-- it: `should + 行为描述`
-- 测试文件名：`{source}.test.ts`
-
-**覆盖率分级要求（D8）：**
-
-| 层 | 目标 | 说明 |
-|---|------|------|
-| Service + Scanner | ≥ 90% | 核心业务逻辑 |
-| Repository | ≥ 85% | 数据访问关键路径 |
-| Adapters | ≥ 80% | 适配逻辑需可靠 |
-| CLI / MCP 入口 | ≥ 70% | 薄壳，主要是参数转发 |
-| **整体** | **≥ 80%** | CI 质量门禁 |
-
-> ⚠️ **Story 级 AC 优先**：单 Story 若明文要求更高覆盖率（如 Story 1-2 AC8 要求 ≥ 90%），以 Story AC 为准，高于 D8 分层下限（CR-COV-02）。
-
-**覆盖率排除规则（CR-COV-01，来源：Story 1-2 CR 历史）：**
-- **禁止**使用 `src/**/index.ts` 等 blanket glob 作为 `coverage.exclude`；此类规则会将含业务逻辑的文件一并排除，导致 coverage gate 形同虚设
-- 只可显式枚举**纯 re-export barrel 文件**（零业务逻辑的 `index.ts`）：
-  ```ts
-  // vitest.config.ts — ✅ 正确：显式枚举纯 barrel 文件
-  coverage: {
-    exclude: [
-      'src/**/*.d.ts',
-      'src/adapters/index.ts', 'src/adapters/framework/index.ts', 'src/adapters/ide/index.ts',
-      'src/mcp/index.ts', 'src/repositories/index.ts', 'src/scanner/index.ts',
-      'src/schemas/index.ts', 'src/services/index.ts', 'src/types/index.ts', 'src/utils/index.ts',
-      // ⚠️ 含业务逻辑的文件（如 src/cli/index.ts）禁止出现在此列表中
-    ],
-  }
-  // ❌ 禁止：'src/**/index.ts'（会把含逻辑的 cli/index.ts 一并排除）
-  ```
-
-**必须遵守的测试原则：**
-- 新增功能**必须附带测试**，覆盖正常路径 + 至少一个异常路径
-- Repository 层测试使用**内存 SQLite**（`:memory:`），不依赖文件系统数据库
-- Scanner 引擎测试使用 `tests/fixtures/documents/` 下的真实 Markdown 文件
-- 集成测试验证跨层调用流程（如 scan → query → impact 完整链路）
-- Mock 策略：Service 测试 mock `IGraphRepository` 接口；CLI/MCP 测试 mock Service 层
-- **测试 helper 边界生成规则（CR-TEST-01）**：测试 helper、fixture、in-memory repository 在生成时间戳、递增序列或其他单调数据时，必须使用“固定基准值 + 数值偏移”模式，禁止依赖字符串拼接日期、编号或其他随位数变化的文本格式
-- **跨位数边界回归规则（CR-TEST-01）**：只要 helper 逻辑依赖计数器增长，回归测试至少覆盖一条跨位数边界（如 9→10、99→100），避免 fixture 在位数变化时先于业务断言失效
-- 含 `async` Commander action 或自定义退出码契约的 CLI 命令，必须同时覆盖 command factory 层与真实 `runCli()` 入口层；入口层至少断言成功路径、Commander parse error、业务 `ConfigError` 和 runtime error
-- 事务性批量写入流程必须覆盖“部分输入无效”回归测试，断言返回计数与 documents / relations / sync_states 的最终落库结果一致，防止部分提交被误判为成功
-- **按层测试错误契约与过滤语义**：Service 层负责覆盖业务语义、错误码、suggestion 与异常分支；CLI 层负责覆盖参数转发、退出码、文本/JSON 序列化。若 CLI 已验证参数转发，且 Service 层已覆盖核心过滤语义，可豁免重复的 CLI 端到端输出测试（CR-QUERY-04）
-- **所有新增错误路径都必须至少有一条契约测试**：若实现暴露新的 `CordError.code` / `suggestion` 或 JSON 错误载荷，必须在对应层补齐回归测试，避免 happy-path 通过但对外错误契约无保护（CR-QUERY-04）
+- 测试框架为 Vitest，`globals: false`，Node environment；测试文件统一放在 `tests/**/*.test.ts`。
+- 单元测试镜像 `src/` 层级；集成测试按 `cli/`、`mcp/`、`flows/` 场景组织。
+- 覆盖率 provider 为 V8；整体阈值为 lines/functions/branches/statements 均 `80`。
+- `coverage.exclude` 只能显式枚举纯 re-export barrel 文件；禁止 `src/**/index.ts` 这类 blanket glob，`src/cli/index.ts` 必须留在覆盖率门禁内。
+- Story AC 覆盖率要求优先于架构分层下限；若 Story 明确要求更高阈值，按 Story 执行。
+- Service 测试 mock `IGraphRepository` 接口；CLI/MCP 测试 mock Service 层；Repository 测试使用内存 SQLite。
+- CLI 命令测试必须按层分工：command factory 覆盖参数转发/格式化，真实 `runCli()` 入口覆盖 parse error、业务 `ConfigError`、runtime error 与 exit code。
+- MCP 测试必须覆盖 schema 冻结、工具列表、结构化 content 与 CLI JSON DTO 字段同构。
+- 新增错误码、suggestion 或 JSON 错误载荷时，必须在对应层补契约测试。
+- 测试 helper 生成时间戳、序列号等单调数据时使用“固定基准值 + 数值偏移”，并覆盖 9->10 或 99->100 等跨位数边界。
+- 性能/扩展性 AC 不靠环境敏感 wall-clock 作为主证据；优先验证真实热路径访问计数、索引命中或真实 repository 查询行为。
+- Epic flow 测试用于锁定跨层用户路径，例如 scan -> query -> impact、MCP core tools、IDE init、hooks/skills、README/CLI/MCP docs 对齐。
 
 ### 代码质量与风格规则
 
-**命名约定汇总（P1-P4）：**
-
-| 维度 | 规则 | 示例 |
-|------|------|------|
-| 文件名 | kebab-case | `scan-service.ts`、`errors.ts` |
-| 类名 | PascalCase | `ScanService`、`CordError` |
-| 函数/方法 | camelCase | `analyzeImpact()`、`queryRelations()` |
-| 常量 | SCREAMING_SNAKE_CASE | `RELATION_TYPES`、`MAX_TRAVERSAL_DEPTH` |
-| 接口 | `I` 前缀 + PascalCase | `IGraphRepository`、`IFrameworkAdapter` |
-| 类型 | PascalCase（无前缀） | `RelationType`、`DocumentNode` |
-| Zod Schema | camelCase + `Schema` 后缀 | `documentSchema`、`configSchema` |
-| DB 表名 | snake_case 复数 | `documents`、`relations` |
-| DB 列名 | snake_case | `doc_id`、`source_path` |
-| CLI 命令 | kebab-case | `cord scan`、`cord impact` |
-| MCP Tool 名 | snake_case | `analyze_impact`、`query_relations` |
-| MCP Tool 参数 | camelCase | `docPath`、`relationType` |
-
-**数据格式转换边界（P8）：**
-- DB ↔ Repository 层：snake_case（`doc_id`、`relation_type`）
-- Repository → Service 层：转换为 camelCase（`docId`、`relationType`）
-- **转换逻辑集中在 Repository 层**，其他层不处理格式转换
-
-**模块导出（P6）：**
-- 每个架构层有一个 `index.ts` 作为公共 API 门面
-- 跨层引用**只通过 `index.ts`**，禁止直接引用内部文件
-
-**注释规范（P15）：**
-- 公共 API **必须**有 JSDoc（含 `@param`、`@returns`、`@throws`）
-- 行内注释解释 **WHY**（为什么这样做），不解释 WHAT（代码在做什么）
-- 禁止对显而易见的代码添加冗余注释
-
-**ESLint / Prettier：**
-- ESLint：flat config（`eslint.config.js`），禁止生成 `.eslintrc`
-- Prettier：统一代码格式化
-- CI 中 `lint + type-check` 作为 PR 质量门禁
-
-**关系类型值（P9）——9 种固定值：**
-```typescript
-export const RELATION_TYPES = {
-  SYNC_REQUIRED: 'sync_required',
-  CONTEXT_FOR: 'context_for',
-  LIFECYCLE_BOUND: 'lifecycle_bound',
-  CONTAINS: 'contains',
-  MUST_CONSISTENT: 'must_consistent',
-  SYNC_SUGGESTED: 'sync_suggested',
-  DERIVED_FROM: 'derived_from',
-  DEPRECATED: 'deprecated',
-  REFERENCES: 'references',
-} as const;
-```
+- 文件名使用 kebab-case；类名 PascalCase；函数/方法 camelCase；常量 SCREAMING_SNAKE_CASE。
+- 接口继续使用 `I` 前缀，例如 `IGraphRepository`、`IFrameworkAdapter`、`IIdeAdapter`；类型别名不加前缀。
+- Zod schema 使用 camelCase + `Schema` 后缀；验证函数使用 `validateXxx` 命名。
+- DB 表/列保持 snake_case 复数/字段名；Service/CLI/MCP 对外 DTO 使用 camelCase；snake_case <-> camelCase 转换只在 Repository mapper 边界处理。
+- 每个架构层通过 `index.ts` 暴露公共 API；跨层 import 只走门面，避免直接绑定内部文件。
+- 公共 API 必须有 JSDoc；行内注释只解释非显然的 WHY，不解释代码表面行为。
+- ESLint 使用 flat config；禁止新增 `.eslintrc`；格式化以 Prettier 为准。
+- 关系类型固定为 9 种：`sync_required`、`context_for`、`lifecycle_bound`、`contains`、`must_consistent`、`sync_suggested`、`derived_from`、`deprecated`、`references`。
+- Relation status 与 relationType 分离：`status='deprecated'` 是状态位，不得把业务关系类型重写成 `deprecated` 来表达废弃。
+- JSON snapshot 排序必须用显式二进制字符串比较，禁止默认 `localeCompare()`。
+- 写文件类操作涉及可审阅快照时，优先使用同目录临时文件 + 原子 rename；失败时保留旧文件并 best-effort 清理临时文件。
 
 ### 开发工作流规则
 
-**目录结构（D5）：**
-```
-src/
-├── cli/            # L3 CLI 入口层（薄壳）
-│   ├── commands/   # Commander.js 命令定义
-│   └── index.ts
-├── mcp/            # L3 MCP Server 入口层（薄壳）
-│   ├── tools/      # MCP Tool 定义
-│   └── server.ts
-├── services/       # L2 Service 层（核心业务逻辑）
-├── repositories/   # L1 Repository 层（数据访问）
-│   └── migrations/ # SQL 迁移脚本
-├── scanner/        # 扫描引擎（策略模式）
-│   └── rules/
-├── adapters/       # 可插拔适配层
-│   ├── framework/  # IFrameworkAdapter + 实现
-│   └── ide/        # IIdeAdapter + 实现
-├── schemas/        # Zod schema 定义
-├── utils/          # 公共工具（logger、errors、config）
-└── types/          # 全局类型定义
-```
-
-**架构层依赖方向（严格单向）：**
-```
-L3 入口层（CLI / MCP） → L2 Service 层 → L1 Repository 层
-                              ↓
-                    Scanner / Adapters（同级调用）
-```
-- **禁止反向依赖**：L1 不得引用 L2，L2 不得引用 L3
-- **禁止同层跨域引用**：CLI 不得直接调用 MCP 内部模块
-
-**数据库迁移（D2）：**
-- 迁移脚本存放在 `src/repositories/migrations/`
-- 按编号顺序命名：`001-initial-schema.sql`、`002-add-index.sql`（kebab-case，与项目文件命名约定 P2 一致）
-- 迁移状态使用 `schema_migrations` 历史表追踪（非单值 schema_version），支持审计和部分回滚
-- 应用启动时查询 `schema_migrations` 表已执行版本后，按序执行未执行的迁移脚本
-- 迁移在事务中执行，失败可回滚
-- **迁移 SQL 内联规则（CR-REPO-03）**：迁移 SQL 以 TS 模块字符串常量内联（`export const MIGRATION_XXX_SQL = \`...\``），禁止运行时 `readFileSync`；tsup 仅打包 TS/JS 文件，`.sql` 资源不会出现在 `dist/` 中
-- **迁移子步骤独立幂等规则（CR-REPO-06）**：列新增、索引创建、数据回填等子步骤必须分别保持幂等；禁止因为某个工件已存在就提前返回，导致其他仍可能缺失的工件无法补建
-- **部分迁移数据库回归规则（CR-REPO-06）**：迁移测试除标准旧库升级外，还必须覆盖“部分迁移数据库”场景（如列已存在但索引缺失），确保应用启动后可自愈到完整目标 schema
-- **pre-release schema 重写约定**：v0.1 发布前可直接重写已有 migration；为兼容早期旧 v1 baseline，已通过 `003-fix-v1-baseline` 补齐约束/索引自愈迁移；首个稳定 release 后切换为只增不改的增量迁移模式
-
-**配置管理（D6）：**
-- 支持 `cord.config.yaml`（推荐）和 `cord.config.json`
-- 加载优先级：YAML > JSON（同时存在时 YAML 优先）
-- 配置加载后通过 Zod schema 验证
-- `cord init` 默认生成 YAML 格式；生成的配置示例块必须包含 `updateStrategies` 注释示例（如 `prd: auto`、`story: suggest`、`technical-research: log_only`）
-- 配置字段基线（9 项）：`projectName`（项目显示名，供导出快照等面向用户的输出优先使用，缺失时由调用方回退到项目根目录名）+ 初始 7 项（framework、ide、scanPaths、excludePaths、confidenceThreshold、relationTypes、adapters）+ updateStrategies（Story 4.3 引入，按文档类别配置更新策略，键为 docType，值为 'auto' | 'suggest' | 'log_only'，缺省为“字段可省略 + 未命中类别回退 suggest”，允许自定义 docType 键，不因未知类别报错）
-- 若用户可见输出字段依赖新的配置来源（例如 `projectName`）且当前 schema/契约尚未定义，必须先完成产品/架构裁决并更新 schema，再进入实现与测试；禁止用临时 fallback 逻辑替代未裁决契约
-
-**CI/CD（D7）：**
-- GitHub Actions 作为唯一 CI/CD 平台
-- PR 检查：`lint` + `type-check` + `test` + `coverage`
-- 发布：semantic-release 为唯一发布 owner（自动化版本 + npm publish + GitHub Release）
-- Release workflow 权限：必须同时声明 `permissions.id-token: write`（npm provenance OIDC）和 `permissions.contents: write`（GitHub Release / tags 创建）；显式声明任意权限时，未声明权限收缩为 `none`
-- 跨平台矩阵：ubuntu / macos / windows（better-sqlite3 native addon 验证）
-- npm provenance 从第一天启用
-- 发布工具版本约束：升级 `semantic-release` / `@semantic-release/*` 后，必须核对 lockfile 中 `engines.node`，并确保 release workflow 的 `actions/setup-node` 版本满足要求；CI/cross-platform 可按运行需求独立选择 Node 基线
-- semantic-release 提交版本变更时，`@semantic-release/git` 的 `assets` 必须包含 `CHANGELOG.md`、`package.json`、`package-lock.json`，避免 `npm ci` 因 lockfile 漂移失败
-- Release workflow 应显式依赖 CI 质量门禁成功（`workflow_run`、同工作流 `needs` 或等效机制）；若暂不串联，必须记录为工程加固 TODO/豁免
-- Release workflow 应配置 `concurrency` 串行化发布任务，通常按 workflow + ref 分组且 `cancel-in-progress: false`
-- 避免用宽泛 `contains(head_commit.message, '[skip ci]')` 跳过 release；如需跳过，必须窄化到 semantic-release 版本提交或 bot actor
-- PR 模板中的质量门禁必须写成可执行命令，覆盖率校验使用项目实际脚本（当前为 `npm run test:coverage`）
+- 源码按 `src/cli`、`src/mcp`、`src/services`、`src/repositories`、`src/scanner`、`src/adapters`、`src/schemas`、`src/types`、`src/utils` 分层组织。
+- 依赖方向严格单向：L3 CLI/MCP -> L2 Service -> L1 Repository；禁止反向依赖和同层跨域引用。
+- 迁移脚本位于 `src/repositories/migrations/`；运行时迁移 SQL 必须内联为 TS 模块字符串常量，不能依赖 dist 中存在 `.sql` 文件。
+- migration 子步骤必须独立幂等；部分迁移数据库也必须能自愈到完整目标 schema。
+- v0.1 pre-release 阶段允许重写既有 migration；首个稳定 release 后切换为只增不改的增量迁移模式。
+- 配置支持 `cord.config.yaml` 与 `cord.config.json`，同时存在时 YAML 优先；加载后必须通过 Zod schema 验证。
+- `cord init` 默认生成 YAML；示例配置必须包含 `updateStrategies` 注释示例。
+- 配置字段或对外 JSON 字段变更必须先完成产品/架构契约裁决，再实现代码和测试；禁止临时 fallback 替代未裁决契约。
+- PR/本地质量门禁使用实际脚本：`npm run lint`、`npm run type-check`、`npm test`、`npm run test:coverage`、`npm run build`。
+- 发布由 semantic-release 统一负责；release workflow 必须保留 npm provenance/OIDC 所需权限，并确保 `package-lock.json` 随版本提交同步。
+- Rule Document Registry 是规则变更门禁：确认/修改/新增规则、约定或豁免时，必须同步 `_bmad-output/project-context.md`、`03-core-architectural-decisions.md`、`04-implementation-patterns-consistency-rules.md`。
+- Story/CR 工作流中的新增规则必须当轮沉淀到镜像文档；不得只留在 CR summary 或 TODO 中。
 
 ### 关键易错规则
 
-**禁止事项（Anti-Patterns）：**
-
-```typescript
-// ❌ Service 层直接操作终端
-console.log('Scanning...');  // 禁止——用 Logger
-process.exit(1);             // 禁止——抛 CordError，由入口层处理
-
-// ❌ 跨层直接引用内部文件
-import { scanDocumentsImpl } from '../services/scan-service.js';
-// 应通过：import { ScanService } from '../services/index.js';
-
-// ❌ Repository 返回 camelCase
-return { sourcePath: '...' };  // Repository 层应返回 snake_case，再由自己转换
-
-// ❌ Service 返回 snake_case
-return { source_path: '...' };  // Service 层应已转换为 camelCase
-
-// ❌ 散装参数代替输入对象
-async queryRelations(docPath: string, type?: string, depth?: number)
-
-// ❌ 静默吞掉异常
-try { ... } catch (e) { /* 忽略 */ }
-
-// ❌ 抛非 CordError 异常
-throw new Error('something wrong');  // 应使用 CordError 子类
-
-// ❌ MCP Server 向 stdout 输出非 JSON-RPC 内容
-console.log('debug info');  // stdout 专用于 JSON-RPC，日志用 console.error → stderr
-
-// ❌ 使用 require() 或 .eslintrc
-const chalk = require('chalk');  // ESM 项目禁止 require
-```
-
-**易忽略的边界情况：**
-
-1. **ESM import 后缀** — 即使源文件是 `.ts`，import 路径必须写 `.js`
-2. **better-sqlite3 是同步 API** — Repository 方法不要声明为 async
-3. **unified/remark 是异步管道** — Scanner 引擎方法必须是 async
-4. **MCP SDK 包名** — `@modelcontextprotocol/sdk`，不是 `@anthropic-ai/mcp-sdk`
-5. **chalk v5+ 纯 ESM** — 不支持 `require()`；架构文档原指定 picocolors 的地方均需替换
-6. **Zod v3 锁定** — 不要使用 v4 的 API（如 `z.string().brand()` 行为变化）
-7. **snake_case ↔ camelCase 边界** — 只在 Repository 层转换，其他层保持各自格式
-8. **CordError 必须携带 `code` + `suggestion`** — 错误码格式：`CORD_SCAN_001`
-9. **新增框架适配器不得修改核心源码** — NFR8 合规要求
-10. **Zod schema 文件必须同时导出 `validateXxx` 包装入口** — 裸 `xxxSchema.parse()` 抛 `ZodError`，违反统一错误体系（AC6）；必须通过 `validateWithCordError` 包装为 `ConfigError` 并携带 `CORD_SCHEMA_xxx` 错误码（如 `CORD_SCHEMA_001`）。禁止只导出裸 schema 对象作为对外验证接口
-11. **互斥可选字段必须收紧类型 + refine 双重约束** — `z.string().optional()` 允许空字符串，`Boolean('')===false` 使 refine 互斥判定失效；必须改为 `z.string().trim().min(1).optional()`，并补测 mixed-empty 分支（`{ fieldA: '', fieldB: '有效值' }`）以及 `neither`、`both`、`both-empty` 三类非法分支
-12. **测试数据缺字段用显式对象字面量，禁止 `_ 解构`** — `const { k: _, ...rest } = obj` 触发 `@typescript-eslint/no-unused-vars` lint 报错，应直接构造缺目标字段的对象字面量
-13. **Zod helper 泛型用 `ZodType<T, ZodTypeDef, unknown>` 不用 `ZodSchema<T>`** — `ZodSchema<T>` 将 Input=Output=T，与含 `.default()` / `.transform()` 的 schema（Input 为 `T|undefined`）类型不兼容，会导致 TypeScript 编译错误
-
-**安全规则：**
-- SQLite WAL 模式——数据目录 `.cord/` 应在 `.gitignore` 中
-- 配置文件不包含敏感信息，但 `.cord/cord.db` 包含项目结构信息
-- npm provenance 从第一天启用，确保供应链安全
+- 不要在 Service 层 `console.log` / `process.exit`；入口层负责输出与退出码，Service 层抛 `CordError`。
+- 不要在 MCP Server stdout 输出任何非 JSON-RPC 内容；debug/log 必须走 stderr。
+- 不要用 `require()`、`.eslintrc`、无 `.js` 后缀 import，或错误 MCP 包名 `@anthropic-ai/mcp-sdk`。
+- 不要为 MCP Tool 另建裁剪版 DTO；CLI JSON、Service DTO、MCP schema 必须保持同构。
+- 不要在只读命令中初始化 `.cord/cord.db`；status/query/impact/export 未初始化时返回稳定空状态或未初始化状态。
+- 不要在默认 Service 包装资源后忘记转发 `close()`；入口层 cleanup 失败也不得覆盖主流程结果或错误。
+- 不要把路径校验放到 service/repository 初始化之后；project-root 边界、Win32 跨盘符、UNC、symlink 物理逃逸必须先拒绝。
+- 不要用 `localeCompare()` 生成可审阅 JSON snapshot 排序；不要用非原子写覆盖既有 snapshot。
+- 不要让人工关系被扫描覆盖：manual > framework_preset > auto_scan 必须在批内裁剪和最终持久化使用同一优先级。
+- 不要把生命周期 rename/move 歧义强行匹配；只有双向唯一最优才可复用 docId，否则降级为 delete + add。
+- 不要让 local fs 异常中断 framework/BMAD discovery；单路径失败只能跳过当前路径。
+- 不要把 `status='deprecated'` 误建模为 relationType；状态位和业务关系类型必须分离。
+- 不要改动用户未明确要求的文件；如需同步 Rule Document Registry 之外的文件，先获得明确许可。
 
 ---
 
@@ -646,4 +424,4 @@ const chalk = require('chalk');  // ESM 项目禁止 require
 - 定期审查，移除已变得显而易见的规则
 - 新增规则时确保其具有可操作性
 
-最后更新：2026-04-09
+最后更新：2026-05-24
