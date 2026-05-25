@@ -7,6 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { SqliteGraphRepository, type IGraphRepository } from '../repositories/index.js';
 import { ImpactService, QueryService, RelationService, ScanService } from '../services/index.js';
 import { loadConfig, logger } from '../utils/index.js';
+import { PACKAGE_VERSION } from '../version.js';
 import {
   registerAddRelationTool,
   registerAnalyzeImpactTool,
@@ -17,7 +18,6 @@ import {
   registerSyncDocsTool,
 } from './tools/index.js';
 
-const PACKAGE_VERSION = '0.1.0';
 const CORD_DATA_DIR = '.cord';
 const CORD_DB_FILE = 'cord.db';
 const SHUTDOWN_TIMEOUT_MS = 2000;
@@ -44,10 +44,12 @@ interface ProcessLike {
   exit(code?: number): never;
 }
 
-export function createCordMcpRuntime(options: {
-  projectRoot?: string;
-  repository?: IGraphRepository;
-} = {}): CordMcpRuntime {
+export function createCordMcpRuntime(
+  options: {
+    projectRoot?: string;
+    repository?: IGraphRepository;
+  } = {},
+): CordMcpRuntime {
   logger.setMode('mcp');
 
   const projectRoot = options.projectRoot ?? process.cwd();
@@ -70,10 +72,12 @@ export function createCordMcpRuntime(options: {
   };
 }
 
-export function createCordMcpServer(options: {
-  projectRoot?: string;
-  repository?: IGraphRepository;
-} = {}): CordMcpServerInstance {
+export function createCordMcpServer(
+  options: {
+    projectRoot?: string;
+    repository?: IGraphRepository;
+  } = {},
+): CordMcpServerInstance {
   const runtime = createCordMcpRuntime(options);
   const server = new McpServer({
     name: 'cord',
@@ -109,11 +113,13 @@ export function createCordMcpServer(options: {
   };
 }
 
-export async function startCordMcpServer(options: {
-  projectRoot?: string;
-  repository?: IGraphRepository;
-  transport?: Transport;
-} = {}): Promise<CordMcpServerInstance & { transport: Transport }> {
+export async function startCordMcpServer(
+  options: {
+    projectRoot?: string;
+    repository?: IGraphRepository;
+    transport?: Transport;
+  } = {},
+): Promise<CordMcpServerInstance & { transport: Transport }> {
   const instance = createCordMcpServer(options);
   const transport = options.transport ?? new StdioServerTransport();
   await instance.server.connect(transport);
@@ -130,14 +136,16 @@ export function installShutdownHandlers(options: {
   const processApi = options.processApi ?? process;
   const timeoutMs = options.timeoutMs ?? SHUTDOWN_TIMEOUT_MS;
   const onExit = options.onExit ?? ((code: number) => processApi.exit(code));
-  const onError = options.onError ?? ((message: string, error?: unknown) => {
-    if (error instanceof Error) {
-      console.error(message, error);
-      return;
-    }
+  const onError =
+    options.onError ??
+    ((message: string, error?: unknown) => {
+      if (error instanceof Error) {
+        console.error(message, error);
+        return;
+      }
 
-    console.error(message);
-  });
+      console.error(message);
+    });
   const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
   let shuttingDown = false;
 
@@ -157,7 +165,8 @@ export function installShutdownHandlers(options: {
       forceTimer.unref();
     }
 
-    void options.shutdown()
+    void options
+      .shutdown()
       .then(() => {
         clearTimeout(forceTimer);
         console.error('[cord-mcp] Shutdown complete');
@@ -185,13 +194,15 @@ export function installShutdownHandlers(options: {
   };
 }
 
-export async function runMcpServer(options: {
-  projectRoot?: string;
-  repository?: IGraphRepository;
-  transport?: Transport;
-  processApi?: ProcessLike;
-  onExit?: (code: number) => void;
-} = {}): Promise<CordMcpServerInstance & { transport: Transport; removeShutdownHandlers: () => void }> {
+export async function runMcpServer(
+  options: {
+    projectRoot?: string;
+    repository?: IGraphRepository;
+    transport?: Transport;
+    processApi?: ProcessLike;
+    onExit?: (code: number) => void;
+  } = {},
+): Promise<CordMcpServerInstance & { transport: Transport; removeShutdownHandlers: () => void }> {
   const instance = await startCordMcpServer(options);
   const removeShutdownHandlers = installShutdownHandlers({
     shutdown: instance.close,

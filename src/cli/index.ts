@@ -1,8 +1,16 @@
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
-import { createExportCommand, createImpactCommand, createInitCommand, createQueryCommand, createScanCommand, createStatusCommand } from './commands/index.js';
+import {
+  createExportCommand,
+  createImpactCommand,
+  createInitCommand,
+  createQueryCommand,
+  createScanCommand,
+  createStatusCommand,
+} from './commands/index.js';
 import { applyVerboseFlag } from './verbose.js';
+import { PACKAGE_VERSION } from '../version.js';
 
 const CLI_CONFIG_ERROR_EXIT_CODE = 2;
 
@@ -16,7 +24,7 @@ export function createProgram(): Command {
   program
     .name('cord')
     .description('Document relationship graph engine for AI-assisted development')
-    .version('0.1.0')
+    .version(PACKAGE_VERSION)
     .option('-v, --verbose', 'enable debug output');
   program.addCommand(createScanCommand());
   program.addCommand(createQueryCommand());
@@ -43,7 +51,7 @@ export async function runCli(program = createProgram()): Promise<void> {
     await program.parseAsync(process.argv);
     applyVerboseFlag(program.opts() as { verbose?: boolean }, process.env);
   } catch (error) {
-    if (isCommanderHelpExit(error)) {
+    if (isCommanderSuccessfulExit(error)) {
       return;
     }
 
@@ -89,7 +97,9 @@ function installExitOverrideRecursively(command: Command): void {
   }
 }
 
-function isCommanderParseError(error: unknown): error is Error & { code: string; exitCode: number } {
+function isCommanderParseError(
+  error: unknown,
+): error is Error & { code: string; exitCode: number } {
   return (
     error instanceof Error &&
     'code' in error &&
@@ -101,12 +111,14 @@ function isCommanderParseError(error: unknown): error is Error & { code: string;
   );
 }
 
-function isCommanderHelpExit(error: unknown): error is Error & { code: string; exitCode: number } {
+function isCommanderSuccessfulExit(
+  error: unknown,
+): error is Error & { code: string; exitCode: number } {
   return (
     error instanceof Error &&
     'code' in error &&
     'exitCode' in error &&
-    error.code === 'commander.helpDisplayed' &&
+    (error.code === 'commander.helpDisplayed' || error.code === 'commander.version') &&
     error.exitCode === 0
   );
 }

@@ -18,7 +18,7 @@ Global options:
 | `-h, --help`    | Print help.            |
 | `-v, --verbose` | Enable debug output.   |
 
-Current version: `0.1.0`.
+`--version` prints the version from the installed CORD package.
 
 ## `cord init`
 

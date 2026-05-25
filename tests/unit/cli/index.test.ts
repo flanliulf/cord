@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Command } from 'commander';
-import { createInitCommand, createQueryCommand, createScanCommand } from '../../../src/cli/commands/index.js';
+import {
+  createInitCommand,
+  createQueryCommand,
+  createScanCommand,
+} from '../../../src/cli/commands/index.js';
 import { applyVerboseFlag } from '../../../src/cli/verbose.js';
 import { createProgram, runCli } from '../../../src/cli/index.js';
 import type { QueryRelationsOutput, ScanResult } from '../../../src/services/index.js';
 import { ConfigError } from '../../../src/utils/errors.js';
 import { logger } from '../../../src/utils/index.js';
+import { PACKAGE_VERSION } from '../../../src/version.js';
 
 interface BufferingWriter {
   write(chunk: string): boolean;
@@ -50,7 +55,11 @@ function createCliProgramWithScanCommand(options: {
 }
 
 function createCliProgramWithQueryCommand(options: {
-  query: (input: { docPath: string; type?: string; includeDeprecated?: boolean }) => QueryRelationsOutput;
+  query: (input: {
+    docPath: string;
+    type?: string;
+    includeDeprecated?: boolean;
+  }) => QueryRelationsOutput;
   stdout?: BufferingWriter;
   stderr?: BufferingWriter;
 }): Command {
@@ -305,6 +314,29 @@ describe('runCli (with injected mock program)', () => {
     try {
       await runCli(program);
       expect(process.exitCode).toBe(2);
+    } finally {
+      process.argv = savedArgv;
+      process.exitCode = undefined;
+    }
+  });
+
+  it('treats Commander --version as a successful exit at the real CLI entrypoint', async () => {
+    const savedArgv = process.argv.slice();
+    const stdout = createWriter();
+    const stderr = createWriter();
+    process.argv = ['node', 'cord', '--version'];
+    const program = createProgram();
+    program.exitOverride();
+    program.configureOutput({
+      writeOut: stdout.write,
+      writeErr: stderr.write,
+    });
+
+    try {
+      await runCli(program);
+      expect(process.exitCode ?? 0).toBe(0);
+      expect(stdout.read()).toContain(PACKAGE_VERSION);
+      expect(stderr.read()).toBe('');
     } finally {
       process.argv = savedArgv;
       process.exitCode = undefined;

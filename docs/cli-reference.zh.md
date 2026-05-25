@@ -18,7 +18,7 @@ cord [global-options] <command> [command-options]
 | `-h, --help`    | 输出帮助信息。 |
 | `-v, --verbose` | 启用调试输出。 |
 
-当前版本：`0.1.0`。
+`--version` 输出当前安装的 CORD package 版本。
 
 ## `cord init`
 
