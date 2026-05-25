@@ -22,7 +22,7 @@ After completing this guide, you will have:
 Install CORD in your project root:
 
 ```bash
-npm install -D cord
+npm install -D @fancyliu/cord
 ```
 
 If you are developing or validating from this CORD source checkout, install dependencies and build first:

@@ -1,13 +1,17 @@
 # CORD
 
-[English](README.md) | [简体中文](README.zh.md)
+[English](README.md) | [简体中文](https://cdn.jsdelivr.net/npm/@fancyliu/cord@latest/README.zh.md)
 
-[![npm version](https://img.shields.io/npm/v/cord.svg)](https://www.npmjs.com/package/cord)
-[![CI](https://github.com/fancyliu/cord/actions/workflows/ci.yml/badge.svg)](https://github.com/fancyliu/cord/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@fancyliu/cord.svg)](https://www.npmjs.com/package/@fancyliu/cord)
+[![CI](https://github.com/flanliulf/cord/actions/workflows/ci.yml/badge.svg)](https://github.com/flanliulf/cord/actions/workflows/ci.yml)
 [![coverage](https://img.shields.io/badge/coverage-80%25%2B-brightgreen.svg)](./coverage/coverage-summary.json)
-[![GitHub stars](https://img.shields.io/github/stars/fancyliu/cord?style=social)](https://github.com/fancyliu/cord/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/flanliulf/cord?style=social)](https://github.com/flanliulf/cord/stargazers)
+
+[GitHub Repository](https://github.com/flanliulf/cord)
 
 CORD is a document relationship graph engine for AI-assisted development. It uses deterministic scanning, querying, and impact analysis to keep requirements, architecture, epics, stories, and user documentation aligned as they evolve.
+
+The name CORD stands for Context-Oriented Relation for Documents. It reflects the system's purpose in AI coding workflows: managing relationships between project documents and keeping related context consistent as those documents change.
 
 The core idea is: deterministic beats inferential. CORD does not ask AI to guess which documents might be affected. It first writes document relationships into a local graph, then lets the CLI or MCP Tools answer questions from the same structured contract.
 
@@ -20,7 +24,7 @@ The core idea is: deterministic beats inferential. CORD does not ask AI to guess
 ## Quick Start
 
 ```bash
-npm install -D cord
+npm install -D @fancyliu/cord
 npx cord init --ide vscode-copilot
 npx cord scan --rebuild --force
 npx cord impact docs/getting-started.md
@@ -71,7 +75,7 @@ If `--ide` is omitted, `cord init` attempts to detect IDE configuration in the c
 | Configure scan paths, IDE integration, framework adapters, and update strategies | [Configuration Reference](docs/configuration.md)   |
 | Contribute code, docs, or tests                                                  | [Contributing Guide](docs/contributing.md)         |
 | Add a framework adapter                                                          | [Framework Adapter Guide](docs/adapter-guide.md)   |
-| Browse all public docs                                                           | [Documentation Index](docs/index.md)               |
+| Browse all public docs                                                           | [Documentation Index](knowledge-base/index.md)     |
 
 ## Developing This Repository
 
@@ -91,7 +95,7 @@ node dist/cli/index.js status
 
 Before contributing docs, framework adapters, or tests, read [docs/contributing.md](docs/contributing.md). Framework adapter contributors should also read [docs/adapter-guide.md](docs/adapter-guide.md).
 
-If you are unsure where a change belongs, start from [docs/index.md](docs/index.md), then describe the user or contributor docs you synchronized in the PR.
+If you are unsure where a change belongs, start from [knowledge-base/index.md](knowledge-base/index.md), then describe the user or contributor docs you synchronized in the PR.
 
 ## License
 

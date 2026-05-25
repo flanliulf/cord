@@ -22,8 +22,10 @@
 在项目根目录安装 CORD：
 
 ```bash
-npm install -D cord
+npm install -D @fancyliu/cord
 ```
+
+> 注意：本文中的 `npm install -D @fancyliu/cord` 和 `npx cord ...` 示例默认 CORD 已发布到 npm，或你的项目能从私有 npm registry 安装到该包。若当前还未发布，请使用下面的源码仓库本地开发方式执行。
 
 如果你是在 CORD 源码仓库中本地开发或验证，请先安装依赖并构建：
 
