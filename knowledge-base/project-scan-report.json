@@ -8,7 +8,7 @@
   "mode": "initial_scan",
   "scan_level": "deep",
   "project_root": "/Users/fancyliu/Repos/cord",
-  "project_knowledge": "/Users/fancyliu/Repos/cord/docs",
+  "project_knowledge": "/Users/fancyliu/Repos/cord/knowledge-base",
   "completed_steps": [
     {
       "step": "step_1",
@@ -62,7 +62,7 @@
       "step": "step_10",
       "status": "completed",
       "timestamp": "2026-05-21T10:17:47Z",
-      "summary": "Generated docs/index.md as the master AI retrieval entry point with links to generated and existing documentation."
+      "summary": "Generated knowledge-base/index.md as the master AI retrieval entry point with links to generated and existing documentation."
     },
     {
       "step": "step_11",
@@ -74,7 +74,7 @@
       "step": "step_12",
       "status": "completed",
       "timestamp": "2026-05-21T10:21:26Z",
-      "summary": "Workflow complete; docs/index.md is the master AI retrieval entry point."
+      "summary": "Workflow complete; knowledge-base/index.md is the master AI retrieval entry point."
     }
   ],
   "current_step": "completed",
@@ -180,9 +180,9 @@
       "This DP pass documents architecture and contracts from source inspection; it did not execute the full test suite."
     ],
     "recommended_next_checks": [
-      "Review docs/index.md as the master documentation entry point.",
+      "Review knowledge-base/index.md as the master documentation entry point.",
       "Run npm test before merging if this documentation update is bundled with code changes."
     ]
   },
-  "resume_instructions": "Workflow completed; use docs/index.md as the master AI retrieval entry point."
+  "resume_instructions": "Workflow completed; use knowledge-base/index.md as the master AI retrieval entry point."
 }

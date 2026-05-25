@@ -36,7 +36,7 @@ Confirm the following:
 4. Run validation commands that match the change scope.
 5. In the PR, describe the purpose, test results, and documentation synchronization.
 
-Common commands are listed in [Development Guide](development-guide.md).
+Common commands are listed in [Development Guide](../knowledge-base/development-guide.md).
 
 ## Documentation Synchronization Rules
 

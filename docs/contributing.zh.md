@@ -36,7 +36,7 @@
 4. 运行与你改动范围匹配的验证命令。
 5. 在 PR 中说明变更目的、测试结果和文档同步情况。
 
-常用开发命令见 [开发指南](development-guide.md)。
+常用开发命令见 [开发指南](../knowledge-base/development-guide.md)。
 
 ## 文档同步规则
 
